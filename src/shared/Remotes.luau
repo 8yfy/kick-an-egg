@@ -25,15 +25,37 @@
 -- S->C  WeatherChanged(weather: string?, endsAt: number?)
 -- S->C  Announce(text: string, rarity: string)
 -- C->S  TradeRequest / TradeRespond / TradeOffer / TradeConfirm (Partner B defines payloads in TradeService)
+-- C->S  Train()                                   -- one training kick at your rack (rate: Config/Upgrades.Rack.interval)
+-- C->S  UpgradeTraining()                         -- buy the next rack level (Config/Upgrades.Rack.levels)
+-- C->S  UpgradePen()                              -- buy the next pen level (Config/Upgrades.Pen)
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EVENTS = {
-	"RequestKick", "KickResult", "ChaseStart", "PickupEgg", "EggPickedUp", "EggSecured",
-	"EggLost", "ChaseEnded", "PlaceEgg", "EggHatched", "BuyUpgrade", "Rebirth",
-	"SellPet", "DataChanged", "WeatherChanged", "Announce",
-	"TradeRequest", "TradeRespond", "TradeOffer", "TradeConfirm",
+	"RequestKick",
+	"KickResult",
+	"ChaseStart",
+	"PickupEgg",
+	"EggPickedUp",
+	"EggSecured",
+	"EggLost",
+	"ChaseEnded",
+	"PlaceEgg",
+	"EggHatched",
+	"BuyUpgrade",
+	"Rebirth",
+	"SellPet",
+	"DataChanged",
+	"WeatherChanged",
+	"Announce",
+	"TradeRequest",
+	"TradeRespond",
+	"TradeOffer",
+	"TradeConfirm",
+	"Train",
+	"UpgradeTraining",
+	"UpgradePen",
 }
 
 local folder: Folder
