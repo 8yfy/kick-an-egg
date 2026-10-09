@@ -8,7 +8,7 @@
 -- No zone signs: the HUD's zone bar names zones. Every part butts against its neighbours (no coplanar
 -- overlaps), so nothing z-fights.
 -- Map v3 (Partner B, at A's request): the plaza and launch hub (arch, tiers, egg statues, braziers)
--- sit PLAZA_Y = 36 above the zones; a launch ramp (Map.Drop.Ramp, z 10..76) is the climb home for
+-- sit PLAZA_Y = 11 above the zones; a launch ramp (Map.Drop.Ramp, z 10..76) is the climb home for
 -- steered eggs; Map.Drop.PlayerBarrier (collision group "PlayerBarrier") stops characters ("Players")
 -- but not eggs ("Eggs"). Each zone has a rim plateau, a landmark (Landmarks.luau), rim decor and lane
 -- lights. The Shop/Index stalls are market halls with merchants (Merchants.luau). Lighting gets
@@ -56,7 +56,7 @@ local PROP_BAND = { 15, 20.5 }
 -- Map v3: the plaza and launch hub sit PLAZA_Y above the zones, so every kick dives into the
 -- valley. The launch ramp (RAMP_START -> RAMP_END along +Z) is the climb home for steered eggs;
 -- a player-only barrier across the canyon mouth keeps characters up top (eggs pass through).
-local PLAZA_Y = 36
+local PLAZA_Y = 11 -- about two characters tall: a gentle climb home, not a cliff
 local RAMP_START, RAMP_END = 10, 76
 local RIM_W = 60 -- canyon rim plateau width beyond each wall
 local RIM_TOP = WALL_H + 2 -- flush with the wall caps
@@ -1025,13 +1025,8 @@ local function buildBase(parent: Instance, i: number)
 	end)
 end
 
-local function tree(parent: Instance, pos: Vector3, scale: number, leaf: Color3)
-	stamp(
-		Props.tree(rgb(120, 80, 50), leaf, leaf:Lerp(rgb(255, 255, 255), 0.25)),
-		CFrame.new(pos) * CFrame.Angles(0, math.rad(pos.Z * 7 % 360), 0),
-		scale,
-		parent
-	)
+local function tree(parent: Instance, pos: Vector3, scale: number) -- the approved chunky kit tree
+	stamp(Props.kit.tree, CFrame.new(pos) * CFrame.Angles(0, math.rad(pos.Z * 7 % 360), 0), scale, parent)
 end
 
 local function buildSafeZone(map: Instance)
@@ -1113,7 +1108,7 @@ local function buildSafeZone(map: Instance)
 	for _, p in
 		{ Vector3.new(-150, 0, -175), Vector3.new(150, 0, -175), Vector3.new(-110, 0, -180), Vector3.new(110, 0, -180) }
 	do
-		tree(decor, p, 1.6, rgb(70, 170, 60))
+		tree(decor, p, 1)
 	end
 
 	local bases = folder(zone, "Bases")
@@ -1246,9 +1241,17 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 			)
 		end
 	end
+	local small = Props.small(zone.id, zone.ground)
 	for i = 1, 12 do
 		local x = (if i % 2 == 0 then 1 else -1) * rng:NextNumber(HALF + 2, INNER - 3)
 		local tuft = rng:NextNumber() < 0.6
+		if tuft then
+			local tz = z0 + rng:NextNumber(10, len - 4)
+			if tz >= minZ then
+				stamp(small[2], CFrame.new(x, 0, tz) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 3) * 90), 0), 1, f)
+			end
+			continue
+		end
 		local c = if tuft then zone.ground:Lerp(rgb(0, 0, 0), 0.25) else zone.accent:Lerp(rgb(255, 255, 255), 0.2)
 		local s = rng:NextNumber(0.5, 1.1)
 		local tz, tyaw = z0 + rng:NextNumber(10, len - 4), rng:NextInteger(0, 89)
@@ -1272,13 +1275,15 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 		local sideSign = if k % 2 == 0 then -1 else 1
 		local z = z0 + 15 + k * (len - 30) / 3 + rng:NextNumber(-4, 4)
 		local yaw = CFrame.Angles(0, math.rad(rng:NextInteger(0, 7) * 45), 0)
-		local bandX, s1, s2 =
-			rng:NextNumber(PROP_BAND[1], PROP_BAND[2]), rng:NextNumber(0.85, 1.1), rng:NextNumber(1.2, 1.5)
+		local bandX, s2 = rng:NextNumber(PROP_BAND[1], PROP_BAND[2]), rng:NextNumber(1.2, 1.5)
 		if z >= minZ then
-			stamp(kinds[k % #kinds + 1], CFrame.new(sideSign * bandX, 0, z) * yaw, s1, props)
+			local low = small[if k % 2 == 0 then 1 else 3]
+			stamp(low, CFrame.new(sideSign * bandX, 0, z) * yaw, 1, props)
 		end
 		if z + 10 >= minZ then
-			stamp(kinds[(k + 1) % #kinds + 1], CFrame.new(-sideSign * (INNER - 7), 0, z + 10) * yaw, s2, props)
+			local kind = kinds[(k + 1) % #kinds + 1]
+			local s = if Props.native[kind] then rng:NextNumber(0.95, 1.1) else s2
+			stamp(kind, CFrame.new(-sideSign * (INNER - 7), 0, z + 10) * yaw, s, props)
 		end
 	end
 
@@ -1296,7 +1301,9 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 			local scale = rng:NextNumber(1.3, 1.8)
 			local nearLandmark = k == side and math.abs(rz - mid) < 18
 			if not nearLandmark and rz >= rimStart then
-				stamp(kinds[(i + k + 3) % #kinds + 1], CFrame.new(rx, RIM_TOP, rz) * yaw, scale, rimDecor)
+				local kind = kinds[(i + k + 3) % #kinds + 1]
+				local s = if Props.native[kind] then 1 else scale
+				stamp(kind, CFrame.new(rx, RIM_TOP, rz) * yaw, s, rimDecor)
 			end
 		end
 	end
@@ -1330,6 +1337,11 @@ function MapBuilder.build(): Model
 	end
 	local map = Instance.new("Model")
 	map.Name = "Map"
+	-- read by client effects (the avalanche slams at the foot of the ramp)
+	map:SetAttribute("PlazaY", PLAZA_Y)
+	map:SetAttribute("RampStart", RAMP_START)
+	map:SetAttribute("RampEnd", RAMP_END)
+	map:SetAttribute("CanyonWidth", 2 * INNER)
 	setupCollisionGroups()
 	applyLighting()
 
@@ -1372,6 +1384,7 @@ function MapBuilder.build(): Model
 		WALL_T
 	)
 
+	Props.studAll(map) -- reference style: studs on the sides too
 	map.Parent = workspace
 	return map
 end
