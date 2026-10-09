@@ -1,0 +1,26 @@
+{
+  "name": "KickAnEgg",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "Server": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/client" }
+      }
+    },
+    "Workspace": { "$properties": { "FilteringEnabled": true } },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "Brightness": 2.5,
+        "OutdoorAmbient": [0.55, 0.55, 0.6],
+        "ClockTime": 13.5
+      }
+    }
+  }
+}

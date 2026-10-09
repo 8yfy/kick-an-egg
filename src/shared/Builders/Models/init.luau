@@ -1,0 +1,47 @@
+--!strict
+-- CONTRACT (API). Partner B adds specs in Models/Eggs/*.luau and Models/Pets/*.luau,
+-- one file per zone, e.g. Pets/Zone01.luau returning { [modelKey]: Spec }.
+-- Missing keys fall back to a placeholder so Partner A is never blocked.
+local Builder = require(script.Parent.BlockBuilder)
+local Models = {}
+
+local function placeholder(color: Color3, h: number): Builder.Spec
+	return { parts = { { name = "Body", size = { 3, h, 3 }, pos = { 0, h / 2, 0 }, color = color } } }
+end
+
+local function collect(folder: Instance?): { [string]: Builder.Spec }
+	local all = {}
+	if folder then
+		for _, m in folder:GetChildren() do
+			if m:IsA("ModuleScript") then
+				for key, spec in require(m) :: any do
+					all[key] = spec
+				end
+			end
+		end
+	end
+	return all
+end
+
+local eggSpecs = collect(script:FindFirstChild("Eggs"))
+local petSpecs = collect(script:FindFirstChild("Pets"))
+
+function Models.egg(key: string): Model
+	return Builder.build(eggSpecs[key] or placeholder(Color3.fromRGB(255, 220, 90), 4), key .. "Egg")
+end
+
+function Models.pet(key: string): Model
+	return Builder.build(petSpecs[key] or placeholder(Color3.fromRGB(255, 0, 255), 3), key)
+end
+
+function Models.eggKeysForZone(petsConfig: { any }, zone: number): { string }
+	local keys = {}
+	for _, p in petsConfig do
+		if p.zone == zone then
+			table.insert(keys, p.model)
+		end
+	end
+	return keys
+end
+
+return Models
