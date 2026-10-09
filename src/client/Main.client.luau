@@ -46,4 +46,17 @@ for _, module in modules do
 	end
 end
 
+-- Partner A's HUD root is shaped like a controller.
+local uiModule = script.Parent:FindFirstChild("UI")
+if uiModule and uiModule:IsA("ModuleScript") then
+	local ui: Controller = (require :: any)(uiModule)
+	local init, start = ui.Init, ui.Start
+	if init then
+		init(ui)
+	end
+	if start then
+		task.spawn(start, ui)
+	end
+end
+
 print(`[Client] {#modules} controllers started`)
