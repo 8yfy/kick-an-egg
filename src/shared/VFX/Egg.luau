@@ -22,6 +22,7 @@ local Burst = require(script.Parent.Burst)
 local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Themes = require(script.Parent.Themes)
+local ZoneLanding = require(script.Parent.ZoneLanding)
 
 local Egg = {}
 
@@ -185,7 +186,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 	if not pos then
 		return
 	end
-	local ground = Vector3.new(pos.X, 0.3, pos.Z)
+	-- the egg's pivot is on the ground (zones at y 0, the launch ramp higher), so follow it
+	local ground = Vector3.new(pos.X, pos.Y + 0.3, pos.Z)
 	local rarity = Rarities[params.rarity or "Common"] or Rarities.Common
 	local zone = Zones[params.zone or 1]
 	local dustColor = if zone then zone.ground:Lerp(Color3.new(1, 1, 1), 0.45) else Color3.new(1, 1, 1)
@@ -209,6 +211,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 
 	-- Rarity light pillar: 40 studs, fades over 1.5 s.
 	Fx.pillar(ground, rarity.color, 40, 1.5)
+	-- Map v3: the zone's own landing signature (shockwave, themed burst, debris, thump)
+	ZoneLanding.play(ground, params.zone)
 end
 
 local function limb(
