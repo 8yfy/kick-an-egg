@@ -13,7 +13,14 @@
         "Client": { "$path": "src/client" }
       }
     },
-    "Workspace": { "$properties": { "FilteringEnabled": true } },
+    "Workspace": {
+      "$properties": {
+        "FilteringEnabled": true,
+        "StreamingEnabled": true,
+        "StreamingMinRadius": 128,
+        "StreamingTargetRadius": 1024
+      }
+    },
     "Lighting": {
       "$properties": {
         "Technology": "Future",
