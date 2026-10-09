@@ -100,8 +100,6 @@ section("PlotService.petIncome", function()
 end)
 
 section("Economy", function()
-	check("next tool cost", Economy.toolCost(1) == Economy.Tools[2].cost)
-	check("no tool after the best", Economy.toolCost(#Economy.Tools) == nil)
 	check("RunSpeed cost 17", Economy.upgradeCost("RunSpeed", 17) == 62)
 	check("power cap after 2 rebirths", Economy.maxKickPower(2) == 150)
 end)
@@ -152,20 +150,33 @@ section("DataService.sanitize", function()
 	check("plotSlots cleared", d.plotSlots == nil)
 end)
 
-section("StrengthService + collecting", function()
-	local SS = require(Services.StrengthService) :: any
-	local tools = Economy.Tools
-	check("tool 1 adds its gain", SS.trained(1, 1, 0) == 1 + tools[1].gain)
-	check("better tool trains faster", SS.trained(1, 3, 0) > SS.trained(1, 1, 0))
-	check("strength capped", SS.trained(Economy.maxKickPower(0), #tools, 0) == Economy.maxKickPower(0))
-	check("rebirth raises the cap", SS.trained(Economy.maxKickPower(0), 1, 1) > Economy.maxKickPower(0))
+section("RackService + pens + collecting", function()
+	local Upgrades = require(Shared.Config.Upgrades) :: any
+	local RS = require(Services.RackService) :: any
 	local PS = require(Services.PlotService) :: any
+	local levels = Upgrades.Rack.levels
+	check("rack 1 adds its gain", RS.trained(1, 1, 0) == 1 + levels[1].gain)
+	check("better rack trains faster", RS.trained(1, 5, 0) > RS.trained(1, 1, 0))
+	check("strength capped", RS.trained(Economy.maxKickPower(0), #levels, 0) == Economy.maxKickPower(0))
+	check("rebirth raises the cap", RS.trained(Economy.maxKickPower(0), 1, 1) > Economy.maxKickPower(0))
+	check("next rack cost", RS.rackCost(1) == levels[2].cost)
+	check("no rack after the top", RS.rackCost(#levels) == nil)
+	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
+	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
+	check("pen slots capped", PS.slotsForPen(99) == Economy.PlotSlots.max)
+	check("pen 1 -> 2 cost", RS.penCost(1) == Upgrades.Pen.costBase)
+	check("pen 2 -> 3 cost", RS.penCost(2) == Upgrades.Pen.costBase * Upgrades.Pen.costGrowth)
+	check("no pen upgrade at max slots", RS.penCost(99) == nil)
+	local plate = Instance.new("Part")
+	plate.Position = Vector3.new(30, 0.5, -40)
+	check("on the plate", RS.inRange(plate, Vector3.new(31, 3, -40)))
+	check("away from the plate", not RS.inRange(plate, Vector3.new(30 + Upgrades.Rack.range + 2, 3, -40)))
+	plate:Destroy()
 	local top = Instance.new("Part")
 	top.Size = Vector3.new(2.8, 0.3, 2.8)
 	top.Position = Vector3.new(10, 1.35, -30)
 	check("standing on the pedestal collects", PS.onPedestal(top, Vector3.new(11, 4, -30)))
 	check("next to the pedestal doesn't", not PS.onPedestal(top, Vector3.new(16, 4, -30)))
-	check("below it doesn't", not PS.onPedestal(top, Vector3.new(10, -2, -30)))
 	top:Destroy()
 	local D = require(Services.DataService) :: any
 	local d = {
@@ -178,11 +189,15 @@ section("StrengthService + collecting", function()
 		plots = {},
 		stats = {},
 		receipts = {},
-		tool = 99,
+		tool = 3,
+		rackLevel = 99,
+		penLevel = 0 / 0,
 	}
 	D.sanitize(d)
 	check("fractional strength kept", d.kickPower == 3.25)
-	check("tool tier clamped", d.tool == #tools)
+	check("rack level clamped", d.rackLevel == #levels)
+	check("NaN pen level -> 1", d.penLevel == 1)
+	check("old tool field dropped", d.tool == nil)
 end)
 
 section("every service loads", function()

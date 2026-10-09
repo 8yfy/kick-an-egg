@@ -170,6 +170,7 @@ end
 local function groundY(x: number, z: number): number
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.RespectCanCollide = true -- skip decor like A's AmbientFx emitters; hit the real ground
 	local ignore = {}
 	for _, player in Players:GetPlayers() do
 		if player.Character then

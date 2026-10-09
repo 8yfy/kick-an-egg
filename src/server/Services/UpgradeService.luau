@@ -1,8 +1,8 @@
 --!strict
--- The shop. BuyUpgrade("RunSpeed"): +1 Run Speed (= egg speed) for Economy.upgradeCost.
--- BuyUpgrade("Tool"): the next strength-training tool (Economy.Tools). Strength (kickPower) is
--- trained with the tool, not bought. Rebirth(): only at the strength cap; resets money, strength
--- and Run Speed, keeps eggs, pets and the tool, +1 rebirth (more income, higher strength cap).
+-- The shop's speed card: BuyUpgrade("RunSpeed") = +1 Run Speed (= egg speed) for Economy.upgradeCost.
+-- Strength (kickPower) is trained at the rack and better racks are bought (RackService), so
+-- BuyUpgrade("KickPower") is ignored. Rebirth(): only at the strength cap; resets money, strength
+-- and Run Speed, keeps eggs, pets, rack and pen, +1 rebirth (more income, higher strength cap).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -16,7 +16,6 @@ local Analytics = require(script.Parent.Parent.Util.Analytics)
 local KickService = require(script.Parent.KickService)
 local ChaseService = require(script.Parent.ChaseService)
 local PlotService = require(script.Parent.PlotService)
-local StrengthService = require(script.Parent.StrengthService)
 
 local UpgradeService = {}
 
@@ -55,20 +54,6 @@ function UpgradeService:Buy(player: Player, kind: Economy.UpgradeKind): boolean
 	return true
 end
 
--- Next training tool tier (more strength per click). Returns true if bought.
-function UpgradeService:BuyTool(player: Player): boolean
-	local data = DataService:Get(player)
-	local cost = data and Economy.toolCost(data.tool)
-	if not data or not cost or data.money < cost then
-		return false
-	end
-	DataService:Set(player, { money = data.money - cost, tool = data.tool + 1 })
-	StrengthService:GiveTool(player)
-	Analytics.money(player, "Sink", cost, "Shop", Economy.Tools[data.tool].id)
-	Analytics.funnel(player, Analytics.Funnel.FirstUpgrade, "FirstUpgrade")
-	return true
-end
-
 function UpgradeService:CanRebirth(player: Player): boolean
 	local data = DataService:Get(player)
 	if not data or KickService:GetActive(player) then
@@ -101,9 +86,7 @@ function UpgradeService:Start()
 		end
 		if kind == "RunSpeed" then
 			self:Buy(player, kind)
-		elseif kind == "Tool" then
-			self:BuyTool(player)
-		end -- "KickPower" is no longer sold: strength is trained with the tool
+		end -- "KickPower" is not sold: strength is trained at the rack (RackService)
 	end)
 	Remotes.get("Rebirth").OnServerEvent:Connect(function(player: Player)
 		if limiter:allow(player) then

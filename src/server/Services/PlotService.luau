@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 local Mutations = require(Shared.Config.Mutations)
+local Upgrades = require(Shared.Config.Upgrades)
 local Pets = require(Shared.Config.Pets)
 local Builder = require(Shared.Builders.BlockBuilder)
 local Models = require(Shared.Builders.Models)
@@ -93,8 +94,14 @@ local function pedestalTop(base: Model, slot: number): BasePart?
 	return if top and top:IsA("BasePart") then top else nil
 end
 
+-- Pedestal slots from the pen level (Config/Upgrades.Pen): base at level 1, +slotsPerLevel per level.
+function PlotService.slotsForPen(penLevel: number): number
+	local slots = Economy.PlotSlots.base + (penLevel - 1) * Upgrades.Pen.slotsPerLevel
+	return math.clamp(slots, 1, Economy.PlotSlots.max)
+end
+
 local function slotCount(data: DataService.Data): number
-	return math.clamp(data.plotSlots or Economy.PlotSlots.base, 1, Economy.PlotSlots.max)
+	return PlotService.slotsForPen(data.penLevel or 1)
 end
 
 local function slotTaken(data: DataService.Data, slot: number): boolean
@@ -355,6 +362,7 @@ local function assignBase(player: Player)
 	baseOf[player] = free
 	setSign(free, player.DisplayName)
 	player:SetAttribute("BaseIndex", bestIndex)
+	PlotService:MirrorBase(player)
 	hatchDue(player, workspace:GetServerTimeNow()) -- eggs that finished while offline
 	rebuildModels(player)
 	if player.Character then
@@ -367,6 +375,9 @@ local function releaseBase(player: Player)
 	if base then
 		plotsFolder(base):ClearAllChildren()
 		setSign(base, EMPTY_SIGN)
+		base:SetAttribute("OwnerUserId", 0)
+		base:SetAttribute("RackLevel", 1)
+		base:SetAttribute("PenLevel", 1)
 	end
 	baseOf[player] = nil
 end
@@ -414,6 +425,18 @@ local function onPlaceEgg(player: Player, eggUid: any, slot: any)
 end
 
 -- Public API -----------------------------------------------------------------
+
+-- Mirrors owner and upgrade levels on Base<i> so every client can draw signs, rack tier and pen
+-- slots (Config/Upgrades contract): OwnerUserId, RackLevel, PenLevel.
+function PlotService:MirrorBase(player: Player)
+	local base = baseOf[player]
+	local data = DataService:Get(player)
+	if base and data then
+		base:SetAttribute("OwnerUserId", player.UserId)
+		base:SetAttribute("RackLevel", data.rackLevel or 1)
+		base:SetAttribute("PenLevel", data.penLevel or 1)
+	end
+end
 
 function PlotService:GetBase(player: Player): Model?
 	return baseOf[player]
@@ -468,6 +491,17 @@ end
 
 function PlotService:Start()
 	Remotes.get("PlaceEgg").OnServerEvent:Connect(onPlaceEgg)
+
+	local bases = basesFolder()
+	if bases then
+		for _, base in bases:GetChildren() do
+			if base:GetAttribute("OwnerUserId") == nil then
+				base:SetAttribute("OwnerUserId", 0) -- 0 = free (Config/Upgrades contract)
+				base:SetAttribute("RackLevel", 1)
+				base:SetAttribute("PenLevel", 1)
+			end
+		end
+	end
 
 	DataService:OnLoaded(function(player)
 		assignBase(player)

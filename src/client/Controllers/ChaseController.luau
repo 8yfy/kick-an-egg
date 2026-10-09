@@ -174,9 +174,9 @@ local function attachEgg(view: ChaseView)
 			landed:Destroy()
 		end
 	else
-		VFX.play("Landing", egg, { rarity = view.payload.rarity })
+		VFX.play("Landing", egg, { rarity = view.payload.rarity, ownerUserId = view.payload.ownerUserId })
 	end
-	VFX.play("LegsSprout", egg, {})
+	VFX.play("LegsSprout", egg, { ownerUserId = view.payload.ownerUserId })
 	view.connection = RunService.RenderStepped:Connect(function()
 		step(view)
 	end)
@@ -187,7 +187,7 @@ local function onChaseStart(payload: ChaseStartPayload)
 		return
 	end
 	local folder = Instance.new("Folder")
-	folder.Name = payload.eggUid
+	folder.Name = `Fx_{payload.eggUid}` -- not the egg's name: A's overlay finds the egg by eggUid
 	folder.Parent = chasesFolder
 
 	local view: ChaseView = {
@@ -203,6 +203,7 @@ local function onChaseStart(payload: ChaseStartPayload)
 
 	local now = workspace:GetServerTimeNow()
 	VFX.play("AvalancheWarn", folder, {
+		ownerUserId = payload.ownerUserId, -- other players' chases render at low detail
 		theme = payload.theme,
 		startZ = payload.startZ,
 		seconds = math.max(0, payload.startTime - now),
@@ -210,6 +211,7 @@ local function onChaseStart(payload: ChaseStartPayload)
 	task.delay(math.max(0, payload.startTime - now), function()
 		if views[payload.eggUid] == view then
 			VFX.play("AvalancheStart", folder, {
+				ownerUserId = payload.ownerUserId,
 				theme = payload.theme,
 				startZ = payload.startZ,
 				speed = payload.speed,
@@ -235,7 +237,7 @@ local function onEggSecured(payload: { eggUid: string })
 	end
 	view.steering = false
 	if view.egg then
-		VFX.play("EggSecured", view.egg, { rarity = view.payload.rarity })
+		VFX.play("EggSecured", view.egg, { rarity = view.payload.rarity, ownerUserId = view.payload.ownerUserId })
 	end
 	-- The avalanche keeps rolling to the safe line; ChaseEnded removes the folder.
 end
@@ -246,8 +248,12 @@ local function onEggLost(payload: { eggUid: string, reason: string })
 		return
 	end
 	if payload.reason ~= "Left" then
-		VFX.play("EggCaught", view.egg or view.folder, { theme = view.payload.theme })
-		VFX.play("AvalancheStop", view.folder, {})
+		VFX.play(
+			"EggCaught",
+			view.egg or view.folder,
+			{ theme = view.payload.theme, ownerUserId = view.payload.ownerUserId }
+		)
+		VFX.play("AvalancheStop", view.folder, { ownerUserId = view.payload.ownerUserId })
 	end
 	endView(view, if payload.reason == "Left" then 0 else CLEANUP_DELAY)
 end
@@ -257,7 +263,7 @@ local function onChaseEnded(payload: { eggUid: string })
 	if not view then
 		return
 	end
-	VFX.play("AvalancheStop", view.folder, {})
+	VFX.play("AvalancheStop", view.folder, { ownerUserId = view.payload.ownerUserId })
 	endView(view, CLEANUP_DELAY)
 end
 
