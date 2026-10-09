@@ -33,6 +33,18 @@ local function tree(bark: Color3, leaf: Color3, leaf2: Color3): Spec
 		P("Leaves1", { 4.5, 2.2, 4.5 }, { 0, 4.8, 0 }, leaf),
 		P("Leaves2", { 3.2, 1.8, 3.2 }, { 0.2, 6.6, -0.1 }, leaf2, { rot = { 0, 20, 0 } }),
 		P("Leaves3", { 1.8, 1.2, 1.8 }, { -0.1, 8, 0.1 }, leaf),
+		P("LeafSideL", { 1.6, 1.4, 1.6 }, { -2.4, 4.4, 0.6 }, leaf2, { rot = { 0, 35, 0 } }),
+		P("LeafSideR", { 1.4, 1.2, 1.4 }, { 2.3, 5.2, -0.8 }, leaf2, { rot = { 0, 15, 0 } }),
+		P(
+			"LeafTop",
+			{ 2.6, 0.3, 2.6 },
+			{ 0.2, 7.55, -0.1 },
+			leaf2:Lerp(Color3.new(1, 1, 1), 0.2),
+			{ rot = { 0, 20, 0 } }
+		),
+		P("Branch", { 0.5, 0.5, 1.6 }, { 0.6, 3.4, -0.9 }, bark, { rot = { -30, 0, 0 } }),
+		P("Root1", { 0.6, 0.5, 1.2 }, { 0.7, 0.25, 0.5 }, bark, { rot = { 0, 30, 0 } }),
+		P("Root2", { 0.6, 0.5, 1.2 }, { -0.6, 0.25, -0.5 }, bark, { rot = { 0, 70, 0 } }),
 	})
 end
 
@@ -57,6 +69,10 @@ local function rock(c: Color3, c2: Color3): Spec
 		P("Rock1", { 3, 2, 2.6 }, { 0, 1, 0 }, c, { rot = { 0, 15, 0 } }),
 		P("Rock2", { 2, 1.6, 2 }, { 1.4, 0.8, 1 }, c2, { rot = { 0, 40, 0 } }),
 		P("Rock3", { 1.4, 1, 1.4 }, { -1.3, 0.5, -0.9 }, c2, { rot = { 0, 10, 0 } }),
+		P("RockTop", { 1.8, 0.5, 1.5 }, { 0.2, 2.2, 0.1 }, c:Lerp(Color3.new(1, 1, 1), 0.15), { rot = { 0, 40, 0 } }),
+		P("Moss", { 1.6, 0.2, 1.2 }, { -0.3, 2.05, -0.2 }, Color3.fromRGB(100, 170, 70), { rot = { 0, 25, 0 } }),
+		P("Pebble1", { 0.5, 0.4, 0.5 }, { 2.2, 0.2, -0.8 }, c2, { rot = { 0, 20, 0 } }),
+		P("Pebble2", { 0.4, 0.3, 0.4 }, { -2, 0.15, 1 }, c, { rot = { 0, 50, 0 } }),
 	})
 end
 
@@ -331,6 +347,8 @@ local byZone: { { Spec } } = {
 }
 
 local Props = {}
+
+Props.tree = tree -- also used for plaza trees
 
 function Props.forZone(zone: number): { Spec }
 	return byZone[zone] or byZone[1]
