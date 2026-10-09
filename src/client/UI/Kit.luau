@@ -203,30 +203,39 @@ function Kit.button(p: ButtonProps): (TextButton, UIGradient)
 	return b, g
 end
 
--- Looping scale pulse for "NEW"/"FREE" badges. Returns a stop function.
-function Kit.pulse(gui: GuiObject, amount: number?): () -> ()
-	local scale = gui:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-	scale.Parent = gui
-	local info = TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
-	local t = TweenService:Create(scale, info, { Scale = amount or 1.12 })
-	t:Play()
-	return function()
-		t:Cancel()
-		scale.Scale = 1
-	end
-end
-
--- Pop-in: scale 0 -> 1 with Back easing.
-function Kit.pop(gui: GuiObject, seconds: number?)
-	local scale = gui:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-	scale.Parent = gui
-	scale.Scale = 0
-	Kit.tween(scale, seconds or 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
-end
-
 -- Reference-resolution scaling: every registered UIScale follows the viewport.
 local scales: { UIScale } = {}
 local current = 1
+
+-- The UIScale to animate on `gui` and its resting value (the screen scale if it is auto-scaled).
+local function scaleOf(gui: GuiObject): (UIScale, number)
+	local scale = gui:FindFirstChildOfClass("UIScale")
+	if scale then
+		return scale, if table.find(scales, scale) then current else 1
+	end
+	local s = Instance.new("UIScale")
+	s.Parent = gui
+	return s, 1
+end
+
+-- Looping scale pulse for "NEW"/"FREE" badges. Returns a stop function.
+function Kit.pulse(gui: GuiObject, amount: number?): () -> ()
+	local scale, rest = scaleOf(gui)
+	local info = TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+	local t = TweenService:Create(scale, info, { Scale = rest * (amount or 1.12) })
+	t:Play()
+	return function()
+		t:Cancel()
+		scale.Scale = rest
+	end
+end
+
+-- Pop-in: scale 0 -> rest with Back easing.
+function Kit.pop(gui: GuiObject, seconds: number?)
+	local scale, rest = scaleOf(gui)
+	scale.Scale = 0
+	Kit.tween(scale, seconds or 0.35, { Scale = rest }, Enum.EasingStyle.Back)
+end
 
 local function computeScale(): number
 	local cam = workspace.CurrentCamera

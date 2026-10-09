@@ -9,6 +9,7 @@ local Stats = require(script.Hud.Stats)
 local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
+local ChaseOverlay = require(script.Hud.ChaseOverlay)
 
 local UI = {}
 
@@ -16,6 +17,7 @@ local data: { [string]: any } = {}
 local stats: Stats.Stats
 local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
+local overlay: ChaseOverlay.ChaseOverlay
 
 function UI:Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -33,6 +35,7 @@ function UI:Init()
 	quest = QuestBar.new(gui)
 	SoundToggle.new(gui)
 	kick = KickPanel.new(gui)
+	overlay = ChaseOverlay.new(gui)
 	Kit.watchViewport()
 	stats.update(data)
 	quest.update(data)
@@ -61,8 +64,32 @@ function UI:Start()
 			if p and p.eggUid == myEgg then
 				myEgg = nil
 				kick.setBusy(false)
+				overlay.stop()
 			end
 		end)
+
+		-- Chase overlay: only for our own chase (ChaseStart goes to every client).
+		local me = Players.LocalPlayer.UserId
+		local overlayEgg: string? = nil
+		Remotes.get("ChaseStart").OnClientEvent:Connect(function(p: { [string]: any })
+			if p.ownerUserId == me then
+				overlayEgg = p.eggUid
+				overlay.start(p)
+			end
+		end)
+		Remotes.get("EggPickedUp").OnClientEvent:Connect(function(p: { [string]: any })
+			if p.eggUid == overlayEgg and p.userId == me then
+				overlay.pickedUp()
+			end
+		end)
+		for _, name in { "EggSecured", "EggLost" } do
+			Remotes.get(name).OnClientEvent:Connect(function(p: { [string]: any })
+				if p and p.eggUid == overlayEgg then
+					overlayEgg = nil
+					overlay.stop()
+				end
+			end)
+		end
 	end)
 end
 
