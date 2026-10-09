@@ -1,6 +1,5 @@
 --!strict
--- The local player's base: workspace.Map.SafeZone.Bases.Base<i> whose OwnerUserId attribute is ours
--- (set by Partner B's PlotService). Levels fall back to data.rackLevel / data.penLevel, then 1.
+-- The local player's base: Base<player.BaseIndex> (PlotService), else the base whose OwnerUserId is ours. Levels fall back to data.rackLevel / data.penLevel, then 1.
 local Players = game:GetService("Players")
 
 local MyBase = {}
@@ -11,6 +10,13 @@ function MyBase.get(): Model?
 	local bases = zone and zone:FindFirstChild("Bases")
 	if not bases then
 		return nil
+	end
+	local index = Players.LocalPlayer:GetAttribute("BaseIndex") -- set by PlotService on join
+	if typeof(index) == "number" then
+		local b = bases:FindFirstChild(`Base{index}`)
+		if b and b:IsA("Model") then
+			return b
+		end
 	end
 	local me = Players.LocalPlayer.UserId
 	for _, b in bases:GetChildren() do
