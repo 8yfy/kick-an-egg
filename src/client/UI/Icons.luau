@@ -1,22 +1,33 @@
 --!strict
--- Flat cartoon UI icons designed in Figma ("Kick the Egg — UI Icons", source PNGs in assets/ui-icons)
--- and uploaded to Roblox. Icons.view(parent, name, size?) -> ImageLabel.
+-- Cartoon UI icons (512 px transparent PNGs from the "Flex A Pet" icon pack, sources in assets/ui-icons)
+-- uploaded to Roblox. Icons.glow(parent) adds the soft glow used behind featured icons. Icons.view(parent, name, size?) -> ImageLabel.
 -- Icons.rack(parent, tier) renders a live 3D preview of a training station (Shop only).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local IDS: { [string]: string } = {
-	Book = "rbxassetid://94821788169433",
-	Cart = "rbxassetid://87731851786628",
-	Rebirth = "rbxassetid://86367013289364",
-	Trade = "rbxassetid://127508912627543",
-	Gear = "rbxassetid://117181078576708",
-	Cash = "rbxassetid://121833459541106",
-	Boot = "rbxassetid://76846640911342",
-	Bolt = "rbxassetid://135208817381331",
-	Egg = "rbxassetid://137658338811044",
-	Paw = "rbxassetid://123408591131262",
+	Shop = "rbxassetid://132910564494130",
+	Index = "rbxassetid://126256569858051",
+	Rebirth = "rbxassetid://113623474106175",
+	Trade = "rbxassetid://109855075288503",
+	Settings = "rbxassetid://95627212951225",
+	Coins = "rbxassetid://75117087575516",
+	WalkSpeed = "rbxassetid://101868527178776",
+	Power = "rbxassetid://71794317489960",
+	PetSlots = "rbxassetid://140466692425935",
+	Pets = "rbxassetid://113010957021814",
+	Hatch = "rbxassetid://115696461322982",
+	Sound = "rbxassetid://92360072113067",
+	Close = "rbxassetid://118401516062764",
+	CoinBoost = "rbxassetid://70443158948695",
+	Gamepasses = "rbxassetid://105143391724931",
+	Luck = "rbxassetid://78520637349210",
+	Quests = "rbxassetid://105409041159249",
+	New = "rbxassetid://92832610420901",
+	Glow = "rbxassetid://79458319600739",
 }
-IDS.Chest = IDS.Cart -- old name
+-- older names used around the UI
+IDS.Cart, IDS.Chest, IDS.Book, IDS.Gear = IDS.Shop, IDS.Shop, IDS.Index, IDS.Settings
+IDS.Cash, IDS.Boot, IDS.Bolt, IDS.Egg, IDS.Paw = IDS.Coins, IDS.WalkSpeed, IDS.Power, IDS.PetSlots, IDS.Pets
 
 local Icons = {}
 
@@ -28,6 +39,14 @@ function Icons.view(parent: Instance, name: string, size: UDim2?): ImageLabel
 	img.Image = IDS[name] or ""
 	img.ScaleType = Enum.ScaleType.Fit
 	img.Parent = parent
+	return img
+end
+
+function Icons.glow(parent: Instance, size: UDim2?): ImageLabel
+	local img = Icons.view(parent, "Glow", size)
+	img.Name = "Glow"
+	img.ZIndex = 0
+	img.ImageTransparency = 0.35
 	return img
 end
 

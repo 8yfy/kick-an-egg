@@ -35,9 +35,10 @@ function SoundToggle.new(parent: Instance)
 	Kit.autoScale(holder)
 	local button: TextButton
 	local gradient: UIGradient
+	local icon: ImageLabel
 	button, gradient = Kit.button({
 		name = "Sound",
-		text = "🔊",
+		text = "",
 		size = UDim2.fromScale(1, 1),
 		parent = holder,
 		colors = Kit.Colors.blue,
@@ -46,11 +47,12 @@ function SoundToggle.new(parent: Instance)
 			on = not on
 			master.Volume = if on then VOLUME else 0
 			Players.LocalPlayer:SetAttribute("SoundOn", on)
-			local label = button:FindFirstChild("Label") :: TextLabel
-			label.Text = if on then "🔊" else "🔇"
+			icon.ImageTransparency = if on then 0 else 0.55
 			gradient.Color = ColorSequence.new(table.unpack(if on then Kit.Colors.blue else Kit.Colors.grey))
 		end,
 	})
+	icon = require(script.Parent.Parent.Icons).view(button, "Sound", UDim2.new(1, -10, 1, -10))
+	icon.Position = UDim2.fromOffset(5, 5)
 	local ratio = Instance.new("UIAspectRatioConstraint")
 	ratio.Parent = button
 	Players.LocalPlayer:SetAttribute("SoundOn", on)

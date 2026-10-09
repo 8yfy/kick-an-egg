@@ -46,6 +46,7 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 		colors = { Color3.fromRGB(58, 60, 78), Color3.fromRGB(36, 38, 52) },
 		radius = 12,
 	})
+	Kit.studs(inner, 36).ImageTransparency = 0.5
 	local outline = inner:FindFirstChildOfClass("UIStroke")
 	if outline then
 		outline.Thickness = 5
@@ -60,6 +61,7 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 		radius = 12,
 	})
 	header.ClipsDescendants = true
+	Kit.studs(header)
 	for i = 0, 5 do
 		local stripe = Instance.new("Frame")
 		stripe.Name = "Stripe"

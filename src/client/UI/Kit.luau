@@ -133,6 +133,35 @@ function Kit.label(p: TextProps): TextLabel
 	return l
 end
 
+-- Faint tiled stud pattern behind a panel/button's content (Figma asset, assets/ui-icons/StudPattern.png).
+Kit.STUDS = "rbxassetid://137675892333527"
+function Kit.studs(parent: GuiObject, tile: number?): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Studs"
+	img.BackgroundTransparency = 1
+	img.Size = UDim2.fromScale(1, 1)
+	img.Image = Kit.STUDS
+	img.ScaleType = Enum.ScaleType.Tile
+	img.TileSize = UDim2.fromOffset(tile or 28, tile or 28)
+	img.ZIndex = 0 -- behind the parent's other children
+	local c = parent:FindFirstChildOfClass("UICorner")
+	if c then
+		c:Clone().Parent = img
+	end
+	img.Parent = parent
+	return img
+end
+
+-- Text with a vertical gradient fill and a thick dark outline (big stat numbers, banners).
+function Kit.gradientText(label: TextLabel, top: Color3, bottom: Color3): UIGradient
+	label.TextColor3 = Color3.new(1, 1, 1)
+	local g = label:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Color = ColorSequence.new(top, bottom)
+	g.Parent = label
+	return g
+end
+
 -- Squash on press (0.9) and spring back with Back easing on release.
 function Kit.bouncy(button: GuiButton): UIScale
 	local scale = Instance.new("UIScale")
@@ -185,6 +214,7 @@ function Kit.button(p: ButtonProps): (TextButton, UIGradient)
 	local g = Kit.gradient(b, p.colors)
 	Kit.corner(b, p.radius or 18)
 	Kit.borderStroke(b)
+	Kit.studs(b)
 	Kit.label({
 		name = "Label",
 		text = p.text,

@@ -1,7 +1,7 @@
 --!strict
--- Menu buttons and windows. Left side (next to the zone bar): a 2 x 2 grid of big square buttons with
--- 3D block icons (Index, Shop, Rebirth, Trade); Settings is a gear at the top right by the sound toggle.
--- Menus.open(name) lets prompts / the "+" button open a window.
+-- Menu buttons and windows. Left side (next to the zone bar): a stack of wide, outlined, studded
+-- buttons with a Figma icon + label (Shop, Index, Rebirth, Trade); Settings is a gear at the top right.
+-- Menus.open(name) lets prompts / the "+" badge open a window.
 local Kit = require(script.Parent.Kit)
 local Icons = require(script.Parent.Icons)
 local IndexMenu = require(script.IndexMenu)
@@ -14,7 +14,8 @@ export type Menus = { update: (data: { [string]: any }) -> (), open: (name: stri
 
 local Menus = {}
 
-local SIZE, GAP = 118, 12
+local BTN_W, BTN_H, GAP = 210, 68, 12
+local rgb = Color3.fromRGB
 
 function Menus.new(parent: Instance): Menus
 	local menus: { [string]: any } = {
@@ -33,28 +34,27 @@ function Menus.new(parent: Instance): Menus
 		end
 	end
 
-	local grid = Kit.panel({
-		name = "MenuGrid",
-		size = UDim2.fromOffset(2 * SIZE + GAP, 2 * SIZE + GAP),
+	local entries = {
+		{ "Store", "Cart", "Shop", { rgb(135, 245, 70), rgb(70, 200, 40) } },
+		{ "Index", "Book", "Index", { rgb(90, 225, 255), rgb(30, 165, 240) } },
+		{ "Rebirth", "Rebirth", "Rebirth", { rgb(255, 190, 70), rgb(245, 125, 30) } },
+		{ "Trade", "Trade", "Trade", { rgb(205, 130, 255), rgb(150, 70, 240) } },
+	}
+	local stack = Kit.panel({
+		name = "MenuStack",
+		size = UDim2.fromOffset(BTN_W, #entries * (BTN_H + GAP)),
 		position = UDim2.new(0, 84, 0.42, 0),
 		anchor = Vector2.new(0, 0.5),
 		parent = parent,
 	})
-	Kit.autoScale(grid)
-	local layout = Instance.new("UIGridLayout")
-	layout.CellSize = UDim2.fromOffset(SIZE, SIZE)
-	layout.CellPadding = UDim2.fromOffset(GAP, GAP)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = grid
+	Kit.autoScale(stack)
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, GAP)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = stack
 
-	local entries = {
-		{ "Index", "Book", "Index", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
-		{ "Store", "Cart", "Shop", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
-		{ "Rebirth", "Rebirth", "Rebirth", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
-		{ "Trade", "Trade", "Trade", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
-	}
 	for i, e in entries do
-		local holder = Kit.panel({ name = e[1], size = UDim2.fromOffset(SIZE, SIZE), parent = grid })
+		local holder = Kit.panel({ name = e[1], size = UDim2.fromOffset(BTN_W, BTN_H), parent = stack })
 		holder.LayoutOrder = i
 		local button = Kit.button({
 			name = "Button",
@@ -62,7 +62,7 @@ function Menus.new(parent: Instance): Menus
 			size = UDim2.fromScale(1, 1),
 			parent = holder,
 			colors = e[4],
-			radius = 14,
+			radius = 8,
 			onClick = function()
 				toggle(e[1])
 			end,
@@ -70,27 +70,29 @@ function Menus.new(parent: Instance): Menus
 		local stroke = button:FindFirstChildOfClass("UIStroke")
 		if stroke then
 			stroke.Thickness = 4
+			stroke.Color = e[4][2]:Lerp(rgb(0, 0, 0), 0.65)
 		end
-		Icons.view(button, e[2], UDim2.new(1, -16, 1, -34)).Position = UDim2.fromOffset(8, 4)
+		Icons.view(button, e[2], UDim2.fromOffset(56, 56)).Position = UDim2.fromOffset(10, 6)
 		Kit.label({
 			name = "Caption",
 			text = e[3],
-			size = UDim2.new(1, -8, 0, 34),
-			position = UDim2.new(0, 4, 1, -36),
+			size = UDim2.new(1, -84, 0, 44),
+			position = UDim2.fromOffset(74, 12),
 			parent = button,
+			align = Enum.TextXAlignment.Left,
 			stroke = 4,
 		})
 		if e[1] == "Store" then
 			local badge = Kit.panel({
 				name = "Badge",
-				size = UDim2.fromOffset(70, 30),
-				position = UDim2.new(1, 10, 0, -10),
+				size = UDim2.fromOffset(64, 28),
+				position = UDim2.new(1, 12, 0, -12),
 				anchor = Vector2.new(1, 0),
 				parent = holder,
 				colors = Kit.Colors.red,
 				radius = 6,
 			})
-			badge.Rotation = 6
+			badge.Rotation = 8
 			badge.ZIndex = 3
 			Kit.label({
 				name = "Text",
@@ -118,7 +120,7 @@ function Menus.new(parent: Instance): Menus
 		size = UDim2.fromScale(1, 1),
 		parent = gear,
 		colors = Kit.Colors.grey,
-		radius = 18,
+		radius = 10,
 		onClick = function()
 			toggle("Settings")
 		end,
