@@ -1,7 +1,9 @@
 # Kick the Egg!
 
-Kick an egg down a runway through 20 zones, watch it spin through the zone's eggs, land on a
-random one, hatch it on your plot and collect cool bricky pets with size and weather mutations.
+Kick an egg down a runway through 20 zones and watch it spin through each zone's eggs until it lands
+on a random one. It sprouts legs and runs for its life from a themed avalanche, so sprint out, grab it
+and get back to safety before you're crushed. Then hatch it on your plot and collect cool bricky
+pets with size and weather mutations.
 
 ## Setup (both partners)
 1. Install [Rokit](https://github.com/rojo-rbx/rokit), then run `rokit install` in this folder.

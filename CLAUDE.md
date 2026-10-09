@@ -3,12 +3,30 @@
 Roblox game, Luau, synced with Rojo (`default.project.json`). Two partners work in parallel:
 **Partner A = art/models/VFX/UI**, **Partner B = gameplay/server/data**. See `docs/TASKS.md` for who owns what.
 
-## The game in one paragraph
-Player taps KICK → an egg flies down a runway through 20 zones. Each time it enters a new zone,
-it does a quick spin animation cycling through that zone's egg models. When it lands, it settles on
-the egg the server already rolled (RNG). The player carries/places the egg on their plot; it hatches
-after a timer into the matching pet. Pets can roll **size mutations** and **weather mutations**,
-sit on the plot and earn $/s. Money → Kick Power / Run Speed upgrades → Rebirth.
+## The core loop (exact order; numbers live in `Config/Chase.luau`)
+1. **Kick.** Player stands on the kick pad (0,0,0) and taps KICK; a timing meter sets `timing` 0..1.
+   The server rolls distance, landing zone, egg/pet (weighted per zone), size and weather mutation,
+   and fires `KickResult`. The player cannot kick again until this chase ends.
+2. **Flight.** The egg flies along +Z in an arc for `Chase.flightSeconds(distance)`. Every time it
+   enters a new zone it plays `EggSpin`: a fast spin that cycles through that zone's egg models like a
+   slot machine. The last spin slows down and stops on the rolled egg.
+3. **Touchdown.** Dust burst, a light pillar in the rarity color, and stubby blocky legs sprout out
+   (`LegsSprout`, squash and stretch).
+4. **Avalanche.** The ground shakes and a "RUN!" banner appears for `warnSeconds`. Then a themed
+   avalanche (rock, snow, lava, candy… per zone) bursts out of the ground 60 studs behind the egg and
+   rolls toward the bases (-Z) at `Chase.avalancheSpeed(landZone)`, chasing everything in its path.
+5. **The egg runs.** The legged egg panics and sprints toward the bases, zig-zagging. It is slower than
+   the avalanche, so it gets caught unless the player reaches it first.
+6. **Rescue.** The player runs out into the field, touches the egg to pick it up (held overhead,
+   legs kicking) and sprints back. Run Speed upgrades are what make far zones survivable.
+7. **Outcome.** Cross the safe line (Z < -6) holding the egg → `EggSecured`, and the egg goes into the
+   inventory. If the avalanche front reaches the player → `EggLost` ("Caught"): the player is flung,
+   the egg shatters, and the player respawns at their base. If it reaches the egg before pickup → `EggLost` ("EggCaught").
+8. **Hatch and earn.** The secured egg is placed on a plot pedestal, wobbles and cracks over
+   `hatchSeconds`, and bursts into its pet. Pets keep their size/weather mutation and earn $/s.
+   Money buys Kick Power and Run Speed upgrades, and at max power the player can Rebirth.
+
+The avalanche only hurts its owner. Other players see it but are never caught by it.
 
 ## Hard rules
 1. **Server decides everything.** Distance, landing zone, egg roll and mutations are rolled on the

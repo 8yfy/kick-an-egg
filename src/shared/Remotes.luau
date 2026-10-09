@@ -2,9 +2,20 @@
 -- CONTRACT FILE: change only via a `contract:` PR.
 -- Server creates the folder; client waits for it. All C->S remotes are rate-limited on the server.
 --
--- C->S  RequestKick(timing: number 0..1)
--- S->C  KickResult({ zonesCrossed: {number}, landZone: number, distance: number,
---                     eggModel: string, petId: string, size: string?, weather: string?, eggUid: string })
+-- All times are server time (workspace:GetServerTimeNow()). All positions use the axes in Config/Chase.
+--
+-- C->S  RequestKick(timing: number 0..1)          -- rejected while the player has an active chase
+-- S->C  KickResult({ eggUid: string, zonesCrossed: {number}, landZone: number, distance: number,
+--                     landPos: Vector3, launchTime: number, flightSeconds: number,
+--                     eggModel: string, petId: string, rarity: string, size: string?, weather: string? })
+-- S->C  ChaseStart({ eggUid: string, ownerUserId: number, theme: string, startZ: number,
+--                     startTime: number, speed: number, eggStartPos: Vector3, eggRunStart: number })
+--                     -- fired to ALL clients at touchdown; startTime = touchdown + warnSeconds
+-- C->S  PickupEgg(eggUid: string)                  -- server checks distance <= Egg.pickupDistance
+-- S->C  EggPickedUp({ eggUid: string, userId: number })
+-- S->C  EggSecured({ eggUid: string })             -- owner crossed SafeLineZ while carrying it
+-- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" })
+-- S->C  ChaseEnded({ eggUid: string })             -- avalanche crumbles at the safe line
 -- C->S  PlaceEgg(eggUid: string, slot: number)
 -- S->C  EggHatched({ eggUid: string, slot: number, petUid: string })
 -- C->S  BuyUpgrade(kind: "KickPower" | "RunSpeed")
@@ -19,7 +30,8 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EVENTS = {
-	"RequestKick", "KickResult", "PlaceEgg", "EggHatched", "BuyUpgrade", "Rebirth",
+	"RequestKick", "KickResult", "ChaseStart", "PickupEgg", "EggPickedUp", "EggSecured",
+	"EggLost", "ChaseEnded", "PlaceEgg", "EggHatched", "BuyUpgrade", "Rebirth",
 	"SellPet", "DataChanged", "WeatherChanged", "Announce",
 	"TradeRequest", "TradeRespond", "TradeOffer", "TradeConfirm",
 }
