@@ -145,15 +145,19 @@ function KickPanel.new(parent: Instance): KickPanel
 	button, gradient = Kit.button({
 		name = "Kick",
 		text = "KICK!",
-		size = UDim2.fromOffset(180, 80),
+		size = UDim2.fromOffset(240, 86),
 		position = UDim2.new(0.5, 0, 1, 0),
 		anchor = Vector2.new(0.5, 1),
 		parent = root,
-		colors = Kit.Colors.red,
+		colors = { Color3.fromRGB(135, 245, 70), Color3.fromRGB(60, 190, 40) },
 		radius = 20,
 		onClick = kick,
 	})
 	local buttonLabel = button:FindFirstChild("Label") :: TextLabel
+	buttonLabel.Size = UDim2.new(1, -96, 0.7, 0)
+	buttonLabel.Position = UDim2.new(0.5, 34, 0.5, 0)
+	local kickIcon = require(script.Parent.Parent.Icons).view(button, "Power", UDim2.fromOffset(76, 76))
+	kickIcon.Position = UDim2.fromOffset(8, 5)
 
 	local function setMode(m: string)
 		if m == mode then
@@ -162,7 +166,10 @@ function KickPanel.new(parent: Instance): KickPanel
 		mode = m
 		local ready = m == "ready"
 		button.Active = ready
-		gradient.Color = ColorSequence.new(table.unpack(if ready then Kit.Colors.red else Kit.Colors.grey))
+		gradient.Color = if ready
+			then ColorSequence.new(Color3.fromRGB(135, 245, 70), Color3.fromRGB(60, 190, 40))
+			else ColorSequence.new(table.unpack(Kit.Colors.grey))
+		kickIcon.ImageTransparency = if ready then 0 else 0.4
 		buttonLabel.Text = if m == "busy" then "CHASE!" else "KICK!"
 		meter.Visible = ready
 		if m == "far" then

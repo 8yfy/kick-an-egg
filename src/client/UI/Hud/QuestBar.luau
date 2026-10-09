@@ -19,22 +19,11 @@ function QuestBar.new(parent: Instance): QuestBar
 	})
 	Kit.autoScale(root)
 
-	local tag = Kit.panel({
-		name = "Tag",
-		size = UDim2.fromOffset(104, 40),
-		position = UDim2.new(0, -10, 0, -14),
-		parent = root,
-		colors = Kit.Colors.purple,
-		radius = 12,
-	})
-	tag.Rotation = -6
-	Kit.label({
-		name = "Text",
-		text = "QUEST",
-		size = UDim2.fromScale(0.86, 0.8),
-		position = UDim2.fromScale(0.07, 0.1),
-		parent = tag,
-	})
+	Kit.studs(root)
+	local Icons = require(script.Parent.Parent.Icons)
+	local tag = Icons.view(root, "Quests", UDim2.fromOffset(84, 84))
+	tag.Position = UDim2.fromOffset(4, -12)
+	tag.Rotation = -8
 
 	local badge = Kit.panel({
 		name = "New",
