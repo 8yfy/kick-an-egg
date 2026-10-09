@@ -285,6 +285,8 @@ local function startChase(pending: KickService.PendingChase)
 		speed = chase.speed,
 		eggStartPos = chase.landPos,
 		eggRunStart = chase.eggRunStart,
+		eggModel = pending.eggModel, -- so other players draw the right egg
+		rarity = pending.rarity,
 	})
 end
 
