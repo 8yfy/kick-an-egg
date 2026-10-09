@@ -19,14 +19,16 @@ Roblox game, Luau, synced with Rojo (`default.project.json`). Two partners work 
    egg: their movement input (keyboard / thumbstick, camera-relative) steers the legged egg, the
    camera follows it, and their character waits where it is. The egg is a server model at
    `workspace.Chases[eggUid]` that the owner's client drives physically; the server validates it.
-6. **Race home.** Steer the egg back toward the bases ahead of the avalanche. Egg speed =
-   `runSpeed × speedMultiplier`: Run Speed is bought, the speed multiplier is trained on the
-   training pad (time on the pad × the pad's level). Faster eggs survive farther zones.
+6. **Race home.** Steer the egg back toward the bases ahead of the avalanche. Egg speed = the
+   player's Run Speed, bought in the shop. Faster eggs survive farther zones.
 7. **Outcome.** The egg crosses the safe line (Z < -6) → `EggSecured`, and the egg goes into the
    inventory. If the avalanche front reaches the egg → `EggLost` ("EggCaught"): the egg shatters.
 8. **Hatch and earn.** The secured egg is placed on a plot pedestal, wobbles and cracks over
-   `hatchSeconds`, and bursts into its pet. Pets keep their size/weather mutation and earn $/s.
-   Money buys Kick Power, Run Speed and training pad upgrades, and at max power the player can Rebirth.
+   `hatchSeconds`, and bursts into its pet. Pets keep their size/weather mutation and earn $/s,
+   which piles up on their pedestal until the owner steps onto it to collect it.
+9. **Shop and strength.** Money buys more Run Speed or a better training tool. Strength (kick power,
+   how far you kick) is trained by clicking with the tool; better tools add more per click. At max
+   strength the player can Rebirth.
 
 The avalanche only hurts its owner. Other players see it but are never caught by it.
 

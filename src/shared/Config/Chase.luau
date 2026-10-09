@@ -63,7 +63,7 @@ local Chase = {
 
 	Egg = {
 		runDelay = 0.9, -- seconds after touchdown (legs sprout) before the player can steer it
-		-- The egg is steered by its owner at runSpeed x speedMultiplier (Economy / training pad).
+		-- The egg is steered by its owner at their Run Speed (bought in the shop).
 		-- Unused since the steering change (kept so old code doesn't break): runSpeed, zigzag,
 		-- pickupDistance, Carry, Caught.
 		runSpeed = 7,

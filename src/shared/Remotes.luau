@@ -21,7 +21,8 @@
 -- S->C  ChaseEnded({ eggUid: string })             -- avalanche crumbles at the safe line
 -- C->S  PlaceEgg(eggUid: string, slot: number)
 -- S->C  EggHatched({ eggUid: string, slot: number, petUid: string })
--- C->S  BuyUpgrade(kind: "KickPower" | "RunSpeed" | "TrainingPad")
+-- C->S  BuyUpgrade(kind: "RunSpeed" | "Tool")          -- shop: +1 Run Speed, or the next training tool
+--                                                  -- ("KickPower" is no longer sold: strength is trained)
 -- C->S  Rebirth()
 -- C->S  SellPet(petUid: string)
 -- S->C  DataChanged(partial: {[string]: any})
