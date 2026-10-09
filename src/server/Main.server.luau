@@ -22,17 +22,17 @@ end
 
 for _, module in modules do
 	local service = services[module.Name]
-	if service.Init then
-		service:Init()
+	local init = service.Init
+	if init then
+		init(service)
 	end
 end
 
 for _, module in modules do
 	local service = services[module.Name]
-	if service.Start then
-		task.spawn(function()
-			service:Start()
-		end)
+	local start = service.Start
+	if start then
+		task.spawn(start, service)
 	end
 end
 

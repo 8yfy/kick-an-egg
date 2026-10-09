@@ -32,17 +32,17 @@ end
 
 for _, module in modules do
 	local controller = controllers[module.Name]
-	if controller.Init then
-		controller:Init()
+	local init = controller.Init
+	if init then
+		init(controller)
 	end
 end
 
 for _, module in modules do
 	local controller = controllers[module.Name]
-	if controller.Start then
-		task.spawn(function()
-			controller:Start()
-		end)
+	local start = controller.Start
+	if start then
+		task.spawn(start, controller)
 	end
 end
 
