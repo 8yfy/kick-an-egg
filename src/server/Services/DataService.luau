@@ -43,6 +43,7 @@ local TEMPLATE: Data = {
 	stats = { kicks = 0, secured = 0, lost = 0 },
 	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
 	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
+	tool = 1, -- best training tool tier owned (Economy.Tools); kickPower is the strength it trains
 }
 
 local DataService = {}
@@ -89,7 +90,7 @@ local function sanitize(data: Data)
 	data.rebirths = if isFinite(data.rebirths) then math.max(0, math.floor(data.rebirths)) else 0
 	local powerCap = Economy.maxKickPower(data.rebirths)
 	data.kickPower = if isFinite(data.kickPower)
-		then math.clamp(math.floor(data.kickPower), Economy.KickPower.base, powerCap)
+		then math.clamp(data.kickPower, Economy.KickPower.base, powerCap) -- strength is fractional
 		else Economy.KickPower.base
 	data.runSpeed = if isFinite(data.runSpeed)
 		then math.clamp(math.floor(data.runSpeed), Economy.RunSpeed.base, Economy.RunSpeed.max)
@@ -98,6 +99,7 @@ local function sanitize(data: Data)
 		data.plotSlots = nil
 	end
 	data.onboarding = if isFinite(data.onboarding) then data.onboarding else 0
+	data.tool = if isFinite(data.tool) then math.clamp(math.floor(data.tool), 1, #Economy.Tools) else 1
 end
 
 local function keyFor(player: Player): string

@@ -16,7 +16,8 @@
 --   `confirmAfter` (server time, 2 s after the last change) so offers can't be swapped at the last moment.
 --   Received pets go onto free pedestals (PlotService:PlaceUnplacedPets), or stay in the inventory.
 --
---   C->S SellPet(petUid: string) → money += base income x size x weather x Economy.SellIncomeSeconds.
+--   C->S SellPet(petUid: string) → money += base income x size x weather x Economy.SellIncomeSeconds,
+--        plus the pet's uncollected cash. Traded pets keep their uncollected cash.
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -260,7 +261,7 @@ local function onSellPet(player: Player, petUid: any)
 	end
 	local pets = table.clone(data.pets)
 	pets[petUid] = nil
-	local value = TradeService.sellValue(pet)
+	local value = TradeService.sellValue(pet) + math.floor(pet.stored or 0) -- uncollected cash too
 	DataService:Set(player, { pets = pets, money = data.money + value })
 	Analytics.money(player, "Source", value, "Gameplay", "SellPet")
 	PlotService:Refresh(player)

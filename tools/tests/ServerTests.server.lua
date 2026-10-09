@@ -82,8 +82,7 @@ section("ChaseService (steered egg)", function()
 		out = CS.decide(c, t, Vector3.new(5, 0, -20))
 	end
 	check("Ended after secure", out == "Ended")
-	check("speed = runSpeed x multiplier", CS.eggSpeedFor({ runSpeed = 20, speedMultiplier = 1.5 }) == 30)
-	check("multiplier defaults to 1", CS.eggSpeedFor({ runSpeed = 20 }) == 20)
+	check("egg speed = Run Speed", CS.eggSpeedFor({ runSpeed = 20 }) == 20)
 	check("normal move is plausible", CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 2), 0.1, 16))
 	check("teleport rejected", not CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 300), 0.1, 16))
 	check("teleport plausible later", CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 300), 9, 16))
@@ -101,8 +100,8 @@ section("PlotService.petIncome", function()
 end)
 
 section("Economy", function()
-	check("KickPower cost 1", Economy.upgradeCost("KickPower", 1) == 25)
-	check("KickPower cost 2", Economy.upgradeCost("KickPower", 2) == 29)
+	check("next tool cost", Economy.toolCost(1) == Economy.Tools[2].cost)
+	check("no tool after the best", Economy.toolCost(#Economy.Tools) == nil)
 	check("RunSpeed cost 17", Economy.upgradeCost("RunSpeed", 17) == 62)
 	check("power cap after 2 rebirths", Economy.maxKickPower(2) == 150)
 end)
@@ -151,6 +150,39 @@ section("DataService.sanitize", function()
 	check("eggs restored", typeof(d.eggs) == "table")
 	check("onboarding reset", d.onboarding == 0)
 	check("plotSlots cleared", d.plotSlots == nil)
+end)
+
+section("StrengthService + collecting", function()
+	local SS = require(Services.StrengthService) :: any
+	local tools = Economy.Tools
+	check("tool 1 adds its gain", SS.trained(1, 1, 0) == 1 + tools[1].gain)
+	check("better tool trains faster", SS.trained(1, 3, 0) > SS.trained(1, 1, 0))
+	check("strength capped", SS.trained(Economy.maxKickPower(0), #tools, 0) == Economy.maxKickPower(0))
+	check("rebirth raises the cap", SS.trained(Economy.maxKickPower(0), 1, 1) > Economy.maxKickPower(0))
+	local PS = require(Services.PlotService) :: any
+	local top = Instance.new("Part")
+	top.Size = Vector3.new(2.8, 0.3, 2.8)
+	top.Position = Vector3.new(10, 1.35, -30)
+	check("standing on the pedestal collects", PS.onPedestal(top, Vector3.new(11, 4, -30)))
+	check("next to the pedestal doesn't", not PS.onPedestal(top, Vector3.new(16, 4, -30)))
+	check("below it doesn't", not PS.onPedestal(top, Vector3.new(10, -2, -30)))
+	top:Destroy()
+	local D = require(Services.DataService) :: any
+	local d = {
+		money = 0,
+		kickPower = 3.25,
+		runSpeed = 16,
+		rebirths = 0,
+		eggs = {},
+		pets = {},
+		plots = {},
+		stats = {},
+		receipts = {},
+		tool = 99,
+	}
+	D.sanitize(d)
+	check("fractional strength kept", d.kickPower == 3.25)
+	check("tool tier clamped", d.tool == #tools)
 end)
 
 section("every service loads", function()

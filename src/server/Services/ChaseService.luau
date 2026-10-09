@@ -4,7 +4,7 @@
 -- AlignOrientation; at controlStart (= ChaseStart.eggRunStart) it hands physics ownership to the
 -- owner, whose client drives it (like a vehicle). The owner's character is frozen meanwhile.
 -- Every 0.1 s the server validates the egg's position (speed limit, snap-back on teleports) and
--- decides EggCaught / EggSecured / ChaseEnded. Egg speed = runSpeed x speedMultiplier.
+-- decides EggCaught / EggSecured / ChaseEnded. Egg speed = the player's Run Speed (bought in the shop).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -95,7 +95,7 @@ function ChaseService.eggSpeedFor(data: { [string]: any }?): number
 	if not data then
 		return Economy.RunSpeed.base
 	end
-	return data.runSpeed * (data.speedMultiplier or 1)
+	return data.runSpeed
 end
 
 -- Player helpers -----------------------------------------------------------
@@ -376,7 +376,7 @@ function ChaseService:GetChase(player: Player): ChaseState?
 	return chases[player]
 end
 
--- Re-applies speeds after runSpeed / speedMultiplier change (upgrade, rebirth, training).
+-- Re-applies speeds after runSpeed changes (shop purchase, rebirth).
 function ChaseService:RefreshWalkSpeed(player: Player)
 	local data = DataService:Get(player)
 	local _, humanoid = rootPart(player)
