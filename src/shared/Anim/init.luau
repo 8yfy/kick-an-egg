@@ -1,8 +1,10 @@
 --!strict
 -- CONTRACT (API). Partner A implements procedural animations on BlockBuilder rigs (Motor6D groups).
--- Names B will call: "EggRun" (panicked legged-egg sprint), "EggCarried" (legs kicking while held),
+-- Names B will call: "EggRun" (legged-egg sprint while the player steers it; the egg's speed is
+-- its HumanoidRootPart-free Hitbox velocity, so scale the leg cycle by Hitbox.AssemblyLinearVelocity),
 -- "EggWobble" (on plot, hatching), "Idle", "Waddle", "Hop", "Sleep" (pets),
--- "PlayerCarry" (player arms up holding the egg; target = player Character).
+-- "Train" {tool} (one lift/swing when the player clicks a strength training tool; target = Character).
+-- No longer called since the player steers the egg: "EggCarried", "PlayerCarry".
 local Anim = {}
 
 -- Starts a looping or one-shot animation; returns a stop function.

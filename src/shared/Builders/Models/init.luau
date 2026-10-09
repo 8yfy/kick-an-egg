@@ -2,6 +2,9 @@
 -- CONTRACT (API). Partner A adds specs in Models/Eggs/*.luau and Models/Pets/*.luau,
 -- one file per zone, e.g. Pets/Zone01.luau returning { [modelKey]: Spec }.
 -- Missing keys fall back to a placeholder so Partner B is never blocked.
+-- Requested (optional): Models.tool(id) -> Tool for the strength training tools in Economy.Tools
+-- (ids "Twig", "Dumbbell", "Kettlebell", "Barbell", "GoldenBarbell"); must contain a "Handle".
+-- Until it exists, StrengthService uses a plain placeholder handle.
 local Builder = require(script.Parent.BlockBuilder)
 local Models = {}
 
