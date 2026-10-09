@@ -332,6 +332,8 @@ local byZone: { { Spec } } = {
 
 local Props = {}
 
+Props.tree = tree -- also used for plaza trees
+
 function Props.forZone(zone: number): { Spec }
 	return byZone[zone] or byZone[1]
 end
