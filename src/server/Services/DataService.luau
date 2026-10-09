@@ -41,6 +41,7 @@ local TEMPLATE: Data = {
 	pets = {},
 	plots = {},
 	stats = { kicks = 0, secured = 0, lost = 0 },
+	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
 }
 
 local DataService = {}
@@ -241,6 +242,12 @@ function DataService:Increment(player: Player, key: string, delta: number): numb
 	local value = (data[key] :: number) + delta
 	self:Set(player, { [key] = value })
 	return value
+end
+
+-- Saves right away (keeps the lock). Used after purchases and trades. True on success.
+function DataService:SaveNow(player: Player): boolean
+	local profile = profiles[player]
+	return profile ~= nil and save(player, profile, false)
 end
 
 function DataService:OnLoaded(callback: (Player, Data) -> ())

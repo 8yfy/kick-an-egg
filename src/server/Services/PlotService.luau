@@ -375,6 +375,34 @@ function PlotService:Refresh(player: Player)
 	rebuildModels(player)
 end
 
+-- Puts pets without a slot (e.g. just received in a trade) on free pedestals, then redraws.
+-- Pets that don't fit stay in the inventory (slot = nil) and earn nothing until placed.
+function PlotService:PlaceUnplacedPets(player: Player)
+	local data = DataService:Get(player)
+	if not data then
+		return
+	end
+	local pets: { [string]: PetEntry } = table.clone(data.pets)
+	local changed = false
+	for petUid, pet: PetEntry in pets do
+		if not pet.slot then
+			for slot = 1, slotCount(data) do
+				if not slotTaken({ plots = data.plots, pets = pets }, slot) then
+					local placed = table.clone(pet)
+					placed.slot = slot
+					pets[petUid] = placed
+					changed = true
+					break
+				end
+			end
+		end
+	end
+	if changed then
+		DataService:Set(player, { pets = pets })
+	end
+	rebuildModels(player)
+end
+
 function PlotService:Init()
 	eggHatched = Remotes.get("EggHatched")
 end
