@@ -66,9 +66,33 @@ function VFX.play(name: string, target: Instance?, params: { [string]: any }?): 
 	end
 end
 
+-- Looping overlay on a pet (weather mutations from Config/Mutations `vfx`, plus "IncomeLabel").
+-- Returns a cleanup function; it also runs automatically if the model is destroyed.
 function VFX.attach(name: string, model: Model): () -> ()
-	-- stub: returns a cleanup function
-	return function() end
+	if not RunService:IsClient() then
+		return function() end
+	end
+	local Weather = require(script.Weather) :: any
+	local fn = Weather[name]
+	if typeof(fn) ~= "function" then
+		return function() end
+	end
+	local ok, cleanup = pcall(fn, model)
+	if not ok then
+		warn(`[VFX] attach {name} failed: {cleanup}`)
+		return function() end
+	end
+	local done = false
+	local conn: RBXScriptConnection
+	local function stop()
+		if not done then
+			done = true
+			conn:Disconnect()
+			cleanup()
+		end
+	end
+	conn = model.Destroying:Connect(stop)
+	return stop
 end
 
 return VFX
