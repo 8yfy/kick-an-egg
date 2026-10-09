@@ -13,6 +13,10 @@ local MAX_ANGLE = math.rad(2.2) -- at intensity 1
 local MAX_OFFSET = 0.45
 
 local function step()
+	local me = game:GetService("Players").LocalPlayer
+	if me and me:GetAttribute("ShakeOff") == true then
+		return -- Settings > Camera shake off
+	end
 	local amount = 0
 	for _, v in sources do
 		amount = math.max(amount, v)

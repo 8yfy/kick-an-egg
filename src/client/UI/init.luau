@@ -10,6 +10,7 @@ local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
 local ChaseOverlay = require(script.Hud.ChaseOverlay)
+local Menus = require(script.Menus)
 
 local UI = {}
 
@@ -18,6 +19,7 @@ local stats: Stats.Stats
 local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
 local overlay: ChaseOverlay.ChaseOverlay
+local menus: Menus.Menus
 
 function UI:Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -36,13 +38,17 @@ function UI:Init()
 	SoundToggle.new(gui)
 	kick = KickPanel.new(gui)
 	overlay = ChaseOverlay.new(gui)
+	menus = Menus.new(gui)
 	Kit.watchViewport()
 	stats.update(data)
 	quest.update(data)
+	menus.update(data)
 	gui.Parent = playerGui
 end
 
 function UI:Start()
+	-- Starts the client-side spinner for orbiting cubes / halos on rare eggs and pets.
+	require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"))
 	task.spawn(function()
 		-- Remotes waits for the server-created folder, so wire up in the background.
 		local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
@@ -52,6 +58,7 @@ function UI:Start()
 			end
 			stats.update(data)
 			quest.update(data)
+			menus.update(data)
 		end)
 
 		-- KICK stays locked from KickResult until our chase ends (the server rejects kicks meanwhile).

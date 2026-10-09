@@ -73,6 +73,12 @@ local function isOwner(params: { [string]: any }): boolean
 	return uid == nil or (me ~= nil and uid == me.UserId)
 end
 
+-- Settings > Low detail effects: the owner's wall also uses the low-detail boulder/particle counts.
+local function lowDetail(): boolean
+	local me = Players.LocalPlayer
+	return me ~= nil and me:GetAttribute("LowDetail") == true
+end
+
 local function keyOf(target: Instance?): any
 	return target or "default"
 end
@@ -451,7 +457,8 @@ function Avalanche.Start(target: Instance?, params: { [string]: any })
 	w.core.Color = theme.colors[2]:Lerp(Color3.new(0, 0, 0), 0.35)
 	w.core.Material = if theme.material == Enum.Material.Glass then Enum.Material.SmoothPlastic else theme.material
 
-	local count = if owner then BOULDERS_OWNER else BOULDERS_OTHER
+	local full = owner and not lowDetail()
+	local count = if full then BOULDERS_OWNER else BOULDERS_OTHER
 	for i = 1, count do
 		local shapes = theme.shapes or DEFAULT_SHAPES
 		local kind = shapes[i % #shapes + 1]
@@ -483,7 +490,7 @@ function Avalanche.Start(target: Instance?, params: { [string]: any })
 		table.insert(w.cracks, c)
 	end
 
-	local scale = if owner then 1 else 0.5
+	local scale = if full then 1 else 0.5
 	local dust = emitter(w.dust, Themes.SMOKE, theme.dust, NumberSequence.new(5, 13), 70 * scale, 1.6, 12)
 	dust.EmissionDirection = Enum.NormalId.Front
 	dust.Acceleration = Vector3.new(0, 4, 0)
