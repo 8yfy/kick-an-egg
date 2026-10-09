@@ -26,6 +26,8 @@ type ChaseStartPayload = {
 	speed: number,
 	eggStartPos: Vector3,
 	eggRunStart: number,
+	eggModel: string?, -- added by the ChaseStart contract update; older servers omit them
+	rarity: string?,
 }
 
 type ChaseView = {
@@ -215,8 +217,8 @@ local function onChaseStart(payload: ChaseStartPayload)
 		isOwn = isOwn,
 		folder = folder,
 		egg = nil,
-		eggModel = if own then own.eggModel else (guessKeys[1] or "Unknown"),
-		rarity = own and own.rarity,
+		eggModel = if own then own.eggModel else (payload.eggModel or guessKeys[1] or "Unknown"),
+		rarity = if own then own.rarity else payload.rarity,
 		carrier = nil,
 		running = false,
 		stops = {},
