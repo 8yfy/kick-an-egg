@@ -227,6 +227,16 @@ local function onChaseStart(payload: ChaseStartPayload)
 	}
 	views[payload.eggUid] = view
 
+	local character = player.Character
+	if isOwn and character then
+		-- The server has just moved us behind the egg (Chase.Launch); A draws the launch.
+		local behind = ((Chase :: any).Launch or { behindLanding = 12 }).behindLanding
+		VFX.play("PlayerLaunch", character, {
+			from = Vector3.zero, -- the kick pad
+			to = payload.eggStartPos - Vector3.new(0, 0, behind),
+		})
+	end
+
 	local now = workspace:GetServerTimeNow()
 	VFX.play("AvalancheWarn", folder, {
 		theme = payload.theme,

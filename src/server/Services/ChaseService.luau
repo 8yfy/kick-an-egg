@@ -47,6 +47,8 @@ local FALLBACK_BASE_BACK = 14 -- studs behind the safe line when no PlotService/
 
 local Avalanche = Chase.Avalanche
 local Egg = Chase.Egg
+local LAUNCH_BEHIND = ((Chase :: any).Launch or { behindLanding = 12 }).behindLanding -- until contract #24 merges
+local LAUNCH_HRP_HEIGHT = 4 -- HumanoidRootPart above the ground
 
 local ChaseService = {}
 
@@ -60,6 +62,11 @@ local remotes: { [string]: RemoteEvent } = {}
 function ChaseService.eggZ(chase: ChaseState, now: number): number
 	local z = chase.landPos.Z - Egg.runSpeed * math.max(0, now - chase.eggRunStart)
 	return math.max(z, Chase.SafeLineZ)
+end
+
+-- Where the kicker's HumanoidRootPart lands at touchdown: behind the egg, toward the bases.
+function ChaseService.launchPosition(landPos: Vector3): Vector3
+	return Vector3.new(landPos.X, landPos.Y + LAUNCH_HRP_HEIGHT, landPos.Z - LAUNCH_BEHIND)
 end
 
 function ChaseService.frontZ(chase: ChaseState, now: number): number
@@ -258,6 +265,12 @@ local function startChase(pending: KickService.PendingChase)
 	end
 	local touchdown = pending.touchdown
 	local hrp = rootPart(player)
+	-- Launch the kicker after the egg: they land behind it, facing it (Chase.Launch).
+	local dropPos = ChaseService.launchPosition(pending.landPos)
+	local character = player.Character
+	if hrp and character then
+		character:PivotTo(CFrame.lookAt(dropPos, dropPos + Vector3.new(0, 0, 1)))
+	end
 	local chase: ChaseState = {
 		owner = player,
 		eggUid = pending.eggUid,
@@ -271,7 +284,7 @@ local function startChase(pending: KickService.PendingChase)
 		eggRunStart = touchdown + Egg.runDelay,
 		pickedUp = false,
 		resolved = false,
-		validPos = hrp and hrp.Position,
+		validPos = if hrp then dropPos else nil, -- the launch is a server move, not a teleport exploit
 		validAt = workspace:GetServerTimeNow(),
 		flags = 0,
 	}

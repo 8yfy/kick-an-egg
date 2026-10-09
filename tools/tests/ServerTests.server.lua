@@ -99,6 +99,9 @@ section("ChaseService.decide", function()
 	check("teleport rejected", not CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 300), 0.1, 16))
 	check("teleport plausible later", CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 300), 9, 16))
 	check("falling ignored", CS.plausible(Vector3.zero, 0, Vector3.new(0, -200, 0), 0.1, 16))
+	local behind = ((Chase :: any).Launch or { behindLanding = 12 }).behindLanding
+	local drop = CS.launchPosition(Vector3.new(5, 2, 600))
+	check("launch lands behind the egg", drop.X == 5 and drop.Z == 600 - behind and drop.Y > 2)
 end)
 
 section("PlotService.petIncome", function()

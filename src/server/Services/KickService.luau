@@ -43,6 +43,8 @@ export type PendingChase = KickRoll & {
 local LAUNCH_DELAY = 0.35 -- kick animation before the egg leaves the pad
 local MIN_REQUEST_GAP = 0.5
 local RAY_TOP = 500
+local PAD_SLACK = 4 -- studs around the kick pad that still count as "on the pad"
+local PAD_STAND_HEIGHT = 3 -- HumanoidRootPart above the pad's top
 local RARE_ORDER = Rarities.Rare.order
 
 local KickService = {}
@@ -254,6 +256,23 @@ local function roll(
 	}
 end
 
+-- Kicks always happen from the pad: a player who presses KICK elsewhere is put on it first.
+local function moveOntoPad(player: Player)
+	local map = workspace:FindFirstChild("Map")
+	local pad = map and map:FindFirstChild("KickPad")
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not pad or not pad:IsA("BasePart") or not character or not hrp or not hrp:IsA("BasePart") then
+		return
+	end
+	local offset = hrp.Position - pad.Position
+	local reach = math.max(pad.Size.X, pad.Size.Z) / 2 + PAD_SLACK
+	if Vector3.new(offset.X, 0, offset.Z).Magnitude > reach then
+		local top = pad.Position + Vector3.new(0, pad.Size.Y / 2 + PAD_STAND_HEIGHT, 0)
+		character:PivotTo(CFrame.lookAt(top, top + Vector3.new(0, 0, 1)))
+	end
+end
+
 local function onRequestKick(player: Player, timing: any)
 	if not limiter:allow(player) then
 		return
@@ -274,6 +293,7 @@ local function onRequestKick(player: Player, timing: any)
 	if not data then
 		return
 	end
+	moveOntoPad(player)
 
 	local result =
 		roll(data.kickPower, data.rebirths, math.clamp(timing, 0, 1), friendsInServer(player), activeWeather(), now)
