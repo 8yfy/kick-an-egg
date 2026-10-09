@@ -135,8 +135,26 @@ local function reroll(b: Boulder, theme: Theme)
 	paintBoulder(b, theme)
 end
 
+-- Ground height under z (map v3): zones at 0, the launch ramp rises to the raised plaza
+-- (workspace.Map attributes PlazaY / RampStart / RampEnd; flat 0 on older maps).
+local function groundAt(z: number): number
+	local map = workspace:FindFirstChild("Map")
+	local plazaY = map and map:GetAttribute("PlazaY")
+	local a = map and map:GetAttribute("RampStart")
+	local b = map and map:GetAttribute("RampEnd")
+	if typeof(plazaY) ~= "number" or typeof(a) ~= "number" or typeof(b) ~= "number" or b <= a then
+		return 0
+	end
+	if z <= a then
+		return plazaY
+	elseif z >= b then
+		return 0
+	end
+	return plazaY * (1 - (z - a) / (b - a))
+end
+
 local function spawnDebris(d: Debris, front: number, theme: Theme)
-	d.pos = Vector3.new(rng:NextNumber(-W / 2, W / 2), rng:NextNumber(2, H * 0.8), front + 1)
+	d.pos = Vector3.new(rng:NextNumber(-W / 2, W / 2), groundAt(front + 1) + rng:NextNumber(2, H * 0.8), front + 1)
 	d.vel = Vector3.new(rng:NextNumber(-8, 8), rng:NextNumber(14, 30), -rng:NextNumber(10, 22))
 	d.life = rng:NextNumber(0.8, 1.4)
 	local s = rng:NextNumber(0.6, 1.5)
@@ -154,7 +172,14 @@ local function frontAt(w: Wall, now: number): number
 	return math.max(Chase.frontZ(w.startZ, w.startTime, w.speed, now), Chase.Avalanche.despawnAtZ)
 end
 
+-- Where the local player's attention is: the steered egg when the camera follows it (map v3),
+-- otherwise the character.
 local function playerZ(): number?
+	local cam = workspace.CurrentCamera
+	local subject = cam and cam.CameraSubject
+	if subject and subject:IsA("BasePart") then
+		return subject.Position.Z
+	end
 	local char = Players.LocalPlayer and Players.LocalPlayer.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	return if hrp and hrp:IsA("BasePart") then hrp.Position.Z else nil
@@ -202,7 +227,7 @@ local function crumble(key: any, w: Wall)
 		w.conn = nil
 	end
 	local front = frontAt(w, workspace:GetServerTimeNow())
-	local center = Vector3.new(0, R, front + R)
+	local center = Vector3.new(0, groundAt(front + R) + R, front + R)
 	local bits = {}
 	for _, b in w.boulders do
 		local p = b.part
@@ -237,8 +262,9 @@ local function crumble(key: any, w: Wall)
 		for _, bit in bits do
 			bit.vel += GRAVITY * dt
 			local pos = bit.part.Position + bit.vel * dt
-			if pos.Y < bit.size.Y * shrink / 2 then
-				pos = Vector3.new(pos.X, bit.size.Y * shrink / 2, pos.Z)
+			local floor = groundAt(pos.Z) + bit.size.Y * shrink / 2
+			if pos.Y < floor then
+				pos = Vector3.new(pos.X, floor, pos.Z)
 				bit.vel = Vector3.new(bit.vel.X * 0.6, -bit.vel.Y * 0.3, bit.vel.Z * 0.6)
 			end
 			bit.part.Size = bit.size * shrink
@@ -264,7 +290,8 @@ local function step(key: any, w: Wall, dt: number)
 	local eased = if e >= 1 then 1 else 1 + (s + 1) * (e - 1) ^ 3 + s * (e - 1) ^ 2
 	local rise = (1 - eased) * -2.2 * R
 	local theta = -(w.speed / R) * math.max(0, since)
-	local center = Vector3.new(0, R + rise, front + R)
+	local ground = groundAt(front + R) -- rides up the launch ramp onto the hub (map v3)
+	local center = Vector3.new(0, ground + R + rise, front + R)
 	w.core.CFrame = CFrame.new(center) * CFrame.Angles(theta, 0, 0)
 
 	local t = os.clock()
@@ -283,9 +310,9 @@ local function step(key: any, w: Wall, dt: number)
 	end
 
 	-- Leading-edge emitters ride with the wall.
-	w.dust.CFrame = CFrame.new(0, 3 + rise, front - 1)
+	w.dust.CFrame = CFrame.new(0, groundAt(front - 1) + 3 + rise, front - 1)
 	if w.extra then
-		w.extra.CFrame = CFrame.new(0, H + rise, front + R)
+		w.extra.CFrame = CFrame.new(0, ground + H + rise, front + R)
 	end
 	if w.light and w.theme.flicker then
 		w.light.Brightness = if rng:NextNumber() < 0.03 then 8 else math.max(0, w.light.Brightness - 0.6)
@@ -296,7 +323,7 @@ local function step(key: any, w: Wall, dt: number)
 		d.life -= dt
 		d.vel += GRAVITY * dt
 		d.pos += d.vel * dt
-		if d.life <= 0 or d.pos.Y < 0 then
+		if d.life <= 0 or d.pos.Y < groundAt(d.pos.Z) then
 			spawnDebris(d, front, w.theme)
 		end
 		d.part.CFrame = CFrame.new(d.pos) * CFrame.Angles(t * 7, t * 5, 0)
@@ -304,12 +331,14 @@ local function step(key: any, w: Wall, dt: number)
 	end
 
 	-- Ground cracks left behind the drum.
-	if since > 0 and w.lastCrackZ - front >= CRACK_EVERY then
+	local crackZ = front + 2 * R + 2
+	local flat = groundAt(crackZ - 5) == groundAt(crackZ + 5) -- no flat cracks on the sloped ramp
+	if since > 0 and w.lastCrackZ - front >= CRACK_EVERY and flat then
 		w.lastCrackZ = front
 		w.crackIndex = w.crackIndex % #w.cracks + 1
 		local c = w.cracks[w.crackIndex]
 		c.Size = Vector3.new(rng:NextNumber(0.8, 2), 0.06, rng:NextNumber(5, 10))
-		c.CFrame = CFrame.new(rng:NextNumber(-W / 2 + 3, W / 2 - 3), 0.04, front + 2 * R + 2)
+		c.CFrame = CFrame.new(rng:NextNumber(-W / 2 + 3, W / 2 - 3), groundAt(crackZ) + 0.04, crackZ)
 			* CFrame.Angles(0, math.rad(rng:NextNumber(-35, 35)), 0)
 		c.Transparency = 0
 	end

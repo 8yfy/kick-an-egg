@@ -1343,6 +1343,10 @@ function MapBuilder.build(): Model
 		end
 	end
 	plazaLift = PLAZA_Y
+	-- Published for client effects that follow the ground (the avalanche rides up the ramp)
+	map:SetAttribute("PlazaY", PLAZA_Y)
+	map:SetAttribute("RampStart", RAMP_START)
+	map:SetAttribute("RampEnd", RAMP_END)
 	local safeZone = map:FindFirstChild("SafeZone") :: Instance
 	block(
 		safeZone,
