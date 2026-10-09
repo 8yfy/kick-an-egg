@@ -1,6 +1,6 @@
 --!strict
--- Menu buttons and windows. Left side (next to the zone bar): a stack of wide, outlined, studded
--- buttons with a Figma icon + label (Shop, Index, Rebirth, Trade); Settings is a gear at the top right.
+-- Menu buttons and windows. Left side: a 2x2 grid of dark tiles with big glossy icons (Index, Shop,
+-- Rebirth, Trade; Shop has a pulsing "!"); Settings is a round button top right (right edge on phones).
 -- Menus.open(name) lets prompts / the "+" badge open a window.
 local Kit = require(script.Parent.Kit)
 local Icons = require(script.Parent.Icons)
@@ -15,8 +15,9 @@ export type Menus = { update: (data: { [string]: any }) -> (), open: (name: stri
 
 local Menus = {}
 
-local BTN_W, BTN_H, GAP = 210, 68, 12
-local rgb = Color3.fromRGB
+local TILE, GAP = 156, 16
+local TILE_BG = Color3.fromRGB(22, 26, 36)
+local GOLD = Color3.fromRGB(255, 216, 74)
 
 function Menus.new(parent: Instance): Menus
 	local menus: { [string]: any } = {
@@ -35,101 +36,112 @@ function Menus.new(parent: Instance): Menus
 		end
 	end
 
+	-- Left: 2x2 grid of dark tiles with big icons spilling over the top edge (approved HUD variant A).
 	local entries = {
-		{ "Store", "Cart", "Shop", { rgb(135, 245, 70), rgb(70, 200, 40) } },
-		{ "Index", "Book", "Index", { rgb(90, 225, 255), rgb(30, 165, 240) } },
-		{ "Rebirth", "Rebirth", "Rebirth", { rgb(255, 190, 70), rgb(245, 125, 30) } },
-		{ "Trade", "Trade", "Trade", { rgb(205, 130, 255), rgb(150, 70, 240) } },
+		{ "Index", "Index", "Index", false },
+		{ "Store", "Shop", "Shop", true },
+		{ "Rebirth", "Rebirth", "Rebirth", false },
+		{ "Trade", "Trade", "Trade", false },
 	}
-	local stack = Kit.panel({
-		name = "MenuStack",
-		size = UDim2.fromOffset(BTN_W, #entries * (BTN_H + GAP)),
-		position = UDim2.new(0, 84, 0.42, 0),
-		anchor = Vector2.new(0, 0.5),
+	local grid = Kit.panel({
+		name = "MenuTiles",
+		size = UDim2.fromOffset(TILE * 2 + GAP, TILE * 2 + GAP),
 		parent = parent,
 	})
-	Kit.autoScale(stack)
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, GAP)
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = stack
+	Kit.autoScale(grid)
+	Kit.onLayout(function(compact: boolean)
+		grid.Position = if compact then UDim2.fromOffset(10, 8) else UDim2.new(0, 30, 0.333, 0)
+	end)
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.fromOffset(TILE, TILE)
+	layout.CellPadding = UDim2.fromOffset(GAP, GAP)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = grid
 
 	for i, e in entries do
-		local holder = Kit.panel({ name = e[1], size = UDim2.fromOffset(BTN_W, BTN_H), parent = stack })
-		holder.LayoutOrder = i
-		local button = Kit.button({
-			name = "Button",
-			text = "",
-			size = UDim2.fromScale(1, 1),
-			parent = holder,
-			colors = e[4],
-			radius = 8,
-			onClick = function()
-				toggle(e[1])
-			end,
-		})
-		local stroke = button:FindFirstChildOfClass("UIStroke")
-		if stroke then
-			stroke.Thickness = 4
-			stroke.Color = e[4][2]:Lerp(rgb(0, 0, 0), 0.65)
-		end
-		local icon = Icons.view(button, e[2], UDim2.fromOffset(60, 60))
-		icon.Position = UDim2.fromOffset(8, 4)
-		Fx.wiggle(icon, 6, 2.4)
-		Fx.shine(button, 4.5, i * 0.6)
-		Kit.label({
+		local tile = Instance.new("TextButton")
+		tile.Name = e[1]
+		tile.LayoutOrder = i
+		tile.Text = ""
+		tile.AutoButtonColor = false
+		tile.BackgroundColor3 = TILE_BG
+		tile.BackgroundTransparency = 0.22
+		tile.BorderSizePixel = 0
+		Kit.corner(tile, 16)
+		Kit.borderStroke(tile, 3)
+		local rim = Instance.new("Frame") -- faint inner highlight
+		rim.Name = "Rim"
+		rim.BackgroundTransparency = 1
+		rim.Size = UDim2.new(1, -4, 1, -4)
+		rim.Position = UDim2.fromOffset(2, 2)
+		Kit.corner(rim, 14)
+		local rimStroke = Instance.new("UIStroke")
+		rimStroke.Color = Color3.new(1, 1, 1)
+		rimStroke.Transparency = 0.86
+		rimStroke.Thickness = 2
+		rimStroke.Parent = rim
+		rim.Parent = tile
+		local icon = Icons.view(tile, e[2], UDim2.fromOffset(136, 136))
+		icon.Position = UDim2.fromOffset(10, -22)
+		icon.ZIndex = 2
+		Fx.wiggle(icon, 5, 2.4 + i * 0.3)
+		local caption = Kit.label({
 			name = "Caption",
 			text = e[3],
-			size = UDim2.new(1, -84, 0, 44),
-			position = UDim2.fromOffset(74, 12),
-			parent = button,
-			align = Enum.TextXAlignment.Left,
+			size = UDim2.new(1, 8, 0, 42),
+			position = UDim2.new(0.5, 0, 1, -6),
+			anchor = Vector2.new(0.5, 1),
+			parent = tile,
+			color = if e[4] then GOLD else Kit.Colors.white,
 			stroke = 4,
 		})
-		if e[1] == "Store" then
+		caption.ZIndex = 3
+		Kit.bouncy(tile)
+		tile.MouseEnter:Connect(function()
+			Kit.tween(tile, 0.15, { BackgroundTransparency = 0.06 })
+		end)
+		tile.MouseLeave:Connect(function()
+			Kit.tween(tile, 0.2, { BackgroundTransparency = 0.22 })
+		end)
+		tile.Activated:Connect(function()
+			toggle(e[1])
+		end)
+		if e[4] then
 			local badge = Kit.panel({
 				name = "Badge",
-				size = UDim2.fromOffset(64, 28),
-				position = UDim2.new(1, 12, 0, -12),
+				size = UDim2.fromOffset(40, 44),
+				position = UDim2.new(1, 10, 0, -14),
 				anchor = Vector2.new(1, 0),
-				parent = holder,
+				parent = tile,
 				colors = Kit.Colors.red,
-				radius = 6,
+				radius = 8,
 			})
-			badge.Rotation = 8
-			badge.ZIndex = 3
+			badge.ZIndex = 4
 			Kit.label({
 				name = "Text",
-				text = "NEW",
-				size = UDim2.fromScale(0.86, 0.8),
-				position = UDim2.fromScale(0.07, 0.1),
+				text = "!",
+				size = UDim2.fromScale(0.8, 0.8),
+				position = UDim2.fromScale(0.1, 0.1),
 				parent = badge,
-			})
-			Kit.pulse(badge, 1.1)
+			}).ZIndex =
+				5
+			Kit.pulse(badge, 1.12)
 		end
+		tile.Parent = grid
 	end
 
-	-- Settings gear (top right, left of the sound toggle)
-	local gear = Kit.panel({
-		name = "SettingsButton",
-		size = UDim2.fromOffset(72, 72),
-		position = UDim2.new(1, -106, 0.17, 0),
-		anchor = Vector2.new(1, 0),
-		parent = parent,
-	})
+	-- Settings: round dark button (top right on desktop, right edge above the jump button on phones).
+	local gear = Kit.panel({ name = "SettingsButton", size = UDim2.fromOffset(58, 58), parent = parent })
 	Kit.autoScale(gear)
-	local gb = Kit.button({
-		name = "Button",
-		text = "",
-		size = UDim2.fromScale(1, 1),
-		parent = gear,
-		colors = Kit.Colors.grey,
-		radius = 10,
-		onClick = function()
-			toggle("Settings")
-		end,
-	})
-	Icons.view(gb, "Gear", UDim2.new(1, -12, 1, -12)).Position = UDim2.fromOffset(6, 6)
+	Kit.onLayout(function(compact: boolean)
+		gear.AnchorPoint = Vector2.new(1, if compact then 0.5 else 0)
+		gear.Size = if compact then UDim2.fromOffset(96, 96) else UDim2.fromOffset(58, 58)
+		gear.Position = if compact then UDim2.new(1, -10, 0.5, 30) else UDim2.new(1, -96, 0, 22)
+	end)
+	local gb = Kit.roundButton(gear, "Button", function()
+		toggle("Settings")
+	end)
+	Icons.view(gb, "Gear", UDim2.fromScale(0.7, 0.7)).Position = UDim2.fromScale(0.15, 0.15)
 
 	return {
 		update = function(data: { [string]: any })

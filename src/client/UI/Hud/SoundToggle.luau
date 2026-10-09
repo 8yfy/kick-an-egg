@@ -1,5 +1,5 @@
 --!strict
--- Sound on/off (top right, below the top bar). Mutes the client-side SoundService.Master group;
+-- Sound on/off (round button: top right on desktop, right edge on phones). Mutes the client-side SoundService.Master group;
 -- every sound Partner A adds is parented to that group. Also sets LocalPlayer attribute "SoundOn".
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -24,37 +24,23 @@ end
 function SoundToggle.new(parent: Instance)
 	local on = true
 	local master = SoundToggle.master()
-	-- Container carries the screen scale; the button's own UIScale does the bounce.
-	local holder = Kit.panel({
-		name = "SoundToggle",
-		size = UDim2.fromOffset(72, 72),
-		position = UDim2.new(1, -22, 0.17, 0),
-		anchor = Vector2.new(1, 0),
-		parent = parent,
-	})
+	-- Round dark button: top right on desktop, right edge above the jump button on phones.
+	local holder = Kit.panel({ name = "SoundToggle", size = UDim2.fromOffset(58, 58), parent = parent })
 	Kit.autoScale(holder)
-	local button: TextButton
-	local gradient: UIGradient
+	Kit.onLayout(function(compact: boolean)
+		holder.AnchorPoint = Vector2.new(1, if compact then 0.5 else 0)
+		holder.Size = if compact then UDim2.fromOffset(96, 96) else UDim2.fromOffset(58, 58)
+		holder.Position = if compact then UDim2.new(1, -10, 0.5, -28) else UDim2.new(1, -26, 0, 22)
+	end)
 	local icon: ImageLabel
-	button, gradient = Kit.button({
-		name = "Sound",
-		text = "",
-		size = UDim2.fromScale(1, 1),
-		parent = holder,
-		colors = Kit.Colors.blue,
-		radius = 18,
-		onClick = function()
-			on = not on
-			master.Volume = if on then VOLUME else 0
-			Players.LocalPlayer:SetAttribute("SoundOn", on)
-			icon.ImageTransparency = if on then 0 else 0.55
-			gradient.Color = ColorSequence.new(table.unpack(if on then Kit.Colors.blue else Kit.Colors.grey))
-		end,
-	})
-	icon = require(script.Parent.Parent.Icons).view(button, "Sound", UDim2.new(1, -10, 1, -10))
-	icon.Position = UDim2.fromOffset(5, 5)
-	local ratio = Instance.new("UIAspectRatioConstraint")
-	ratio.Parent = button
+	local button = Kit.roundButton(holder, "Sound", function()
+		on = not on
+		master.Volume = if on then VOLUME else 0
+		Players.LocalPlayer:SetAttribute("SoundOn", on)
+		icon.ImageTransparency = if on then 0 else 0.6
+	end)
+	icon = require(script.Parent.Parent.Icons).view(button, "Sound", UDim2.fromScale(0.7, 0.7))
+	icon.Position = UDim2.fromScale(0.15, 0.15)
 	Players.LocalPlayer:SetAttribute("SoundOn", on)
 end
 
