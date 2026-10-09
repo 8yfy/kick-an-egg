@@ -41,6 +41,7 @@ local FlightController = {}
 local player = Players.LocalPlayer
 local eggFolder: Folder
 local eggs: { [string]: Model } = {} -- in flight or landed, not yet taken by ChaseController
+local landedEggs: { [string]: boolean } = {} -- touched down, ready for ChaseController
 local flightConnection: RBXScriptConnection? = nil
 
 local function groundY(x: number, z: number, top: number): number
@@ -84,6 +85,7 @@ local function fly(result: KickResult)
 	for uid, old in eggs do
 		old:Destroy()
 		eggs[uid] = nil
+		landedEggs[uid] = nil
 	end
 
 	local startPos = Vector3.new(0, groundY(0, 0, PAD_RAY_TOP), 0)
@@ -131,6 +133,7 @@ local function fly(result: KickResult)
 		egg:Destroy()
 		egg = spawnEgg(result.eggModel, result.eggUid, landPos)
 		eggs[result.eggUid] = egg
+		landedEggs[result.eggUid] = true
 		VFX.play("Landing", egg, { rarity = result.rarity, zone = result.landZone })
 		VFX.play("LegsSprout", egg, {})
 	end
@@ -175,10 +178,14 @@ function FlightController:GetEgg(eggUid: string): Model?
 	return eggs[eggUid]
 end
 
--- Hands the landed egg over (ChaseController); this controller stops tracking it.
+-- Hands the landed egg over (ChaseController); nil while still in flight.
 function FlightController:TakeEgg(eggUid: string): Model?
+	if not landedEggs[eggUid] then
+		return nil -- still flying; ChaseController asks again next frame
+	end
 	local egg = eggs[eggUid]
 	eggs[eggUid] = nil
+	landedEggs[eggUid] = nil
 	return egg
 end
 
