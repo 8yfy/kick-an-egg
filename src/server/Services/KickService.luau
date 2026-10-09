@@ -190,7 +190,7 @@ local function friendsInServer(player: Player): number
 		if other ~= player then
 			local isFriend = cache[other.UserId]
 			if isFriend == nil then
-				local ok, result = pcall(player.IsFriendsWith, player, other.UserId)
+				local ok, result = pcall(player.IsFriendsWithAsync, player, other.UserId)
 				isFriend = ok and result == true
 				cache[other.UserId] = isFriend
 			end
@@ -203,7 +203,14 @@ local function friendsInServer(player: Player): number
 end
 
 -- Pure roll (no player state), shared by real kicks and :Simulate.
-local function roll(kickPower: number, rebirths: number, timing: number, friends: number, eventWeather: string?, now: number): KickRoll
+local function roll(
+	kickPower: number,
+	rebirths: number,
+	timing: number,
+	friends: number,
+	eventWeather: string?,
+	now: number
+): KickRoll
 	local mult = 1 + rebirths * Economy.Rebirth.multiplierPerRebirth
 	local distance = kickPower * Economy.DistancePerPower * timingBonus(timing) * mult
 	distance = math.min(distance, MAX_DISTANCE)
@@ -259,13 +266,14 @@ local function onRequestKick(player: Player, timing: any)
 		return
 	end
 
-	local result = roll(data.kickPower, data.rebirths, math.clamp(timing, 0, 1), friendsInServer(player), activeWeather(), now)
+	local result =
+		roll(data.kickPower, data.rebirths, math.clamp(timing, 0, 1), friendsInServer(player), activeWeather(), now)
 	local pending: PendingChase = table.clone(result) :: any
 	pending.owner = player
 	pending.touchdown = result.launchTime + result.flightSeconds
 	active[player] = pending
 
-	local stats = table.clone(data.stats)
+	local stats: { [string]: number } = table.clone(data.stats)
 	stats.kicks += 1
 	DataService:Set(player, { stats = stats })
 
