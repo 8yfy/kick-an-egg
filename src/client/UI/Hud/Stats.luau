@@ -3,6 +3,7 @@
 -- Kick Power (yellow "+" badge on the icon opens the Shop), Run Speed, and money (count-up tween).
 local Kit = require(script.Parent.Parent.Kit)
 local Icons = require(script.Parent.Parent.Icons)
+local Fx = require(script.Parent.Parent.Fx)
 
 export type Stats = { update: (data: { [string]: any }) -> () }
 
@@ -52,7 +53,10 @@ function Stats.new(parent: Instance, onPlus: () -> ()): Stats
 
 	local _, powerText, powerIcon = line(root, "Power", "Bolt", 66, rgb(255, 245, 160), rgb(255, 160, 30), 1)
 	local _, speedText = line(root, "Speed", "Boot", 54, rgb(225, 245, 255), rgb(110, 175, 255), 2)
-	local _, moneyText = line(root, "Money", "Cash", 82, rgb(170, 255, 120), rgb(40, 200, 50), 3)
+	local moneyRow, moneyText, moneyIcon = line(root, "Money", "Cash", 82, rgb(170, 255, 120), rgb(40, 200, 50), 3)
+	Fx.sparkles(moneyIcon, 2, 18)
+	Fx.wiggle(moneyIcon, 4, 1.6)
+	local _ = moneyRow
 
 	-- Yellow "+" badge on the power icon
 	local plus = Kit.button({
@@ -85,6 +89,7 @@ function Stats.new(parent: Instance, onPlus: () -> ()): Stats
 				else
 					Kit.tween(shown, 0.6, { Value = m })
 					if m > lastMoney then
+						Fx.floatText(moneyText, "+$" .. Kit.formatNumber(m - lastMoney), rgb(140, 255, 110))
 						moneyScale.Scale = 1.12
 						Kit.tween(moneyScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
 					end

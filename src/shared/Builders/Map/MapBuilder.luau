@@ -48,6 +48,7 @@ local rgb = Color3.fromRGB
 local DIRT = rgb(205, 130, 80)
 local GRASS, GRASS_DARK = rgb(120, 215, 75), rgb(104, 196, 64)
 local YELLOW = rgb(255, 220, 80)
+local SHIELD_ICON = "rbxassetid://77216163319959"
 local SIGN = rgb(32, 38, 52)
 local BASE_COLORS = {
 	rgb(255, 85, 85),
@@ -375,8 +376,18 @@ local function buildSafeLine(map: Instance)
 		)
 	end
 	local paint = anchor(line, "Paint", Vector3.new(8, 0.05, 44), Vector3.new(0, 0.2, SAFE_Z - 8))
-	paint.CFrame *= CFrame.Angles(0, math.rad(90), 0) -- reads upright from the plaza
-	surface(paint, Enum.NormalId.Top, { { "Title", "🛡️ SAFE ZONE 🛡️", 0.1, 0.8 } }, 10)
+	paint.CFrame *= CFrame.Angles(0, math.rad(-90), 0) -- reads upright when running back home
+	local gui = surface(paint, Enum.NormalId.Top, { { "Title", "SAFE ZONE", 0.1, 0.8 } }, 10)
+	local title = gui:FindFirstChild("Title") :: TextLabel
+	title.Position, title.Size = UDim2.fromScale(0.2, 0.1), UDim2.fromScale(0.6, 0.8)
+	for _, x in { 0.02, 0.84 } do -- glossy shield icons either side (assets/ui-icons/Shield.png)
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Image = SHIELD_ICON
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Position, img.Size = UDim2.fromScale(x, 0.02), UDim2.fromScale(0.14, 0.96)
+		img.Parent = gui
+	end
 	MapFx.emit(
 		anchor(line, "ShimmerFx", Vector3.new(2 * INNER, 0.2, 1), Vector3.new(0, 0.3, SAFE_Z - 1)),
 		"SafeShimmer"

@@ -24,6 +24,9 @@ local IDS: { [string]: string } = {
 	Quests = "rbxassetid://122876216431307",
 	New = "rbxassetid://84108823188668",
 	Glow = "rbxassetid://110070937482051",
+	Shield = "rbxassetid://77216163319959",
+	Rays = "rbxassetid://133942308484025",
+	Spark = "rbxassetid://125277121997681",
 }
 -- older names used around the UI
 IDS.Cart, IDS.Chest, IDS.Book, IDS.Gear = IDS.Shop, IDS.Shop, IDS.Index, IDS.Settings

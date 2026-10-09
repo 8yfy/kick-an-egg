@@ -181,11 +181,13 @@ function Kit.bouncy(button: GuiButton): UIScale
 	end)
 	button.MouseEnter:Connect(function()
 		if button.Active and not UserInputService.TouchEnabled then
-			Kit.tween(scale, 0.15, { Scale = 1.05 })
+			Kit.tween(scale, 0.15, { Scale = 1.06 })
+			Kit.tween(button, 0.15, { Rotation = -2.5 }, Enum.EasingStyle.Back)
 		end
 	end)
 	button.MouseLeave:Connect(function()
 		Kit.tween(scale, 0.2, { Scale = 1 })
+		Kit.tween(button, 0.2, { Rotation = 0 })
 	end)
 	return scale
 end

@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Kit = require(script.Parent.Parent.Kit)
+local Fx = require(script.Parent.Parent.Fx)
 local Economy = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Economy"))
 
 -- Bands match KickService's timingBonus (perfect >= 0.9, good >= 0.6) unless Economy defines them.
@@ -129,6 +130,8 @@ function KickPanel.new(parent: Instance): KickPanel
 		state.pendingUntil = os.clock() + PENDING_TIMEOUT
 		if t >= PERFECT_AT then
 			flash("PERFECT!", Kit.Colors.green[1])
+			Fx.flash(Color3.fromRGB(255, 250, 200), 0.35)
+			Fx.callout("PERFECT!", Color3.fromRGB(255, 250, 150), Color3.fromRGB(80, 220, 60))
 		elseif t >= GOOD_AT then
 			flash("GOOD!", Kit.Colors.yellow[1])
 		else
@@ -158,6 +161,8 @@ function KickPanel.new(parent: Instance): KickPanel
 	buttonLabel.Position = UDim2.new(0.5, 34, 0.5, 0)
 	local kickIcon = require(script.Parent.Parent.Icons).view(button, "Power", UDim2.fromOffset(76, 76))
 	kickIcon.Position = UDim2.fromOffset(8, 5)
+	Fx.wiggle(kickIcon, 7, 3)
+	Fx.shine(button, 2.8)
 
 	local function setMode(m: string)
 		if m == mode then

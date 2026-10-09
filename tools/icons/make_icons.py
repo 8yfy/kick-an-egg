@@ -4,7 +4,7 @@ to assets/ui-icons with headless Chrome.
 Style: glossy cartoon — 3-stop vertical gradients, a soft shade on the lower half, specular gloss strips,
 sparkle glints, a thick dark outline (drawn under the fill) and a hard cartoon drop shadow.
 
-usage:  python -I tools/icons/make_icons.py [chrome.exe]
+usage:  python -I tools/icons/make_icons.py [chrome.exe] [Name ...]
 """
 import math
 import os
@@ -344,6 +344,39 @@ def New(i):
     i.sparkle(212, 44, 12)
 
 
+@icon
+def Shield(i):
+    i.shape("path", 'd="M128 20 L212 50 L206 138 Q198 196 128 238 Q58 196 50 138 L44 50 Z"', "#3b8bff")
+    i.shape("path", 'd="M128 46 L186 66 L182 134 Q176 176 128 206 Z"', "#7cc0ff", outline=0)
+    i.shape("polygon", poly(star(128, 128, 40, 17)), "#ffffff", outline=10)
+    i.gloss("path", 'd="M64 66 L118 46 L90 70 L70 120 Z"', 0.45)
+    i.sparkle(214, 44, 12)
+
+
+def rays_svg():
+    paths = []
+    n = 16
+    for k in range(n):
+        a0 = math.radians(k * 360 / n - 360 / n / 4)
+        a1 = math.radians(k * 360 / n + 360 / n / 4)
+        x0, y0 = 128 + 128 * math.cos(a0), 128 + 128 * math.sin(a0)
+        x1, y1 = 128 + 128 * math.cos(a1), 128 + 128 * math.sin(a1)
+        paths.append(f"M128 128 L{x0:.1f} {y0:.1f} A128 128 0 0 1 {x1:.1f} {y1:.1f} Z")
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256"><defs>'
+            '<radialGradient id="r" cx="0.5" cy="0.5" r="0.5"><stop offset="0.1" stop-color="#fff" stop-opacity="0.95"/>'
+            '<stop offset="0.6" stop-color="#fff" stop-opacity="0.35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>'
+            f'</radialGradient></defs><path d="{" ".join(paths)}" fill="url(#r)"/></svg>')
+
+
+def spark_svg():
+    s = 120
+    x = y = 128
+    d = (f"M{x} {y - s} Q{x + s * 0.16} {y - s * 0.16} {x + s} {y} Q{x + s * 0.16} {y + s * 0.16} {x} {y + s} "
+         f"Q{x - s * 0.16} {y + s * 0.16} {x - s} {y} Q{x - s * 0.16} {y - s * 0.16} {x} {y - s} Z")
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256">'
+            f'<path d="{d}" fill="#ffffff"/><circle cx="128" cy="128" r="22" fill="#fff7c2"/></svg>')
+
+
 def glow_svg():
     return ('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256"><defs>'
             '<radialGradient id="r" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff7c2" stop-opacity="0.9"/>'
@@ -353,10 +386,17 @@ def glow_svg():
 
 def main():
     os.makedirs(SRC, exist_ok=True)
-    names = list(ICONS) + ["Glow"]
+    only = set(sys.argv[2:])  # optional: render just these names
+    names = list(ICONS) + ["Glow", "Rays", "Spark"]
     for name in names:
+        if only and name not in only:
+            continue
         if name == "Glow":
             svg = glow_svg()
+        elif name == "Rays":
+            svg = rays_svg()
+        elif name == "Spark":
+            svg = spark_svg()
         else:
             ic = Icon()
             ICONS[name](ic)

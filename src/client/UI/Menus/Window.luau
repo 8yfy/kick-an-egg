@@ -3,6 +3,7 @@
 -- diagonal stripes, the title on the left and a red square X on the right; pops in/out.
 -- Only one window is open at a time.
 local Kit = require(script.Parent.Parent.Kit)
+local Fx = require(script.Parent.Parent.Fx)
 
 export type Window = {
 	frame: Frame, -- the panel
@@ -18,7 +19,7 @@ local Window = {}
 local current: Window? = nil
 local HEADER = 76
 
-function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
+function Window.new(parent: Instance, title: string, colors: { Color3 }, size: Vector2?): Window
 	local backdrop = Instance.new("TextButton")
 	backdrop.Name = title .. "Backdrop"
 	backdrop.Size = UDim2.fromScale(1, 1)
@@ -32,7 +33,7 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 
 	local panel = Kit.panel({
 		name = title .. "Window",
-		size = UDim2.fromOffset(960, 640),
+		size = UDim2.fromOffset((size or Vector2.new(960, 640)).X, (size or Vector2.new(960, 640)).Y),
 		position = UDim2.fromScale(0.5, 0.54),
 		anchor = Vector2.new(0.5, 0.5),
 		parent = backdrop,
@@ -62,6 +63,7 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 	})
 	header.ClipsDescendants = true
 	Kit.studs(header)
+	Fx.shine(header, 5, 0.4)
 	for i = 0, 5 do
 		local stripe = Instance.new("Frame")
 		stripe.Name = "Stripe"
@@ -104,6 +106,7 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 		task.delay(0.18, function()
 			backdrop.Visible = false
 		end)
+		Fx.blur(false)
 		if current == self then
 			current = nil
 		end
@@ -115,6 +118,7 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 		current = self
 		backdrop.Visible = true
 		Kit.pop(inner, 0.35)
+		Fx.blur(true)
 		for _, cb in openCallbacks do
 			task.spawn(cb)
 		end

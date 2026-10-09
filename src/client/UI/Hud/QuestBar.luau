@@ -69,6 +69,7 @@ function QuestBar.new(parent: Instance): QuestBar
 		radius = 10,
 		stroke = false,
 	})
+	require(script.Parent.Parent.Fx).shine(fill, 2.6)
 	local count = Kit.label({
 		name = "Count",
 		text = "",

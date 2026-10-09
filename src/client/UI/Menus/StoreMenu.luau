@@ -9,6 +9,7 @@ local Kit = require(script.Parent.Parent.Kit)
 local Icons = require(script.Parent.Parent.Icons)
 local MyBase = require(script.Parent.Parent.MyBase)
 local Window = require(script.Parent.Window)
+local Fx = require(script.Parent.Parent.Fx)
 local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local Economy = require(Config:WaitForChild("Economy"))
 local Upgrades = require(Config:WaitForChild("Upgrades"))
@@ -107,8 +108,17 @@ local function card(parent: Instance, order: number, title: string, colors: { Co
 		parent = c,
 		colors = Kit.Colors.green,
 		radius = 8,
-		onClick = onClick or function() end,
+		onClick = function()
+			if onClick then
+				onClick()
+				if b:GetAttribute("Affordable") then
+					Fx.confetti(b.AbsolutePosition + b.AbsoluteSize / 2, 22)
+				end
+			end
+		end,
 	})
+	Fx.shine(b, 3.2, order * 0.35)
+	Fx.rays(preview, 250, Color3.new(1, 1, 1), 18).ImageTransparency = 0.1
 	return {
 		frame = c,
 		subtitle = subtitle,
@@ -130,6 +140,7 @@ local function setPrice(c: Card, cost: number?, money: number)
 	c.label.Text = "$" .. Kit.formatNumber(cost)
 	c.button.Active = true
 	c.grad.Color = ColorSequence.new(table.unpack(if money >= cost then Kit.Colors.green else Kit.Colors.red))
+	c.button:SetAttribute("Affordable", money >= cost)
 end
 
 local function gain(text: string, rest: string): string
@@ -137,7 +148,7 @@ local function gain(text: string, rest: string): string
 end
 
 function StoreMenu.new(parent: Instance): Menu
-	local window = Window.new(parent, "Shop", Kit.Colors.green)
+	local window = Window.new(parent, "Shop", Kit.Colors.green, Vector2.new(1130, 640))
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = "Cards"
 	scroll.BackgroundTransparency = 1

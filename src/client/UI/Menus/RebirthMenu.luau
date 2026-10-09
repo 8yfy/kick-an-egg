@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Kit = require(script.Parent.Parent.Kit)
 local Window = require(script.Parent.Window)
+local Fx = require(script.Parent.Parent.Fx)
 local Economy = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Economy"))
 
 export type Menu = { window: Window.Window, update: (data: { [string]: any }) -> () }
@@ -18,6 +19,9 @@ function RebirthMenu.new(parent: Instance): Menu
 	glow.AnchorPoint, glow.Position = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, -50)
 	local icon = Icons.view(body, "Rebirth", UDim2.fromOffset(104, 104))
 	icon.AnchorPoint, icon.Position = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, -6)
+	Fx.wiggle(icon, 8, 1.6)
+	local rays = Fx.rays(body, 260, Color3.fromRGB(255, 220, 120), 20)
+	rays.Position = UDim2.new(0.5, 0, 0, 46)
 
 	local count = Kit.label({
 		name = "Count",
@@ -101,6 +105,9 @@ function RebirthMenu.new(parent: Instance): Menu
 			local ev = remotes and remotes:FindFirstChild("Rebirth")
 			if ev and ev:IsA("RemoteEvent") then
 				ev:FireServer()
+				Fx.flash(Color3.fromRGB(255, 240, 200), 0.5)
+				Fx.callout("REBIRTH!", Color3.fromRGB(255, 220, 120), Color3.fromRGB(190, 90, 255))
+				Fx.confetti(button.AbsolutePosition + button.AbsoluteSize / 2, 40)
 			end
 		end,
 	})

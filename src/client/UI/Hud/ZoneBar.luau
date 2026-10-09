@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Kit = require(script.Parent.Parent.Kit)
+local Fx = require(script.Parent.Parent.Fx)
 local Zones = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Zones"))
 
 local ZoneBar = {}
@@ -113,6 +114,11 @@ function ZoneBar.new(parent: Instance)
 		parent = parent,
 		stroke = 5,
 	})
+	-- rays sit behind the banner as a sibling (children would draw over the label's text)
+	local bannerRays = Fx.rays(parent, 340, nil, 30)
+	bannerRays.Position = banner.Position
+	bannerRays.Visible = false
+
 	banner.Visible = false
 	Kit.autoScale(banner)
 	local bannerGrad = Instance.new("UIGradient")
@@ -127,12 +133,14 @@ function ZoneBar.new(parent: Instance)
 		local a = zone.accent:Lerp(Color3.new(1, 1, 1), 0.25)
 		local b = zone.ground:Lerp(Color3.new(1, 1, 1), 0.35)
 		bannerGrad.Rotation = 0
+		bannerRays.ImageColor3 = a
 		bannerGrad.Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, a),
 			ColorSequenceKeypoint.new(0.5, a:Lerp(b, 0.5):Lerp(Color3.new(1, 1, 1), 0.2)),
 			ColorSequenceKeypoint.new(1, b),
 		})
 		banner.Visible = true
+		bannerRays.Visible = true
 		banner.TextTransparency = 0
 		Kit.pop(banner, 0.4)
 		local token = id
@@ -142,6 +150,7 @@ function ZoneBar.new(parent: Instance)
 				task.wait(0.35)
 				if current == token then
 					banner.Visible = false
+					bannerRays.Visible = false
 				end
 			end
 		end)

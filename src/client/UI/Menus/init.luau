@@ -4,6 +4,7 @@
 -- Menus.open(name) lets prompts / the "+" badge open a window.
 local Kit = require(script.Parent.Kit)
 local Icons = require(script.Parent.Icons)
+local Fx = require(script.Parent.Fx)
 local IndexMenu = require(script.IndexMenu)
 local StoreMenu = require(script.StoreMenu)
 local RebirthMenu = require(script.RebirthMenu)
@@ -72,7 +73,10 @@ function Menus.new(parent: Instance): Menus
 			stroke.Thickness = 4
 			stroke.Color = e[4][2]:Lerp(rgb(0, 0, 0), 0.65)
 		end
-		Icons.view(button, e[2], UDim2.fromOffset(56, 56)).Position = UDim2.fromOffset(10, 6)
+		local icon = Icons.view(button, e[2], UDim2.fromOffset(60, 60))
+		icon.Position = UDim2.fromOffset(8, 4)
+		Fx.wiggle(icon, 6, 2.4)
+		Fx.shine(button, 4.5, i * 0.6)
 		Kit.label({
 			name = "Caption",
 			text = e[3],
