@@ -1,11 +1,16 @@
 --!strict
 -- Brings map v3 scenery to life on this client (local-only motion of anchored map models):
 --   models with a "Spin" attribute (degrees / second) turn in place (the hub's egg statues);
+--   treadmills (Base<i>.TrainingRack) scroll their belt slats at BeltSpeed and play "TreadUpgrade"
+--   when their RackLevel goes up;
 --   models with a "Merchant" attribute bob, turn to face the local player when they are near and
 --   show their "Greeting" in a speech bubble.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local VFX = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("VFX")) :: any
 
 local FACE_RANGE = 24 -- studs: merchants turn toward you inside this
 local TALK_RANGE = 14 -- studs: the speech bubble shows inside this
@@ -20,6 +25,85 @@ type Merchant = { model: Model, base: CFrame, yaw: number, bubble: BillboardGui?
 local player = Players.LocalPlayer
 local spinners: { Spinner } = {}
 local merchants: { Merchant } = {}
+
+-- Treadmills: belt slats scroll toward the entry at the rack's BeltSpeed; upgrades get a VFX.
+type Belt = { rack: Model, plate: BasePart, slats: { { part: BasePart, rel: CFrame } }, speed: number, length: number }
+local belts: { [Model]: Belt } = {}
+local OWNER_SETTLE = 2 -- seconds after an owner change in which level changes are just restored data
+
+local function trackBelt(rack: Instance)
+	if not rack:IsA("Model") or rack.Name ~= "TrainingRack" then
+		return
+	end
+	local plate = rack:FindFirstChild("Plate")
+	if not plate or not plate:IsA("BasePart") then
+		return
+	end
+	local slats = {}
+	for _, d in rack:GetChildren() do
+		if d:IsA("BasePart") and d.Name == "Slat" then
+			table.insert(slats, { part = d, rel = plate.CFrame:ToObjectSpace(d.CFrame) })
+		end
+	end
+	local speed = rack:GetAttribute("BeltSpeed")
+	belts[rack] = {
+		rack = rack,
+		plate = plate,
+		slats = slats,
+		speed = if typeof(speed) == "number" then speed else 6,
+		length = plate.Size.Z,
+	}
+	rack.AncestryChanged:Connect(function()
+		if not rack:IsDescendantOf(workspace) then
+			belts[rack] = nil
+		end
+	end)
+end
+
+local function stepBelts(t: number)
+	for _, belt in belts do
+		local span = belt.length - 0.4
+		for _, s in belt.slats do
+			local z = (s.rel.Z - belt.speed * t + belt.length / 2 - 0.2) % span - belt.length / 2 + 0.2
+			s.part.CFrame = belt.plate.CFrame * CFrame.new(s.rel.X, s.rel.Y, z)
+		end
+	end
+end
+
+-- Celebrates real upgrades (RackLevel going up), not the level restored when an owner joins.
+local function watchBase(base: Instance)
+	local ownerChangedAt = os.clock()
+	local level = base:GetAttribute("RackLevel")
+	base:GetAttributeChangedSignal("OwnerUserId"):Connect(function()
+		ownerChangedAt = os.clock()
+	end)
+	base:GetAttributeChangedSignal("RackLevel"):Connect(function()
+		local new = base:GetAttribute("RackLevel")
+		local old = level
+		level = new
+		if typeof(new) ~= "number" or typeof(old) ~= "number" or new <= old then
+			return
+		end
+		if os.clock() - ownerChangedAt < OWNER_SETTLE then
+			return
+		end
+		task.delay(0.35, function() -- the server may rebuild the treadmill for a new tier first
+			local rack = base:FindFirstChild("TrainingRack")
+			if rack then
+				VFX.play("TreadUpgrade", rack, {
+					tier = rack:GetAttribute("Tier"),
+					own = base:GetAttribute("OwnerUserId") == player.UserId,
+				})
+			end
+		end)
+	end)
+	for _, child in base:GetChildren() do
+		trackBelt(child)
+	end
+	base.ChildAdded:Connect(function(child)
+		task.defer(trackBelt, child)
+	end)
+end
 
 local function makeBubble(model: Model, text: string): BillboardGui?
 	local head = model:FindFirstChild("Head")
@@ -75,6 +159,7 @@ end
 
 local function step(dt: number)
 	local t = os.clock()
+	stepBelts(t)
 	for _, s in spinners do
 		if s.model.Parent then
 			s.model:PivotTo(s.base * CFrame.Angles(0, s.speed * t, 0))
@@ -113,6 +198,13 @@ function MapLifeController:Start()
 		end
 		for _, d in map:GetDescendants() do
 			track(d)
+		end
+		local safeZone = map:FindFirstChild("SafeZone")
+		local bases = safeZone and safeZone:FindFirstChild("Bases")
+		if bases then
+			for _, base in bases:GetChildren() do
+				watchBase(base)
+			end
 		end
 		RunService.RenderStepped:Connect(step)
 	end)
