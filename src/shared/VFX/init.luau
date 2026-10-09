@@ -13,7 +13,7 @@
 -- Optional on every chase effect: `ownerUserId` (pass the ChaseStart payload's value). Without it the
 -- effect assumes it belongs to the local player; with it, other players get the low-detail version
 -- (half the boulders, no camera shake, no banners).
--- Implementations live in submodules (Egg, Avalanche, ChaseFx, ...); unknown names are a no-op.
+-- Implementations live in submodules (Egg, Hatch, Avalanche, ChaseFx, ...); unknown names are a no-op.
 local RunService = game:GetService("RunService")
 
 type Handler = (target: Instance?, params: { [string]: any }) -> ()
@@ -30,7 +30,13 @@ local function load(): { [string]: Handler }
 	local Avalanche = require(script.Avalanche)
 	local ChaseFx = require(script.ChaseFx)
 	local Egg = require(script.Egg)
+	local Hatch = require(script.Hatch)
 	local loaded: { [string]: Handler } = {
+		HatchCrack = Hatch.HatchCrack,
+		HatchBurst = Hatch.HatchBurst,
+		PetReveal = Hatch.PetReveal,
+		MoneyPop = Hatch.MoneyPop,
+		Announce = Hatch.Announce,
 		KickImpact = Egg.KickImpact,
 		ZoneEnter = Egg.ZoneEnter,
 		EggSpin = Egg.EggSpin,
