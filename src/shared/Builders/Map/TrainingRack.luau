@@ -124,7 +124,7 @@ function TrainingRack.spec(tier: string): Spec
 	}
 	-- lattice filling the gate behind the bag
 	for i = -1, 1 do
-		table.insert(parts, P("LatticeV", { 0.45, 11.2, 0.45 }, { i * 1.75, 7.6, 9.2 }, L.lattice))
+		table.insert(parts, P("LatticeV", { 0.45, 11.6, 0.45 }, { i * 1.75, 7, 9.2 }, L.lattice))
 	end
 	for j = 0, 3 do
 		table.insert(parts, P("LatticeH", { 7.2, 0.45, 0.45 }, { 0, 3.6 + j * 2.9, 9.2 }, L.lattice))

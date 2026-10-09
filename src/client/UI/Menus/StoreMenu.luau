@@ -179,7 +179,7 @@ function StoreMenu.new(parent: Instance): Menu
 	local speed = card(2, "Run Speed", "Boot", Kit.Colors.blue, function()
 		fire("BuyUpgrade", "RunSpeed")
 	end)
-	local pen = card(3, "Bigger Pen", "Chest", Kit.Colors.yellow, function()
+	local pen = card(3, "Bigger Pen", "Egg", Kit.Colors.yellow, function()
 		fire("UpgradePen")
 	end)
 

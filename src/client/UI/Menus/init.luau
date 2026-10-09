@@ -49,7 +49,7 @@ function Menus.new(parent: Instance): Menus
 
 	local entries = {
 		{ "Index", "Book", "Index", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
-		{ "Store", "Chest", "Shop", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
+		{ "Store", "Cart", "Shop", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
 		{ "Rebirth", "Rebirth", "Rebirth", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
 		{ "Trade", "Trade", "Trade", { Color3.fromRGB(90, 85, 110), Color3.fromRGB(55, 50, 72) } },
 	}
