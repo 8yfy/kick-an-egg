@@ -13,19 +13,24 @@ local RebirthMenu = {}
 function RebirthMenu.new(parent: Instance): Menu
 	local window = Window.new(parent, "Rebirth", Kit.Colors.yellow)
 	local body = window.body
+	local Icons = require(script.Parent.Parent.Icons)
+	local glow = Icons.glow(body, UDim2.fromOffset(200, 200))
+	glow.AnchorPoint, glow.Position = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, -50)
+	local icon = Icons.view(body, "Rebirth", UDim2.fromOffset(104, 104))
+	icon.AnchorPoint, icon.Position = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, -6)
 
 	local count = Kit.label({
 		name = "Count",
 		text = "",
 		size = UDim2.new(1, 0, 0, 60),
-		position = UDim2.fromOffset(0, 10),
+		position = UDim2.fromOffset(0, 104),
 		parent = body,
 	})
 	local mult = Kit.label({
 		name = "Multiplier",
 		text = "",
 		size = UDim2.new(1, 0, 0, 40),
-		position = UDim2.fromOffset(0, 76),
+		position = UDim2.fromOffset(0, 168),
 		parent = body,
 		color = Kit.Colors.green[1],
 	})
@@ -33,7 +38,7 @@ function RebirthMenu.new(parent: Instance): Menu
 		name = "Perks",
 		text = "",
 		size = UDim2.new(1, -60, 0, 34),
-		position = UDim2.fromOffset(30, 130),
+		position = UDim2.fromOffset(30, 214),
 		parent = body,
 		color = Color3.fromRGB(220, 215, 240),
 	})
@@ -41,13 +46,13 @@ function RebirthMenu.new(parent: Instance): Menu
 		name = "Requirement",
 		text = "",
 		size = UDim2.new(1, -60, 0, 34),
-		position = UDim2.fromOffset(30, 196),
+		position = UDim2.fromOffset(30, 276),
 		parent = body,
 	})
 	local bar = Kit.panel({
 		name = "Bar",
 		size = UDim2.new(1, -120, 0, 30),
-		position = UDim2.fromOffset(60, 240),
+		position = UDim2.fromOffset(60, 318),
 		parent = body,
 		colors = { Color3.fromRGB(30, 25, 40), Color3.fromRGB(50, 45, 65) },
 		radius = 14,
