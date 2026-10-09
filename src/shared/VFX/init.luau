@@ -4,7 +4,8 @@
 --   Kick + flight: "KickImpact" {power}, "ZoneEnter" {zone}, "EggSpin" {zone, keys, finalKey?, seconds},
 --                  "Landing" {rarity, zone}, "LegsSprout" {}
 --   Chase:         "AvalancheWarn" {theme, startZ, seconds}, "AvalancheStart" {theme, startZ, speed, startTime},
---                  "AvalancheStop" {}, "EggPickup" {}, "EggSecured" {rarity}, "EggCaught" {theme}
+--                  "AvalancheStop" {}, "EggPickup" {}, "EggSecured" {rarity}, "EggCaught" {theme},
+--                  "PlayerLaunch" {from, to} (target = owner's Character; the server has already moved it to `to`)
 --   Base:          "HatchCrack" {progress}, "HatchBurst" {rarity}, "PetReveal" {rarity, name}, "MoneyPop" {amount},
 --                  "Announce" {text, rarity}
 --   plus every weather mutation's `vfx` name from Config/Mutations via VFX.attach (looping on a pet).

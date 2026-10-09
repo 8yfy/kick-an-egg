@@ -17,8 +17,10 @@ Roblox game, Luau, synced with Rojo (`default.project.json`). Two partners work 
    rolls toward the bases (-Z) at `Chase.avalancheSpeed(landZone)`, chasing everything in its path.
 5. **The egg runs.** The legged egg panics and sprints toward the bases, zig-zagging. It is slower than
    the avalanche, so it gets caught unless the player reaches it first.
-6. **Rescue.** The player runs out into the field, touches the egg to pick it up (held overhead,
-   legs kicking) and sprints back. Run Speed upgrades are what make far zones survivable.
+6. **Rescue.** At touchdown the kicker is launched after the egg and lands `Launch.behindLanding`
+   studs behind it (`PlayerLaunch`). They touch the egg to pick it up (held overhead, legs kicking)
+   and sprint back to the bases ahead of the avalanche. Run Speed upgrades are what make far zones
+   survivable: carrying, you must outrun that zone's avalanche (zone 1–4 need Run Speed 16, zone 20 needs ~36).
 7. **Outcome.** Cross the safe line (Z < -6) holding the egg → `EggSecured`, and the egg goes into the
    inventory. If the avalanche front reaches the player → `EggLost` ("Caught"): the player is flung,
    the egg shatters, and the player respawns at their base. If it reaches the egg before pickup → `EggLost` ("EggCaught").

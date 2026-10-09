@@ -73,6 +73,12 @@ local Chase = {
 		maxCarried = 1,
 	},
 
+	Launch = {
+		-- At touchdown the kicker is moved this many studs behind the landing point (toward the
+		-- bases), so the chase is grab-and-run-back. Without it zones 5+ are unreachable in time.
+		behindLanding = 12,
+	},
+
 	Caught = {
 		knockback = 60, -- studs/s fling toward the safe zone
 		respawnAtBase = true, -- player is teleported back to their base after 1.2 s
