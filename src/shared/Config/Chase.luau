@@ -62,20 +62,23 @@ local Chase = {
 	Themes = Themes,
 
 	Egg = {
-		runDelay = 0.9, -- seconds after touchdown (legs sprout) before it starts running
-		runSpeed = 7, -- studs/s toward -Z, always slower than the avalanche
-		zigzag = 3, -- studs of side-to-side panic wobble
-		pickupDistance = 6, -- player must be this close to grab it
+		runDelay = 0.9, -- seconds after touchdown (legs sprout) before the player can steer it
+		-- The egg is steered by its owner at runSpeed x speedMultiplier (Economy / training pad).
+		-- Unused since the steering change (kept so old code doesn't break): runSpeed, zigzag,
+		-- pickupDistance, Carry, Caught.
+		runSpeed = 7,
+		zigzag = 3,
+		pickupDistance = 6,
 	},
 
 	Carry = {
-		speedMultiplier = 0.92, -- player walk speed while carrying
+		speedMultiplier = 0.92,
 		maxCarried = 1,
 	},
 
 	Caught = {
-		knockback = 60, -- studs/s fling toward the safe zone
-		respawnAtBase = true, -- player is teleported back to their base after 1.2 s
+		knockback = 60,
+		respawnAtBase = true,
 		eggLost = true,
 	},
 

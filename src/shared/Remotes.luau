@@ -11,15 +11,17 @@
 -- S->C  ChaseStart({ eggUid: string, ownerUserId: number, theme: string, startZ: number,
 --                     startTime: number, speed: number, eggStartPos: Vector3, eggRunStart: number,
 --                     eggModel: string, rarity: string })
---                     -- fired to ALL clients at touchdown; startTime = touchdown + warnSeconds
--- C->S  PickupEgg(eggUid: string)                  -- server checks distance <= Egg.pickupDistance
--- S->C  EggPickedUp({ eggUid: string, userId: number })
--- S->C  EggSecured({ eggUid: string })             -- owner crossed SafeLineZ while carrying it
--- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" })
+--                     -- fired to ALL clients at touchdown; startTime = touchdown + warnSeconds.
+--                     -- The egg is the server model workspace.Chases[eggUid]; its owner steers it
+--                     -- from eggRunStart (attribute Speed = studs/s, Hitbox has SteerVelocity/SteerAlign).
+-- C->S  PickupEgg(eggUid: string)                  -- UNUSED since the player steers the egg (drained)
+-- S->C  EggPickedUp({ eggUid: string, userId: number }) -- UNUSED since the player steers the egg
+-- S->C  EggSecured({ eggUid: string })             -- the egg crossed SafeLineZ
+-- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" }) -- "Caught" is no longer sent
 -- S->C  ChaseEnded({ eggUid: string })             -- avalanche crumbles at the safe line
 -- C->S  PlaceEgg(eggUid: string, slot: number)
 -- S->C  EggHatched({ eggUid: string, slot: number, petUid: string })
--- C->S  BuyUpgrade(kind: "KickPower" | "RunSpeed")
+-- C->S  BuyUpgrade(kind: "KickPower" | "RunSpeed" | "TrainingPad")
 -- C->S  Rebirth()
 -- C->S  SellPet(petUid: string)
 -- S->C  DataChanged(partial: {[string]: any})
