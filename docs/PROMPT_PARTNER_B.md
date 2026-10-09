@@ -84,6 +84,24 @@ gamepass), upgrade costs = costBase × costGrowth^level, Rebirth only at max pow
 announcements for Legendary+, trading (both players confirm, server swaps atomically), sell,
 gamepass/dev product handlers with placeholder IDs.
 
+ROJO (mandatory; every file lives in this repo, never only in Studio):
+- Rojo 7, synced through default.project.json: src/shared → ReplicatedStorage.Shared,
+  src/server → ServerScriptService.Server, src/client → StarterPlayerScripts.Client.
+- Workflow: `rokit install` once, then `rojo serve` while the Studio Rojo plugin is connected.
+  Create and edit code ONLY as files under src/. Never write or paste scripts in Studio; Rojo
+  overwrites them. Test in Studio, fix in the files.
+- File naming decides the instance type: Name.server.luau = Script, Name.client.luau =
+  LocalScript, Name.luau = ModuleScript, a folder with init.luau = ModuleScript with children,
+  a folder without one = Folder. Non-script instances (RemoteEvents, values, configured parts)
+  go in *.model.json or are created in code; use *.meta.json for properties on scripts or folders.
+- Entry points: src/server/Main.server.luau and src/client/Main.client.luau (the loaders).
+  Everything else is a ModuleScript.
+- The map, models and UI are built from code at runtime (or via a command-bar call to a builder
+  module), so they live in git too. Don't hand-build things in Studio and save the .rbxl as the
+  source of truth; .rbxl files are gitignored.
+- Changing default.project.json (a new service mapping, Lighting/Workspace properties) is a
+  contract change: make a separate "contract:" PR.
+
 WORKFLOW:
 - Plan in ≤ 5 bullets, then code. Small diffs. --!strict on every module.
 - One task per session. After it works: branch b/<task>, commit "feat(area): ...", open a PR.
