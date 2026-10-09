@@ -6,6 +6,7 @@
 -- Every 0.1 s the server validates the egg's position (speed limit, snap-back on teleports) and
 -- decides EggCaught / EggSecured / ChaseEnded. Egg speed = the player's Run Speed (bought in the shop).
 
+local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -50,6 +51,7 @@ local FALL_LIMIT = 40 -- studs below the landing point = fell off the map
 local OWNER_RESTORE_DELAY = 0.25 -- after a server snap-back
 local EGG_CLEANUP_DELAY = 1.5 -- lets EggSecured / EggCaught VFX play on the egg
 local STEER_FORCE = 1e6
+local EGGS_GROUP = "Eggs" -- map v3 collision group (MapBuilder registers it)
 
 local Avalanche = Chase.Avalanche
 local Egg = Chase.Egg
@@ -146,6 +148,9 @@ local function buildEgg(chase: ChaseState, eggModel: string): (Model, BasePart)
 	hitbox.CanCollide = true
 	hitbox.CustomPhysicalProperties = PhysicalProperties.new(1, 0, 0, 100, 1) -- no friction drag
 	hitbox.Parent = egg
+	if PhysicsService:IsCollisionGroupRegistered(EGGS_GROUP) then
+		hitbox.CollisionGroup = EGGS_GROUP -- passes the map's PlayerBarrier at the canyon mouth
+	end
 	local root = egg.PrimaryPart :: BasePart
 	root.Anchored = false -- the hitbox (anchored until control) now holds the assembly
 	local weld = Instance.new("WeldConstraint")
