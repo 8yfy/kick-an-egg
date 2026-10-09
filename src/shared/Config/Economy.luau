@@ -12,4 +12,18 @@ local Economy = {
 	AutosaveSeconds = 90,
 }
 
+export type UpgradeKind = "KickPower" | "RunSpeed"
+
+-- Highest Kick Power this player can buy; each rebirth raises the cap.
+function Economy.maxKickPower(rebirths: number): number
+	return Economy.KickPower.max + rebirths * Economy.Rebirth.powerCapBonus
+end
+
+-- Price of the next +1 of `kind` when the player currently has `value` (level = value - base).
+-- Shared by the server (BuyUpgrade) and A's shop UI so both show the same number.
+function Economy.upgradeCost(kind: UpgradeKind, value: number): number
+	local config = Economy[kind]
+	return math.floor(config.costBase * config.costGrowth ^ (value - config.base))
+end
+
 return Economy

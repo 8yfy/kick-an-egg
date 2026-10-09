@@ -314,6 +314,14 @@ function ChaseService:GetChase(player: Player): ChaseState?
 	return chases[player]
 end
 
+-- Re-applies WalkSpeed after runSpeed changes (upgrade/rebirth), keeping the carry slowdown.
+function ChaseService:RefreshWalkSpeed(player: Player)
+	local chase = chases[player]
+	local carrying = chase ~= nil and chase.pickedUp and not chase.resolved
+	local speed = baseWalkSpeed(player)
+	setWalkSpeed(player, if carrying then speed * Chase.Carry.speedMultiplier else speed)
+end
+
 function ChaseService:Init()
 	for _, name in { "ChaseStart", "EggPickedUp", "EggSecured", "EggLost", "ChaseEnded" } do
 		remotes[name] = Remotes.get(name)
