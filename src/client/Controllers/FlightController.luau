@@ -47,6 +47,7 @@ local flightConnection: RBXScriptConnection? = nil
 local function groundY(x: number, z: number, top: number): number
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.RespectCanCollide = true -- skip decor like A's AmbientFx emitters; hit the real ground
 	local ignore: { Instance } = { eggFolder }
 	for _, other in Players:GetPlayers() do
 		if other.Character then
