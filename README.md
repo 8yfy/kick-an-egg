@@ -1,4 +1,4 @@
-# Kick An Egg!
+# Kick the Egg!
 
 Kick an egg down a runway through 20 zones, watch it spin through the zone's eggs, land on a
 random one, hatch it on your plot and collect cool bricky pets with size and weather mutations.

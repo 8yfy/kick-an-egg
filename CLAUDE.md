@@ -1,4 +1,4 @@
-# Kick An Egg! — rules for Claude Code (read this, then only the files your task needs)
+# Kick the Egg! — rules for Claude Code (read this, then only the files your task needs)
 
 Roblox game, Luau, synced with Rojo (`default.project.json`). Two partners work in parallel:
 **Partner A = gameplay/server/data**, **Partner B = art/VFX/UI**. See `docs/TASKS.md` for who owns what.

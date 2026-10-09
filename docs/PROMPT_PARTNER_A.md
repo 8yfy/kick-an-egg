@@ -1,7 +1,7 @@
 # Partner A — paste this into Claude Code (from the repo root)
 
 ```
-You are my Roblox/Luau engineer on "Kick An Egg!". I am Partner A: I own gameplay, server,
+You are my Roblox/Luau engineer on "Kick the Egg!". I am Partner A: I own gameplay, server,
 data, RNG, economy and trading. My partner (Partner B) owns models, VFX, animations and UI.
 
 Read CLAUDE.md and docs/TASKS.md first, then ONLY the files the current task needs.
