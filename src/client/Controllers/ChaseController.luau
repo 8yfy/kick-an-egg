@@ -1,16 +1,14 @@
 --!strict
--- Draws every chase (own and other players'): avalanche VFX, the running egg (same formula as
--- the server + a cosmetic zig-zag), touch pickup for the owner, the carry weld and outcome VFX.
+-- Draws every chase (own and other players') and lets the owner STEER their egg.
+-- The egg is the server's model at workspace.Chases[eggUid]. From controlStart (ChaseStart.eggRunStart)
+-- the owner has physics ownership: their movement input (keyboard / thumbstick, camera-relative)
+-- sets the egg's LinearVelocity, and the camera follows the egg. The server validates and decides.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Chase = require(Shared.Config.Chase)
-local Pets = require(Shared.Config.Pets)
-local Zones = require(Shared.Config.Zones)
-local Models = require(Shared.Builders.Models)
 local VFX = require(Shared.VFX)
 local Anim = require(Shared.Anim)
 local Remotes = require(Shared.Remotes)
@@ -25,80 +23,62 @@ type ChaseStartPayload = {
 	startTime: number,
 	speed: number,
 	eggStartPos: Vector3,
-	eggRunStart: number,
-	eggModel: string?, -- added by the ChaseStart contract update; older servers omit them
+	eggRunStart: number, -- control starts here
+	eggModel: string?,
 	rarity: string?,
 }
 
 type ChaseView = {
 	payload: ChaseStartPayload,
 	isOwn: boolean,
-	folder: Folder,
-	egg: Model?,
-	eggModel: string,
-	rarity: string?,
-	carrier: Player?,
-	running: boolean,
+	folder: Folder, -- client-side avalanche VFX
+	egg: Model?, -- the server's egg
+	steering: boolean,
 	stops: { () -> () },
 	connection: RBXScriptConnection?,
-	lastPickupSend: number,
 }
 
-local ZIGZAG_RATE = 4 -- sin(t × 4), as in the spec
-local CARRY_ABOVE_HEAD = 1.5
-local PICKUP_RESEND = 0.25
+local EGG_WAIT = 10 -- seconds to wait for the server egg to replicate
 local CLEANUP_DELAY = 1.2 -- AvalancheStop crumble time
-local RAY_TOP = 40
-
-local Egg = Chase.Egg
+local MOVE_DEADZONE = 0.05
 
 local ChaseController = {}
 
 local player = Players.LocalPlayer
-local chasesFolder: Folder
+local chasesFolder: Folder -- client VFX folders
 local views: { [string]: ChaseView } = {}
-local ownKicks: { [string]: { eggModel: string, rarity: string } } = {}
-local pickupEgg: RemoteEvent
+local controls: any = nil -- PlayerModule ControlModule (move vector from keyboard / thumbstick / gamepad)
 
-local function zoneAt(z: number): number
-	for _, zone in Zones do
-		if z < zone.start + zone.length then
-			return zone.id
+local function getControls(): any
+	if not controls then
+		local ok, playerModule = pcall(function()
+			return require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule") :: ModuleScript) :: any
+		end)
+		if ok and playerModule then
+			controls = playerModule:GetControls()
 		end
 	end
-	return #Zones
+	return controls
 end
 
-local function groundY(x: number, z: number, near: number): number
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local ignore: { Instance } = { chasesFolder }
-	local clientEggs = workspace:FindFirstChild("ClientEggs")
-	if clientEggs then
-		table.insert(ignore, clientEggs)
+-- Camera-relative input → flat world direction (length 0..1).
+local function steerDirection(): Vector3
+	local ctl = getControls()
+	if not ctl then
+		return Vector3.zero
 	end
-	for _, other in Players:GetPlayers() do
-		if other.Character then
-			table.insert(ignore, other.Character)
-		end
+	local move: Vector3 = ctl:GetMoveVector()
+	if move.Magnitude < MOVE_DEADZONE then
+		return Vector3.zero
 	end
-	params.FilterDescendantsInstances = ignore
-	local hit = workspace:Raycast(Vector3.new(x, near + RAY_TOP, z), Vector3.new(0, -RAY_TOP * 3, 0), params)
-	return if hit then hit.Position.Y else near
-end
-
--- Same Z as ChaseService.eggZ on the server, plus a cosmetic zig-zag on X.
-local function eggPlacement(payload: ChaseStartPayload, now: number): (Vector3, Vector3)
-	local t = math.max(0, now - payload.eggRunStart)
-	local start = payload.eggStartPos
-	local rawZ = start.Z - Egg.runSpeed * t
-	local z = math.max(rawZ, Chase.SafeLineZ)
-	local x = start.X + Egg.zigzag * math.sin(t * ZIGZAG_RATE)
-	local running = t > 0 and rawZ > Chase.SafeLineZ
-	local heading = if running
-		then Vector3.new(Egg.zigzag * ZIGZAG_RATE * math.cos(t * ZIGZAG_RATE), 0, -Egg.runSpeed)
-		else Vector3.new(0, 0, -1)
-	return Vector3.new(x, start.Y, z), heading
+	local cf = workspace.CurrentCamera.CFrame
+	local look = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+	local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+	if look.Magnitude < 1e-3 or right.Magnitude < 1e-3 then
+		return Vector3.zero
+	end
+	local dir = right.Unit * move.X - look.Unit * move.Z
+	return if dir.Magnitude > 1 then dir.Unit else dir
 end
 
 local function stopAll(view: ChaseView)
@@ -108,7 +88,17 @@ local function stopAll(view: ChaseView)
 	table.clear(view.stops)
 end
 
-local function destroyView(view: ChaseView, delay: number)
+local function returnCamera()
+	local camera = workspace.CurrentCamera
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	camera.CameraType = Enum.CameraType.Custom
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+local function endView(view: ChaseView, delay: number)
 	if views[view.payload.eggUid] == view then
 		views[view.payload.eggUid] = nil
 	end
@@ -117,113 +107,97 @@ local function destroyView(view: ChaseView, delay: number)
 		view.connection = nil
 	end
 	stopAll(view)
-	if view.egg then
-		view.egg:Destroy()
-		view.egg = nil
+	if view.isOwn and view.steering then
+		returnCamera()
 	end
+	view.steering = false
 	local folder = view.folder
 	task.delay(delay, function()
 		folder:Destroy()
 	end)
 end
 
-local function tryPickup(view: ChaseView, now: number)
-	if not view.isOwn or view.carrier or now - view.lastPickupSend < PICKUP_RESEND then
+-- Own steering, every frame while in control.
+local function steer(egg: Model)
+	local hitbox = egg:FindFirstChild("Hitbox")
+	local velocity = hitbox and hitbox:FindFirstChild("SteerVelocity")
+	local align = hitbox and hitbox:FindFirstChild("SteerAlign")
+	if not hitbox or not hitbox:IsA("BasePart") or not velocity or not velocity:IsA("LinearVelocity") then
 		return
 	end
-	local character = player.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	local egg = view.egg
-	if not hrp or not hrp:IsA("BasePart") or not egg then
-		return
+	local camera = workspace.CurrentCamera
+	if camera.CameraSubject ~= hitbox then
+		camera.CameraType = Enum.CameraType.Custom
+		camera.CameraSubject = hitbox
 	end
-	local delta = hrp.Position - egg:GetPivot().Position
-	if Vector3.new(delta.X, 0, delta.Z).Magnitude <= Egg.pickupDistance then
-		view.lastPickupSend = now
-		pickupEgg:FireServer(view.payload.eggUid)
+	local speed = egg:GetAttribute("Speed")
+	local dir = steerDirection()
+	local planar = dir * (if typeof(speed) == "number" then speed else 16)
+	velocity.PlaneVelocity = Vector2.new(planar.X, planar.Z)
+	if align and align:IsA("AlignOrientation") and dir.Magnitude > MOVE_DEADZONE then
+		align.CFrame = CFrame.lookAt(Vector3.zero, dir)
 	end
-end
-
--- The owner's landed egg comes from FlightController (it may still be swapping at touchdown);
--- other players' eggs, or a missing one, are spawned here.
-local function ensureEgg(view: ChaseView): Model?
-	local egg = view.egg
-	if egg and egg.Parent then
-		return egg
-	end
-	local model: Model
-	local taken = if view.isOwn then FlightController:TakeEgg(view.payload.eggUid) else nil
-	if taken and taken.Parent then
-		model = taken
-	elseif view.isOwn and FlightController:GetEgg(view.payload.eggUid) then
-		return nil -- our egg is still landing; take it next frame
-	else
-		model = Models.egg(view.eggModel)
-		model:PivotTo(CFrame.new(view.payload.eggStartPos))
-	end
-	model.Name = "Egg"
-	model.Parent = view.folder
-	view.egg = model
-	if view.isOwn then
-		for _, part in model:GetDescendants() do
-			if part:IsA("BasePart") then
-				part.Touched:Connect(function(hit)
-					local character = player.Character
-					if character and hit:IsDescendantOf(character) then
-						tryPickup(view, workspace:GetServerTimeNow())
-					end
-				end)
-			end
-		end
-	end
-	return model
 end
 
 local function step(view: ChaseView)
-	if view.carrier then
-		return -- welded to the carrier's head
-	end
-	local now = workspace:GetServerTimeNow()
-	local egg = ensureEgg(view)
-	if not egg then
+	local egg = view.egg
+	if not egg or not egg.Parent then
 		return
 	end
-	local pos, heading = eggPlacement(view.payload, now)
-	local y = groundY(pos.X, pos.Z, pos.Y)
-	local at = Vector3.new(pos.X, y, pos.Z)
-	egg:PivotTo(CFrame.lookAt(at, at + heading))
-
-	if not view.running and now >= view.payload.eggRunStart then
-		view.running = true
+	local now = workspace:GetServerTimeNow()
+	if not view.steering and now >= view.payload.eggRunStart then
+		view.steering = true
 		table.insert(view.stops, Anim.play(egg, "EggRun"))
 	end
-	tryPickup(view, now)
+	if view.isOwn and view.steering then
+		steer(egg)
+	end
+end
+
+local function attachEgg(view: ChaseView)
+	local serverChases = workspace:WaitForChild("Chases", EGG_WAIT)
+	local egg = serverChases and serverChases:WaitForChild(view.payload.eggUid, EGG_WAIT)
+	if not egg or not egg:IsA("Model") or views[view.payload.eggUid] ~= view then
+		return
+	end
+	view.egg = egg
+	if view.isOwn then
+		-- Swap FlightController's local landed egg for the real one (wait if it is still landing).
+		local uid = view.payload.eggUid
+		local landed = FlightController:TakeEgg(uid)
+		local deadline = os.clock() + 1.5
+		while not landed and FlightController:GetEgg(uid) and os.clock() < deadline do
+			task.wait(0.05)
+			landed = FlightController:TakeEgg(uid)
+		end
+		if landed then
+			landed:Destroy()
+		end
+	else
+		VFX.play("Landing", egg, { rarity = view.payload.rarity })
+	end
+	VFX.play("LegsSprout", egg, {})
+	view.connection = RunService.RenderStepped:Connect(function()
+		step(view)
+	end)
 end
 
 local function onChaseStart(payload: ChaseStartPayload)
 	if views[payload.eggUid] then
 		return
 	end
-	local isOwn = payload.ownerUserId == player.UserId
-	local own = ownKicks[payload.eggUid]
-	local guessKeys = Models.eggKeysForZone(Pets, zoneAt(payload.eggStartPos.Z))
-
 	local folder = Instance.new("Folder")
 	folder.Name = payload.eggUid
 	folder.Parent = chasesFolder
 
 	local view: ChaseView = {
 		payload = payload,
-		isOwn = isOwn,
+		isOwn = payload.ownerUserId == player.UserId,
 		folder = folder,
 		egg = nil,
-		eggModel = if own then own.eggModel else (payload.eggModel or guessKeys[1] or "Unknown"),
-		rarity = if own then own.rarity else payload.rarity,
-		carrier = nil,
-		running = false,
+		steering = false,
 		stops = {},
 		connection = nil,
-		lastPickupSend = 0,
 	}
 	views[payload.eggUid] = view
 
@@ -243,46 +217,7 @@ local function onChaseStart(payload: ChaseStartPayload)
 			})
 		end
 	end)
-
-	ensureEgg(view)
-	view.connection = RunService.RenderStepped:Connect(function()
-		step(view)
-	end)
-end
-
-local function onEggPickedUp(payload: { eggUid: string, userId: number })
-	local view = views[payload.eggUid]
-	local carrier = Players:GetPlayerByUserId(payload.userId)
-	local character = carrier and carrier.Character
-	local head = character and character:FindFirstChild("Head")
-	if not view or not carrier or not character or not head or not head:IsA("BasePart") then
-		return
-	end
-	view.carrier = carrier
-	stopAll(view)
-	local egg = ensureEgg(view)
-	if not egg then
-		return
-	end
-	egg:PivotTo(head.CFrame * CFrame.new(0, head.Size.Y / 2 + CARRY_ABOVE_HEAD, 0))
-	for _, part in egg:GetDescendants() do
-		if part:IsA("BasePart") then
-			part.Massless = true
-			part.CanCollide = false
-			part.CanTouch = false
-		end
-	end
-	local root = egg.PrimaryPart
-	if root then
-		root.Anchored = false
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = root
-		weld.Part1 = head
-		weld.Parent = root
-	end
-	VFX.play("EggPickup", egg, {})
-	table.insert(view.stops, Anim.play(egg, "EggCarried"))
-	table.insert(view.stops, Anim.play(character, "PlayerCarry"))
+	task.spawn(attachEgg, view)
 end
 
 local function onEggSecured(payload: { eggUid: string })
@@ -295,10 +230,12 @@ local function onEggSecured(payload: { eggUid: string })
 		view.connection = nil
 	end
 	stopAll(view)
+	if view.isOwn and view.steering then
+		returnCamera()
+	end
+	view.steering = false
 	if view.egg then
-		VFX.play("EggSecured", view.egg, { rarity = view.rarity })
-		view.egg:Destroy()
-		view.egg = nil
+		VFX.play("EggSecured", view.egg, { rarity = view.payload.rarity })
 	end
 	-- The avalanche keeps rolling to the safe line; ChaseEnded removes the folder.
 end
@@ -312,8 +249,7 @@ local function onEggLost(payload: { eggUid: string, reason: string })
 		VFX.play("EggCaught", view.egg or view.folder, { theme = view.payload.theme })
 		VFX.play("AvalancheStop", view.folder, {})
 	end
-	destroyView(view, if payload.reason == "Left" then 0 else CLEANUP_DELAY)
-	ownKicks[payload.eggUid] = nil
+	endView(view, if payload.reason == "Left" then 0 else CLEANUP_DELAY)
 end
 
 local function onChaseEnded(payload: { eggUid: string })
@@ -322,28 +258,21 @@ local function onChaseEnded(payload: { eggUid: string })
 		return
 	end
 	VFX.play("AvalancheStop", view.folder, {})
-	destroyView(view, CLEANUP_DELAY)
+	endView(view, CLEANUP_DELAY)
 end
 
 function ChaseController:Init()
-	pickupEgg = Remotes.get("PickupEgg")
 	chasesFolder = Instance.new("Folder")
 	chasesFolder.Name = "ClientChases"
 	chasesFolder.Parent = workspace
 end
 
 function ChaseController:Start()
-	Remotes.get("KickResult").OnClientEvent:Connect(function(result: FlightController.KickResult)
-		ownKicks[result.eggUid] = { eggModel = result.eggModel, rarity = result.rarity }
-	end)
+	task.spawn(getControls)
 	Remotes.get("ChaseStart").OnClientEvent:Connect(onChaseStart)
-	Remotes.get("EggPickedUp").OnClientEvent:Connect(onEggPickedUp)
 	Remotes.get("EggSecured").OnClientEvent:Connect(onEggSecured)
 	Remotes.get("EggLost").OnClientEvent:Connect(onEggLost)
-	Remotes.get("ChaseEnded").OnClientEvent:Connect(function(payload: { eggUid: string })
-		onChaseEnded(payload)
-		ownKicks[payload.eggUid] = nil
-	end)
+	Remotes.get("ChaseEnded").OnClientEvent:Connect(onChaseEnded)
 end
 
 return ChaseController
