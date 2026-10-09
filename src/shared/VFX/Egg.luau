@@ -11,16 +11,15 @@
 --              squash/stretch, then the egg shakes off dust. Adds Motor6Ds LegL/LegR (ArmL/ArmR)
 --              under the egg's Root so Anim "EggRun"/"EggCarried" can drive them.
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
-local Pets = require(Config:WaitForChild("Pets"))
 local Rarities = require(Config:WaitForChild("Rarities"))
 local Zones = require(Config:WaitForChild("Zones"))
 local Rig = require(Shared:WaitForChild("Anim"):WaitForChild("Rig"))
 local Pool = require(script.Parent.Pool)
 local Burst = require(script.Parent.Burst)
+local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Themes = require(script.Parent.Themes)
 
@@ -30,59 +29,8 @@ local SWAP_FAST, SWAP_SLOW = 0.07, 0.18
 local HIP = 1.15 -- body lift once the legs are out
 local LEG_COLOR, FOOT_COLOR = Color3.fromRGB(255, 165, 50), Color3.fromRGB(255, 130, 40)
 
-local function rarityOfKey(key: string?): string
-	if key then
-		for _, p in Pets do
-			if p.model == key then
-				return p.rarity
-			end
-		end
-	end
-	return "Common"
-end
-
-local function keyOfModel(model: Instance): string?
-	local name = model.Name
-	return if string.sub(name, -3) == "Egg" then string.sub(name, 1, -4) else nil
-end
-
-local function posOf(target: Instance?): Vector3?
-	if target and target:IsA("Model") then
-		return target:GetPivot().Position
-	elseif target and target:IsA("BasePart") then
-		return target.Position
-	end
-	return nil
-end
-
-local function flash(pos: Vector3, color: Color3, size: number, seconds: number)
-	local ball = Pool.get("Ball")
-	ball.Material = Enum.Material.Neon
-	ball.Color = color
-	ball.Size = Vector3.one * size * 0.3
-	ball.CFrame = CFrame.new(pos)
-	ball.Transparency = 0.2
-	local light = Instance.new("PointLight")
-	light.Color = color
-	light.Range = size * 2
-	light.Brightness = 4
-	light.Parent = ball
-	local info = TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(ball, info, { Size = Vector3.one * size, Transparency = 1 }):Play()
-	TweenService:Create(light, info, { Brightness = 0 }):Play()
-	task.delay(seconds + 0.05, Pool.release, ball)
-end
-
-local function hideLocally(model: Model, hidden: boolean, except: Instance?)
-	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and not (except and d:IsDescendantOf(except)) then
-			d.LocalTransparencyModifier = if hidden then 1 else 0
-		end
-	end
-end
-
 function Egg.KickImpact(target: Instance?, params: { [string]: any })
-	local pos = posOf(target) or Vector3.new(0, 1, 0)
+	local pos = Fx.posOf(target) or Vector3.new(0, 1, 0)
 	local power = math.clamp((params.power or 1) / 25, 0.3, 1)
 	Burst.play(
 		pos + Vector3.new(0, 1, 0),
@@ -94,12 +42,12 @@ function Egg.KickImpact(target: Instance?, params: { [string]: any })
 		false,
 		true
 	)
-	flash(pos, Color3.fromRGB(255, 240, 160), 6 + 4 * power, 0.3)
+	Fx.flash(pos, Color3.fromRGB(255, 240, 160), 6 + 4 * power, 0.3)
 	Shake.impulse("Kick", 0.25 + 0.35 * power, 0.25)
 end
 
 function Egg.ZoneEnter(target: Instance?, params: { [string]: any })
-	local pos = posOf(target)
+	local pos = Fx.posOf(target)
 	local zone = Zones[params.zone or 1]
 	if pos and zone then
 		Burst.play(pos, 8, { zone.accent, Color3.new(1, 1, 1) }, NumberRange.new(0.3, 0.6), 18, 0.5, false, true)
@@ -178,7 +126,7 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 	end
 	state.token += 1
 	local token = state.token
-	hideLocally(egg, true, state.current)
+	Fx.hideLocally(egg, true, state.current)
 
 	local index = math.random(1, #keys)
 	local current = show(state, egg, keys[index])
@@ -194,7 +142,7 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 		if os.clock() - t0 >= nextSwap and f < 1 then
 			index = index % #keys + 1
 			current = show(state, egg, keys[index])
-			hideLocally(egg, true, current)
+			Fx.hideLocally(egg, true, current)
 			nextSwap = (os.clock() - t0) + SWAP_FAST + (SWAP_SLOW - SWAP_FAST) * f * f
 		end
 		local motor = (current.PrimaryPart :: BasePart):FindFirstChild("SpinMotor") :: Motor6D
@@ -209,10 +157,10 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 		end
 		-- Final stop: land on finalKey, pop 1.2 -> 1 and flash in the rarity colour.
 		current = show(state, egg, finalKey)
-		hideLocally(egg, true, current)
-		local rarity = Rarities[rarityOfKey(finalKey)] or Rarities.Common
+		Fx.hideLocally(egg, true, current)
+		local rarity = Rarities[Fx.rarityOfKey(finalKey)] or Rarities.Common
 		local pivot = egg:GetPivot().Position + Vector3.new(0, 2, 0)
-		flash(pivot, rarity.color, 9, 0.4)
+		Fx.flash(pivot, rarity.color, 9, 0.4)
 		local popT0 = os.clock()
 		local popConn: RBXScriptConnection
 		popConn = RunService.RenderStepped:Connect(function()
@@ -233,7 +181,7 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 end
 
 function Egg.Landing(target: Instance?, params: { [string]: any })
-	local pos = posOf(target)
+	local pos = Fx.posOf(target)
 	if not pos then
 		return
 	end
@@ -259,48 +207,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 	task.delay(1.2, Pool.release, puff)
 	Burst.play(ground, 10, { dustColor, dustColor:Lerp(Color3.new(0, 0, 0), 0.2) }, NumberRange.new(0.4, 0.9), 14, 0.6)
 
-	-- Rarity light pillar: a 40-stud beam that fades over 1.5 s.
-	local base = Pool.anchor(CFrame.new(ground))
-	local a0, a1 = Instance.new("Attachment"), Instance.new("Attachment")
-	a1.Position = Vector3.new(0, 40, 0)
-	a0.Parent, a1.Parent = base, base
-	local beam = Instance.new("Beam")
-	beam.Attachment0, beam.Attachment1 = a0, a1
-	beam.Color = ColorSequence.new(rarity.color)
-	beam.LightEmission = 1
-	beam.LightInfluence = 0
-	beam.FaceCamera = true
-	beam.Width0, beam.Width1 = 6, 3
-	beam.Brightness = 4
-	beam.Segments = 1
-	beam.Parent = base
-	-- Solid Neon core so the pillar reads in daylight.
-	local core = Pool.get("Cylinder")
-	core.Material = Enum.Material.Neon
-	core.Color = rarity.color
-	core.Size = Vector3.new(40, 1.4, 1.4)
-	core.CFrame = CFrame.new(ground + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.rad(90))
-	core.Transparency = 0.2
-	local light = Instance.new("PointLight")
-	light.Color = rarity.color
-	light.Range = 18
-	light.Brightness = 3
-	light.Parent = base
-	local t0 = os.clock()
-	local conn: RBXScriptConnection
-	conn = RunService.RenderStepped:Connect(function()
-		local k = (os.clock() - t0) / 1.5
-		if k >= 1 then
-			conn:Disconnect()
-			Pool.release(base)
-			Pool.release(core)
-			return
-		end
-		beam.Transparency = NumberSequence.new(0.9 * k, 1)
-		core.Transparency = 0.2 + 0.8 * k
-		core.Size = Vector3.new(40, 1.4 * (1 - 0.6 * k), 1.4 * (1 - 0.6 * k))
-		light.Brightness = 3 * (1 - k)
-	end)
+	-- Rarity light pillar: 40 studs, fades over 1.5 s.
+	Fx.pillar(ground, rarity.color, 40, 1.5)
 end
 
 local function limb(
@@ -340,8 +248,8 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 	local root = egg.PrimaryPart :: BasePart
 	local motors = Rig.motors(egg)
 	local body = motors.Body
-	local key = keyOfModel(egg)
-	local rare = (Rarities[rarityOfKey(key)] or Rarities.Common).order >= Rarities.Rare.order
+	local key = Fx.keyOfModel(egg)
+	local rare = (Rarities[Fx.rarityOfKey(key)] or Rarities.Common).order >= Rarities.Rare.order
 
 	-- Legs start tucked under the ground and push the egg up.
 	local legs: { Motor6D } = {}

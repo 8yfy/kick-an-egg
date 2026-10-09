@@ -86,6 +86,67 @@ function Popup.banner(text: string, colors: { Color3 }, hold: number?)
 	end)
 end
 
+-- Announcement toast: a rarity-coloured pill slides down under the quest bar, holds, slides away.
+function Popup.toast(text: string, color: Color3, rainbow: boolean?)
+	local g = screen()
+	if not g then
+		return
+	end
+	local pill = Instance.new("Frame")
+	pill.Name = "Toast"
+	pill.AnchorPoint = Vector2.new(0.5, 0)
+	pill.Position = UDim2.fromScale(0.5, -0.12)
+	pill.Size = UDim2.fromScale(0.5, 0.07)
+	pill.BackgroundColor3 = Color3.new(1, 1, 1)
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.35), color:Lerp(Color3.new(0, 0, 0), 0.25))
+	grad.Parent = pill
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = pill
+	local border = Instance.new("UIStroke")
+	border.Thickness = 3
+	border.Color = Color3.fromRGB(25, 20, 30)
+	border.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	border.Parent = pill
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.fromScale(0.04, 0.12)
+	label.Size = UDim2.fromScale(0.92, 0.76)
+	label.Font = FONT
+	label.TextScaled = true
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.Text = text
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2.5
+	stroke.Color = Color3.fromRGB(25, 20, 30)
+	stroke.Parent = label
+	label.Parent = pill
+	local ratio = Instance.new("UIAspectRatioConstraint")
+	ratio.AspectRatio = 9
+	ratio.Parent = pill
+	pill.Parent = g
+
+	tween(pill, 0.45, { Position = UDim2.fromScale(0.5, 0.24) }, Enum.EasingStyle.Back)
+	local alive = true
+	if rainbow then
+		task.spawn(function()
+			while alive do
+				local h = (os.clock() * 0.4) % 1
+				grad.Color = ColorSequence.new(Color3.fromHSV(h, 0.55, 1), Color3.fromHSV((h + 0.25) % 1, 0.75, 0.9))
+				task.wait()
+			end
+		end)
+	end
+	task.delay(3, function()
+		tween(pill, 0.35, { Position = UDim2.fromScale(0.5, -0.12) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		task.wait(0.4)
+		alive = false
+		pill:Destroy()
+	end)
+end
+
 -- Red pulsing screen-edge vignette. Returns a stop function (fades out).
 function Popup.vignette(color: Color3): () -> ()
 	local g = screen("VFXVignette", -1)
