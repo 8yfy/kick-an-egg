@@ -192,6 +192,8 @@ local function lose(chase: ChaseState, reason: "Caught" | "EggCaught" | "Left")
 			fling(chase.owner)
 		end
 	end
+	-- Every chase ends with ChaseEnded (the HUD unlocks KICK on it), even when the egg is lost.
+	remotes.ChaseEnded:FireAllClients({ eggUid = chase.eggUid })
 	finish(chase)
 end
 
