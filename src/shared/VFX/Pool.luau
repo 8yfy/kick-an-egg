@@ -47,11 +47,26 @@ local function make(kind: string): BasePart
 	return p
 end
 
+local FACES = { "TopSurface", "BottomSurface", "FrontSurface", "BackSurface", "LeftSurface", "RightSurface" }
+
+-- Classic studs on every face (only renders on Plastic). Pool.get resets it.
+function Pool.stud(p: BasePart, on: boolean)
+	if (p:GetAttribute("Studded") == true) == on then
+		return
+	end
+	local s = if on then Enum.SurfaceType.Studs else Enum.SurfaceType.Smooth
+	for _, face in FACES do
+		(p :: any)[face] = s
+	end
+	p:SetAttribute("Studded", on)
+end
+
 -- kind: "Block" | "Wedge" | "Ball" | "Cylinder"
 function Pool.get(kind: string?): BasePart
 	local k = kind or "Block"
 	local list = free[k]
 	local p = if list and #list > 0 then table.remove(list) :: BasePart else make(k)
+	Pool.stud(p, false)
 	p.Transparency = 0
 	p.Material = Enum.Material.SmoothPlastic
 	p.CastShadow = false
