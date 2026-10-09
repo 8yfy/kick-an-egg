@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
+local Upgrades = require(Shared.Config.Upgrades)
 local Remotes = require(Shared.Remotes)
 
 export type Data = { [string]: any }
@@ -43,7 +44,8 @@ local TEMPLATE: Data = {
 	stats = { kicks = 0, secured = 0, lost = 0 },
 	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
 	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
-	tool = 1, -- best training tool tier owned (Economy.Tools); kickPower is the strength it trains
+	rackLevel = 1, -- training rack level (Config/Upgrades.Rack.levels); trains kickPower (strength)
+	penLevel = 1, -- pen level: more pedestal slots (Config/Upgrades.Pen)
 }
 
 local DataService = {}
@@ -99,7 +101,11 @@ local function sanitize(data: Data)
 		data.plotSlots = nil
 	end
 	data.onboarding = if isFinite(data.onboarding) then data.onboarding else 0
-	data.tool = if isFinite(data.tool) then math.clamp(math.floor(data.tool), 1, #Economy.Tools) else 1
+	data.tool = nil -- old backpack-tool tier (replaced by the training rack)
+	data.rackLevel = if isFinite(data.rackLevel)
+		then math.clamp(math.floor(data.rackLevel), 1, #Upgrades.Rack.levels)
+		else 1
+	data.penLevel = if isFinite(data.penLevel) then math.max(1, math.floor(data.penLevel)) else 1
 end
 
 local function keyFor(player: Player): string
