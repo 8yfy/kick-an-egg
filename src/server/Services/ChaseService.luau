@@ -138,7 +138,12 @@ local function buildEgg(chase: ChaseState, eggModel: string): (Model, BasePart)
 		end
 	end
 
-	-- One invisible collider carries the physics; the decorated parts ride on it.
+	-- One invisible collider carries the physics; the decorated parts ride on it. It fits the egg's
+	-- body (the 1-stud Root at the feet would make it float), and the egg keeps its BlockBuilder Root
+	-- as PrimaryPart: LegsSprout attaches the legs there and lifts the "Body" joint above it, and the
+	-- run animation drives those joints (both look for motors under PrimaryPart).
+	local root = egg.PrimaryPart :: BasePart
+	root.Size = Vector3.new(0.2, 0.2, 0.2)
 	local cf, size = egg:GetBoundingBox()
 	local hitbox = Instance.new("Part")
 	hitbox.Name = "Hitbox"
@@ -151,7 +156,6 @@ local function buildEgg(chase: ChaseState, eggModel: string): (Model, BasePart)
 	if PhysicsService:IsCollisionGroupRegistered(EGGS_GROUP) then
 		hitbox.CollisionGroup = EGGS_GROUP -- passes the map's PlayerBarrier at the canyon mouth
 	end
-	local root = egg.PrimaryPart :: BasePart
 	root.Anchored = false -- the hitbox (anchored until control) now holds the assembly
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = hitbox
@@ -183,7 +187,6 @@ local function buildEgg(chase: ChaseState, eggModel: string): (Model, BasePart)
 	align.Parent = hitbox
 
 	hitbox.Anchored = true -- until control starts (legs sprout first)
-	egg.PrimaryPart = hitbox
 	egg.ModelStreamingMode = Enum.ModelStreamingMode.PersistentPerPlayer
 	egg:SetAttribute("OwnerUserId", chase.owner.UserId)
 	egg:SetAttribute("Speed", chase.eggSpeed)
@@ -297,11 +300,11 @@ end
 -- Tick ---------------------------------------------------------------------
 
 local function sampleEgg(chase: ChaseState, now: number): Vector3
-	local hitbox = chase.hitbox
-	if not hitbox or not chase.controlling then
+	local egg = chase.egg
+	if not egg or not chase.hitbox or not chase.controlling then
 		return chase.validPos
 	end
-	local pos = hitbox.Position
+	local pos = egg:GetPivot().Position -- the Root at the egg's feet, same point snapBack pivots
 	local fell = pos.Y < chase.landPos.Y - FALL_LIMIT
 	if not fell and ChaseService.plausible(chase.validPos, chase.validAt, pos, now, chase.eggSpeed) then
 		chase.validPos = pos
