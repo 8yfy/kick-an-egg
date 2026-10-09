@@ -34,6 +34,9 @@ local function load(): { [string]: Player }
 	return loaded
 end
 
+-- Orbiting cubes / halos on rare eggs and pets spin automatically on clients.
+require(script.Spin).start()
+
 -- Starts a looping or one-shot animation; returns a stop function.
 function Anim.play(model: Model, name: string, params: { [string]: any }?): () -> ()
 	local fn = load()[name]
