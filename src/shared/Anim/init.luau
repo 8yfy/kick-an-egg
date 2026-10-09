@@ -29,6 +29,7 @@ local function load(): { [string]: Player }
 		EggCarried = Egg.EggCarried,
 		EggWobble = Egg.EggWobble,
 		PlayerCarry = PlayerAnims.PlayerCarry,
+		PlayerKick = PlayerAnims.PlayerKick,
 	}
 	players = loaded
 	return loaded

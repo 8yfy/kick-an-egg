@@ -36,6 +36,7 @@ local function load(): { [string]: Handler }
 		HatchBurst = Hatch.HatchBurst,
 		PetReveal = Hatch.PetReveal,
 		MoneyPop = Hatch.MoneyPop,
+		TrainHit = Hatch.TrainHit,
 		Announce = Hatch.Announce,
 		KickImpact = Egg.KickImpact,
 		ZoneEnter = Egg.ZoneEnter,

@@ -1,11 +1,12 @@
 --!strict
--- Shared modal window: dimmed backdrop, rounded gradient panel with a tilted title tag, a bouncy
--- close button, and a pop-in/out. Only one window is open at a time.
+-- Shared modal window, shop style: dimmed backdrop, dark chunky panel, a coloured header bar with
+-- diagonal stripes, the title on the left and a red square X on the right; pops in/out.
+-- Only one window is open at a time.
 local Kit = require(script.Parent.Parent.Kit)
 
 export type Window = {
 	frame: Frame, -- the panel
-	body: Frame, -- content area (below the title)
+	body: Frame, -- content area (below the header)
 	open: () -> (),
 	close: () -> (),
 	isOpen: () -> boolean,
@@ -15,6 +16,7 @@ export type Window = {
 local Window = {}
 
 local current: Window? = nil
+local HEADER = 76
 
 function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 	local backdrop = Instance.new("TextButton")
@@ -30,44 +32,61 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 
 	local panel = Kit.panel({
 		name = title .. "Window",
-		size = UDim2.fromOffset(900, 600),
-		position = UDim2.fromScale(0.5, 0.55),
+		size = UDim2.fromOffset(960, 640),
+		position = UDim2.fromScale(0.5, 0.54),
 		anchor = Vector2.new(0.5, 0.5),
 		parent = backdrop,
-		colors = Kit.Colors.dark,
-		radius = 26,
 	})
-	panel.ZIndex = 21
+	panel.Active = true -- clicks on the panel don't fall through to the backdrop
 	Kit.autoScale(panel)
-	local inner = Instance.new("Frame") -- pop animates this so the screen scale stays on `panel`
-	inner.Name = "Inner"
-	inner.Size = UDim2.fromScale(1, 1)
-	inner.BackgroundTransparency = 1
-	inner.Parent = panel
+	local inner = Kit.panel({
+		name = "Inner",
+		size = UDim2.fromScale(1, 1),
+		parent = panel,
+		colors = { Color3.fromRGB(58, 60, 78), Color3.fromRGB(36, 38, 52) },
+		radius = 12,
+	})
+	local outline = inner:FindFirstChildOfClass("UIStroke")
+	if outline then
+		outline.Thickness = 5
+	end
 
-	local tag = Kit.panel({
-		name = "Title",
-		size = UDim2.fromOffset(300, 70),
-		position = UDim2.new(0, 30, 0, -34),
+	-- Header bar with stripes
+	local header = Kit.panel({
+		name = "Header",
+		size = UDim2.new(1, 0, 0, HEADER),
 		parent = inner,
 		colors = colors,
-		radius = 18,
+		radius = 12,
 	})
-	tag.Rotation = -3
+	header.ClipsDescendants = true
+	for i = 0, 5 do
+		local stripe = Instance.new("Frame")
+		stripe.Name = "Stripe"
+		stripe.BorderSizePixel = 0
+		stripe.BackgroundColor3 = Color3.new(1, 1, 1)
+		stripe.BackgroundTransparency = 0.82
+		stripe.Size = UDim2.fromOffset(46, 220)
+		stripe.AnchorPoint = Vector2.new(0.5, 0.5)
+		stripe.Position = UDim2.new(0.45 + i * 0.09, 0, 0.5, 0)
+		stripe.Rotation = 35
+		stripe.Parent = header
+	end
 	Kit.label({
-		name = "Text",
-		text = string.upper(title),
-		size = UDim2.fromScale(0.86, 0.7),
-		position = UDim2.fromScale(0.07, 0.15),
-		parent = tag,
-		stroke = 4,
+		name = "Title",
+		text = title,
+		size = UDim2.new(0.6, 0, 0, 58),
+		position = UDim2.fromOffset(26, 9),
+		parent = header,
+		align = Enum.TextXAlignment.Left,
+		stroke = 5,
 	})
 
 	local body = Instance.new("Frame")
 	body.Name = "Body"
 	body.BackgroundTransparency = 1
-	body.Position = UDim2.fromOffset(28, 56)
-	body.Size = UDim2.new(1, -56, 1, -84)
+	body.Position = UDim2.fromOffset(24, HEADER + 16)
+	body.Size = UDim2.new(1, -48, 1, -(HEADER + 32))
 	body.Parent = inner
 
 	local openCallbacks: { () -> () } = {}
@@ -98,19 +117,19 @@ function Window.new(parent: Instance, title: string, colors: { Color3 }): Window
 			task.spawn(cb)
 		end
 	end
-	Kit.button({
+	local closeButton = Kit.button({
 		name = "Close",
 		text = "X",
-		size = UDim2.fromOffset(72, 72),
-		position = UDim2.new(1, 18, 0, -26),
+		size = UDim2.fromOffset(64, 64),
+		position = UDim2.new(1, -12, 0, 6),
 		anchor = Vector2.new(1, 0),
 		parent = inner,
-		colors = Kit.Colors.red,
-		radius = 20,
+		colors = { Color3.fromRGB(240, 60, 60), Color3.fromRGB(180, 20, 30) },
+		radius = 8,
 		onClick = close,
 	})
+	closeButton.ZIndex = 3
 	backdrop.Activated:Connect(close)
-	panel.Active = true -- clicks on the panel don't fall through to the backdrop
 
 	self = {
 		frame = panel,
@@ -131,6 +150,20 @@ function Window.closeAll()
 	if current then
 		current.close()
 	end
+end
+
+-- Section heading in the shop style: "-- FEATURED --"
+function Window.heading(parent: Instance, text: string, order: number): TextLabel
+	local l = Kit.label({
+		name = "Heading",
+		text = `-- {string.upper(text)} --`,
+		size = UDim2.new(1, -20, 0, 46),
+		parent = parent,
+		color = Color3.fromRGB(255, 220, 60),
+		stroke = 4,
+	})
+	l.LayoutOrder = order
+	return l
 end
 
 return Window

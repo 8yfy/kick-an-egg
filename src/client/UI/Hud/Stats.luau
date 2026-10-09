@@ -1,82 +1,82 @@
 --!strict
--- Money (count-up), Kick Power and Run Speed pills on the left, below the Roblox top bar.
+-- Bottom-left stats, big and chunky: Kick Power and Run Speed lines (3D icons, green "+" opens the
+-- Store) and the money counter (huge green, count-up tween, cash-stack icon).
 local Kit = require(script.Parent.Parent.Kit)
+local Icons = require(script.Parent.Parent.Icons)
 
 export type Stats = { update: (data: { [string]: any }) -> () }
 
 local Stats = {}
 
-local function pill(
+local function line(
 	parent: Instance,
 	name: string,
-	width: number,
+	icon: string,
 	height: number,
 	colors: { Color3 },
-	icon: string
+	order: number
 ): (Frame, TextLabel)
-	local f = Kit.panel({
-		name = name,
-		size = UDim2.fromOffset(width, height),
-		parent = parent,
-		colors = colors,
-		radius = height // 2,
-	})
-	local badge = Kit.panel({
-		name = "Icon",
-		size = UDim2.fromOffset(height + 6, height + 6),
-		position = UDim2.new(0, -6, 0.5, 0),
-		anchor = Vector2.new(0, 0.5),
-		parent = f,
-		colors = Kit.Colors.yellow,
-		radius = (height + 6) // 2,
-	})
-	Kit.label({
-		name = "Glyph",
-		text = icon,
-		size = UDim2.fromScale(0.7, 0.7),
-		position = UDim2.fromScale(0.5, 0.5),
-		anchor = Vector2.new(0.5, 0.5),
-		parent = badge,
-	})
-	local value = Kit.label({
+	local row = Kit.panel({ name = name, size = UDim2.fromOffset(460, height), parent = parent })
+	row.LayoutOrder = order
+	Icons.view(row, icon, UDim2.fromOffset(height, height))
+	local text = Kit.label({
 		name = "Value",
-		text = "0",
-		size = UDim2.new(1, -(height + 18), 0.72, 0),
-		position = UDim2.new(0, height + 10, 0.5, 0),
-		anchor = Vector2.new(0, 0.5),
-		parent = f,
+		text = "",
+		size = UDim2.new(1, -(height + 8), 1, 0),
+		position = UDim2.fromOffset(height + 6, 0),
+		parent = row,
 		align = Enum.TextXAlignment.Left,
+		stroke = math.max(3, height // 14),
 	})
-	return f, value
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Color = ColorSequence.new(colors[1], colors[2])
+	g.Parent = text
+	return row, text
 end
 
-function Stats.new(parent: Instance): Stats
+function Stats.new(parent: Instance, onPlus: () -> ()): Stats
 	local root = Kit.panel({
 		name = "Stats",
-		size = UDim2.fromOffset(300, 200),
-		position = UDim2.new(0, 22, 0.17, 0),
+		size = UDim2.fromOffset(460, 220),
+		position = UDim2.new(0, 84, 1, -18),
+		anchor = Vector2.new(0, 1),
 		parent = parent,
 	})
 	Kit.autoScale(root)
 	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 12)
+	list.Padding = UDim.new(0, 4)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	list.Parent = root
 
-	local money, moneyText = pill(root, "Money", 290, 66, Kit.Colors.green, "$")
-	money.LayoutOrder = 1
-	local power, powerText = pill(root, "Power", 220, 50, Kit.Colors.red, "⚡")
-	power.LayoutOrder = 2
-	local speed, speedText = pill(root, "Speed", 220, 50, Kit.Colors.blue, "👟")
-	speed.LayoutOrder = 3
+	local powerRow, powerText =
+		line(root, "Power", "Bolt", 52, { Color3.fromRGB(255, 235, 110), Color3.fromRGB(255, 150, 30) }, 1)
+	local _, speedText =
+		line(root, "Speed", "Boot", 46, { Color3.fromRGB(150, 220, 255), Color3.fromRGB(60, 140, 255) }, 2)
+	local _, moneyText =
+		line(root, "Money", "Cash", 88, { Color3.fromRGB(150, 255, 120), Color3.fromRGB(40, 190, 60) }, 3)
+	powerText.Size = UDim2.new(1, -120, 1, 0)
+	local plus = Kit.button({
+		name = "Plus",
+		text = "+",
+		size = UDim2.fromOffset(48, 48),
+		position = UDim2.new(1, -50, 0.5, 0),
+		anchor = Vector2.new(0, 0.5),
+		parent = powerRow,
+		colors = Kit.Colors.green,
+		radius = 10,
+		onClick = onPlus,
+	})
+	plus.ZIndex = 2
 
-	-- Count-up: tween a NumberValue and render it every change.
 	local shown = Instance.new("NumberValue")
 	shown.Changed:Connect(function(v)
-		moneyText.Text = Kit.formatNumber(v)
+		moneyText.Text = "$" .. Kit.formatNumber(v)
 	end)
+	moneyText.Text = "$0"
 	local moneyScale = Instance.new("UIScale")
-	moneyScale.Parent = money
+	moneyScale.Parent = moneyText
 	local lastMoney: number? = nil
 
 	return {
@@ -95,10 +95,12 @@ function Stats.new(parent: Instance): Stats
 				lastMoney = m
 			end
 			if typeof(data.kickPower) == "number" then
-				powerText.Text = `Power {Kit.formatNumber(data.kickPower)}`
+				local kp = data.kickPower
+				local shownKp = if kp < 1000 and kp % 1 ~= 0 then string.format("%.1f", kp) else Kit.formatNumber(kp)
+				powerText.Text = `{shownKp} Kick Power`
 			end
 			if typeof(data.runSpeed) == "number" then
-				speedText.Text = `Speed {Kit.formatNumber(data.runSpeed)}`
+				speedText.Text = `{Kit.formatNumber(data.runSpeed)} Run Speed`
 			end
 		end,
 	}
