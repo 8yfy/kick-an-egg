@@ -2,6 +2,7 @@
 -- CONTRACT (API). Partner A adds specs in Models/Eggs/*.luau and Models/Pets/*.luau,
 -- one file per zone, e.g. Pets/Zone01.luau returning { [modelKey]: Spec }.
 -- Missing keys fall back to a placeholder so Partner B is never blocked.
+local CollectionService = game:GetService("CollectionService")
 local Builder = require(script.Parent.BlockBuilder)
 local Models = {}
 
@@ -26,12 +27,27 @@ end
 local eggSpecs = collect(script:FindFirstChild("Eggs"))
 local petSpecs = collect(script:FindFirstChild("Pets"))
 
+-- Rare models with "Orbit"/"Orbit2"/"Halo" joint groups get a tag; Anim/Spin spins them on clients.
+local SPIN_TAG = "KTE_Spin"
+local function tagSpinners(model: Model): Model
+	local root = model.PrimaryPart
+	if root then
+		for _, name in { "Orbit", "Orbit2", "Halo" } do
+			if root:FindFirstChild(name) then
+				CollectionService:AddTag(model, SPIN_TAG)
+				break
+			end
+		end
+	end
+	return model
+end
+
 function Models.egg(key: string): Model
-	return Builder.build(eggSpecs[key] or placeholder(Color3.fromRGB(255, 220, 90), 4), key .. "Egg")
+	return tagSpinners(Builder.build(eggSpecs[key] or placeholder(Color3.fromRGB(255, 220, 90), 4), key .. "Egg"))
 end
 
 function Models.pet(key: string): Model
-	return Builder.build(petSpecs[key] or placeholder(Color3.fromRGB(255, 0, 255), 3), key)
+	return tagSpinners(Builder.build(petSpecs[key] or placeholder(Color3.fromRGB(255, 0, 255), 3), key))
 end
 
 function Models.eggKeysForZone(petsConfig: { any }, zone: number): { string }
