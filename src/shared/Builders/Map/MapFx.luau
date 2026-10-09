@@ -222,8 +222,8 @@ local P: { [string]: Preset } = {
 	-- map details
 	FountainJet = {
 		colors = { rgb(170, 225, 255), rgb(255, 255, 255) },
-		size = { 0.45, 0.25 },
-		rate = 60,
+		size = { 0.75, 0.4 },
+		rate = 90,
 		life = { 1, 1.3 },
 		speed = { 14, 17 },
 		accel = Vector3.new(0, -26, 0),

@@ -157,6 +157,7 @@ function IndexMenu.new(parent: Instance): Menu
 					color = rarity.color,
 					stroke = 2,
 				})
+				Kit.studs(card, 22)
 				table.insert(cards, { frame = card, pet = pet, built = false, question = question })
 			end
 		end
@@ -171,6 +172,13 @@ function IndexMenu.new(parent: Instance): Menu
 				n += 1
 			end
 			c.question.Visible = not found
+			local g = c.frame:FindFirstChildOfClass("UIGradient")
+			if g then
+				local col = (Rarities[c.pet.rarity] or Rarities.Common).color
+				g.Color = if found
+					then ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.3), col:Lerp(Color3.new(0, 0, 0), 0.25))
+					else ColorSequence.new(Color3.fromRGB(60, 55, 80), Color3.fromRGB(40, 36, 56))
+			end
 			if found and not c.built and window.isOpen() then
 				c.built = true
 				preview(c.frame, c.pet.model)

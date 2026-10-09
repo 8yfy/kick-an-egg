@@ -1,14 +1,15 @@
 --!strict
--- Store, shop style. Sections:
---   TRAINING RACK  wide card: current -> next rack tier (3D), gain per kick, price -> UpgradeTraining
---   UPGRADES       Kick Power / Run Speed (BuyUpgrade) and Pen slots (UpgradePen)
---   COMING SOON    placeholders for Partner B's gamepasses
--- Prices come from the documented formulas in Config (display only; the server charges).
+-- Shop: a horizontal row of tall cards (gradient + studs, title + subtitle, big preview, a dark stat
+-- pill with the gain in green, a chunky price button). Cards:
+--   Training Station (UpgradeTraining, live 3D preview of the next tier), Kick Power / Run Speed
+--   (BuyUpgrade), Bigger Pen (UpgradePen), and "SOON" cards for Partner B's gamepasses.
+-- Prices come from the documented Config formulas (display only; the server charges).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Kit = require(script.Parent.Parent.Kit)
 local Icons = require(script.Parent.Parent.Icons)
 local MyBase = require(script.Parent.Parent.MyBase)
 local Window = require(script.Parent.Window)
+local Fx = require(script.Parent.Parent.Fx)
 local Config = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local Economy = require(Config:WaitForChild("Economy"))
 local Upgrades = require(Config:WaitForChild("Upgrades"))
@@ -16,6 +17,9 @@ local Upgrades = require(Config:WaitForChild("Upgrades"))
 export type Menu = { window: Window.Window, update: (data: { [string]: any }) -> () }
 
 local StoreMenu = {}
+local rgb = Color3.fromRGB
+local CARD_W, CARD_H = 250, 400
+local GREEN_HEX = "#8CFF5A"
 
 local function fire(name: string, ...: any)
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -25,266 +29,213 @@ local function fire(name: string, ...: any)
 	end
 end
 
-local function priceButton(parent: Instance, onClick: () -> ()): (TextButton, UIGradient, TextLabel)
+type Card = {
+	frame: Frame,
+	subtitle: TextLabel,
+	pill: TextLabel,
+	button: TextButton,
+	grad: UIGradient,
+	label: TextLabel,
+	preview: Frame,
+}
+
+local function card(parent: Instance, order: number, title: string, colors: { Color3 }, onClick: (() -> ())?): Card
+	local c = Kit.panel({
+		name = title,
+		size = UDim2.fromOffset(CARD_W, CARD_H),
+		parent = parent,
+		colors = colors,
+		radius = 12,
+	})
+	c.LayoutOrder = order
+	local stroke = c:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Thickness = 5
+	end
+	Kit.studs(c)
+	Kit.label({
+		name = "Title",
+		text = title,
+		size = UDim2.new(1, -20, 0, 42),
+		position = UDim2.fromOffset(10, 12),
+		parent = c,
+		stroke = 4,
+	})
+	local subtitle = Kit.label({
+		name = "Subtitle",
+		text = "",
+		size = UDim2.new(1, -20, 0, 24),
+		position = UDim2.fromOffset(10, 52),
+		parent = c,
+		stroke = 3,
+	})
+	local preview = Kit.panel({
+		name = "Preview",
+		size = UDim2.new(1, -30, 0, 170),
+		position = UDim2.fromOffset(15, 82),
+		parent = c,
+	})
+	Icons.glow(c, UDim2.new(1, 0, 0, 200)).Position = UDim2.fromOffset(0, 66)
+	local pillBox = Kit.panel({
+		name = "PillBox",
+		size = UDim2.new(1, -28, 0, 46),
+		position = UDim2.fromOffset(14, 262),
+		parent = c,
+		colors = { rgb(30, 30, 40), rgb(20, 20, 28) },
+		radius = 8,
+		stroke = false,
+	})
+	for _, g in pillBox:GetChildren() do
+		if g:IsA("UIGradient") then
+			g.Transparency = NumberSequence.new(0.45)
+		end
+	end
+	local pill = Kit.label({
+		name = "Pill",
+		text = "",
+		size = UDim2.new(1, -16, 1, -10),
+		position = UDim2.fromOffset(8, 5),
+		parent = pillBox,
+		stroke = 3,
+	})
+	pill.RichText = true
 	local b, g = Kit.button({
 		name = "Buy",
 		text = "",
-		size = UDim2.fromOffset(220, 66),
+		size = UDim2.new(1, -28, 0, 64),
 		position = UDim2.new(0.5, 0, 1, -14),
 		anchor = Vector2.new(0.5, 1),
-		parent = parent,
+		parent = c,
 		colors = Kit.Colors.green,
-		radius = 10,
-		onClick = onClick,
+		radius = 8,
+		onClick = function()
+			if onClick then
+				onClick()
+				if b:GetAttribute("Affordable") then
+					Fx.confetti(b.AbsolutePosition + b.AbsoluteSize / 2, 22)
+				end
+			end
+		end,
 	})
-	return b, g, b:FindFirstChild("Label") :: TextLabel
+	Fx.shine(b, 3.2, order * 0.35)
+	Fx.rays(preview, 250, Color3.new(1, 1, 1), 18).ImageTransparency = 0.1
+	return {
+		frame = c,
+		subtitle = subtitle,
+		pill = pill,
+		button = b,
+		grad = g,
+		label = b:FindFirstChild("Label") :: TextLabel,
+		preview = preview,
+	}
 end
 
-local function setPrice(button: TextButton, grad: UIGradient, label: TextLabel, cost: number?, money: number)
+local function setPrice(c: Card, cost: number?, money: number)
 	if not cost then
-		label.Text = "MAXED"
-		button.Active = false
-		grad.Color = ColorSequence.new(table.unpack(Kit.Colors.grey))
+		c.label.Text = "MAXED"
+		c.button.Active = false
+		c.grad.Color = ColorSequence.new(table.unpack(Kit.Colors.grey))
 		return
 	end
-	label.Text = "$" .. Kit.formatNumber(cost)
-	button.Active = true
-	grad.Color = ColorSequence.new(table.unpack(if money >= cost then Kit.Colors.green else Kit.Colors.red))
+	c.label.Text = "$" .. Kit.formatNumber(cost)
+	c.button.Active = true
+	c.grad.Color = ColorSequence.new(table.unpack(if money >= cost then Kit.Colors.green else Kit.Colors.red))
+	c.button:SetAttribute("Affordable", money >= cost)
+end
+
+local function gain(text: string, rest: string): string
+	return `<font color="{GREEN_HEX}">{text}</font> {rest}`
 end
 
 function StoreMenu.new(parent: Instance): Menu
-	local window = Window.new(parent, "Shop", Kit.Colors.green)
+	local window = Window.new(parent, "Shop", Kit.Colors.green, Vector2.new(1130, 640))
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "List"
+	scroll.Name = "Cards"
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.Size = UDim2.fromScale(1, 1)
 	scroll.ScrollBarThickness = 10
-	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.ScrollingDirection = Enum.ScrollingDirection.X
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.X
 	scroll.CanvasSize = UDim2.new()
 	scroll.Parent = window.body
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 12)
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = scroll
+	local row = Instance.new("UIListLayout")
+	row.FillDirection = Enum.FillDirection.Horizontal
+	row.Padding = UDim.new(0, 16)
+	row.VerticalAlignment = Enum.VerticalAlignment.Center
+	row.SortOrder = Enum.SortOrder.LayoutOrder
+	row.Parent = scroll
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
+	pad.Parent = scroll
 
-	-- TRAINING RACK
-	Window.heading(scroll, "Training Rack", 1)
-	local rack = Kit.panel({
-		name = "Rack",
-		size = UDim2.new(1, -24, 0, 250),
-		parent = scroll,
-		colors = { Color3.fromRGB(110, 200, 255), Color3.fromRGB(60, 130, 230) },
-		radius = 14,
-	})
-	rack.LayoutOrder = 2
-	local nowView = Kit.panel({
-		name = "Now",
-		size = UDim2.fromOffset(200, 200),
-		position = UDim2.fromOffset(18, 24),
-		parent = rack,
-	})
-	local arrow = Kit.label({
-		name = "Arrow",
-		text = "➜",
-		size = UDim2.fromOffset(70, 70),
-		position = UDim2.fromOffset(224, 90),
-		parent = rack,
-		color = Color3.fromRGB(240, 60, 60),
-		stroke = 4,
-	})
-	local nextView = Kit.panel({
-		name = "Next",
-		size = UDim2.fromOffset(200, 200),
-		position = UDim2.fromOffset(300, 24),
-		parent = rack,
-	})
-	local title = Kit.label({
-		name = "Title",
-		text = "UPGRADE TRAINING RACK!",
-		size = UDim2.new(1, -540, 0, 52),
-		position = UDim2.fromOffset(520, 20),
-		parent = rack,
-		stroke = 4,
-	})
-	local rainbow = Instance.new("UIGradient")
-	local keys = {}
-	for i = 0, 5 do
-		table.insert(keys, ColorSequenceKeypoint.new(i / 5, Color3.fromHSV(i / 6, 0.55, 1)))
-	end
-	rainbow.Color = ColorSequence.new(keys)
-	rainbow.Parent = title
-	local rackInfo = Kit.label({
-		name = "Info",
-		text = "",
-		size = UDim2.new(1, -540, 0, 64),
-		position = UDim2.fromOffset(520, 78),
-		parent = rack,
-		stroke = 3,
-	})
-	local rackBuy = Kit.panel({
-		name = "BuyHolder",
-		size = UDim2.new(1, -540, 0, 90),
-		position = UDim2.fromOffset(520, 146),
-		parent = rack,
-	})
-	local rackButton, rackGrad, rackLabel = priceButton(rackBuy, function()
+	local station = card(scroll, 1, "Training Station", { rgb(110, 205, 255), rgb(40, 120, 235) }, function()
 		fire("UpgradeTraining")
 	end)
-
-	-- UPGRADES
-	Window.heading(scroll, "Upgrades", 3)
-	local grid = Instance.new("Frame")
-	grid.Name = "Upgrades"
-	grid.BackgroundTransparency = 1
-	grid.Size = UDim2.new(1, -24, 0, 280)
-	grid.LayoutOrder = 4
-	grid.Parent = scroll
-	local gl = Instance.new("UIGridLayout")
-	gl.CellSize = UDim2.fromOffset(280, 270)
-	gl.CellPadding = UDim2.fromOffset(14, 14)
-	gl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	gl.SortOrder = Enum.SortOrder.LayoutOrder
-	gl.Parent = grid
-
-	type Card = { level: TextLabel, button: TextButton, grad: UIGradient, label: TextLabel }
-	local function card(order: number, name: string, icon: string, colors: { Color3 }, onClick: () -> ()): Card
-		local c =
-			Kit.panel({ name = name, size = UDim2.fromOffset(280, 270), parent = grid, colors = colors, radius = 14 })
-		c.LayoutOrder = order
-		Icons.view(c, icon, UDim2.fromOffset(96, 96)).Position = UDim2.new(0.5, -48, 0, 10)
-		Kit.label({
-			name = "Title",
-			text = name,
-			size = UDim2.new(1, -20, 0, 38),
-			position = UDim2.fromOffset(10, 104),
-			parent = c,
-			stroke = 4,
-		})
-		local level = Kit.label({
-			name = "Level",
-			text = "",
-			size = UDim2.new(1, -20, 0, 30),
-			position = UDim2.fromOffset(10, 144),
-			parent = c,
-			stroke = 3,
-		})
-		local b, g, l = priceButton(c, onClick)
-		return { level = level, button = b, grad = g, label = l }
-	end
-	local power = card(1, "Kick Power", "Bolt", Kit.Colors.red, function()
+	local power = card(scroll, 2, "Kick Power", { rgb(255, 190, 80), rgb(245, 110, 30) }, function()
 		fire("BuyUpgrade", "KickPower")
 	end)
-	local speed = card(2, "Run Speed", "Boot", Kit.Colors.blue, function()
+	Icons.view(power.preview, "Bolt")
+	local speed = card(scroll, 3, "Run Speed", { rgb(120, 235, 255), rgb(40, 170, 235) }, function()
 		fire("BuyUpgrade", "RunSpeed")
 	end)
-	local pen = card(3, "Bigger Pen", "Egg", Kit.Colors.yellow, function()
+	Icons.view(speed.preview, "Boot")
+	local pen = card(scroll, 4, "Bigger Pen", { rgb(255, 235, 110), rgb(240, 180, 30) }, function()
 		fire("UpgradePen")
 	end)
-
-	-- COMING SOON
-	Window.heading(scroll, "Coming Soon", 5)
-	local soon = Instance.new("Frame")
-	soon.Name = "Soon"
-	soon.BackgroundTransparency = 1
-	soon.Size = UDim2.new(1, -24, 0, 150)
-	soon.LayoutOrder = 6
-	soon.Parent = scroll
-	local sl = gl:Clone()
-	sl.CellSize = UDim2.fromOffset(280, 140)
-	sl.Parent = soon
-	for i, s in { "2x Money", "VIP", "Lucky Kicks" } do
-		local c = Kit.panel({
-			name = s,
-			size = UDim2.fromOffset(280, 140),
-			parent = soon,
-			colors = Kit.Colors.grey,
-			radius = 14,
-		})
-		c.LayoutOrder = i
-		Kit.label({
-			name = "Title",
-			text = s,
-			size = UDim2.new(1, -20, 0, 44),
-			position = UDim2.fromOffset(10, 18),
-			parent = c,
-			stroke = 4,
-		})
-		local badge = Kit.panel({
-			name = "Soon",
-			size = UDim2.fromOffset(120, 44),
-			position = UDim2.new(0.5, 0, 1, -16),
-			anchor = Vector2.new(0.5, 1),
-			parent = c,
-			colors = Kit.Colors.purple,
-			radius = 10,
-		})
-		Kit.label({
-			name = "Text",
-			text = "SOON",
-			size = UDim2.fromScale(0.8, 0.75),
-			position = UDim2.fromScale(0.1, 0.12),
-			parent = badge,
-		})
-		Kit.pulse(badge, 1.08)
+	Icons.view(pen.preview, "Egg")
+	local soon = {
+		{ "2x Money", "CoinBoost", { rgb(255, 120, 230), rgb(200, 40, 200) } },
+		{ "VIP", "Gamepasses", { rgb(200, 150, 255), rgb(130, 70, 240) } },
+		{ "Lucky Kicks", "Luck", { rgb(140, 245, 120), rgb(50, 190, 70) } },
+	}
+	for i, s in soon do
+		local c = card(scroll, 10 + i, s[1], s[3], nil)
+		Icons.view(c.preview, s[2])
+		c.subtitle.Text = "Game Pass"
+		c.pill.Text = "Coming soon"
+		c.label.Text = "SOON"
+		c.button.Active = false
+		c.grad.Color = ColorSequence.new(rgb(240, 90, 255), rgb(170, 30, 220))
 	end
 
 	local data: { [string]: any } = {}
-	local shownTiers = { now = "", nxt = "" }
+	local shownTier = ""
 	local function refresh()
 		local money = if typeof(data.money) == "number" then data.money else 0
-		-- rack
 		local levels = Upgrades.Rack.levels
 		local lvl = math.clamp(MyBase.level("RackLevel", data, "rackLevel"), 1, #levels)
 		local now, nxt = levels[lvl], levels[lvl + 1]
-		if shownTiers.now ~= now.tier then
-			shownTiers.now = now.tier
-			nowView:ClearAllChildren()
-			Icons.rack(nowView, now.tier)
+		local tier = if nxt then nxt.tier else now.tier
+		if shownTier ~= tier then
+			shownTier = tier
+			station.preview:ClearAllChildren()
+			Icons.rack(station.preview, tier)
 		end
-		local nextTier = if nxt then nxt.tier else now.tier
-		if shownTiers.nxt ~= nextTier then
-			shownTiers.nxt = nextTier
-			nextView:ClearAllChildren()
-			Icons.rack(nextView, nextTier)
-		end
-		arrow.Visible, nextView.Visible = nxt ~= nil, nxt ~= nil
-		rackInfo.Text = if nxt
-			then `Lv {lvl} → {lvl + 1}: +{now.gain} → +{nxt.gain} Kick Power per kick`
-			else `Lv {lvl} (MAX): +{now.gain} Kick Power per kick`
-		setPrice(rackButton, rackGrad, rackLabel, if nxt then nxt.cost else nil, money)
-		-- stat upgrades
+		station.subtitle.Text = if nxt then `Lv {lvl} → {lvl + 1} · {tier}` else `Lv {lvl} · MAX`
+		station.pill.Text = if nxt then gain(`+{nxt.gain}`, "per kick") else gain(`+{now.gain}`, "per kick")
+		setPrice(station, if nxt then nxt.cost else nil, money)
 		for _, pair in { { power, "KickPower", "kickPower" }, { speed, "RunSpeed", "runSpeed" } } do
 			local c = pair[1] :: Card
 			local cfg = (Economy :: any)[pair[2]]
 			local value = data[pair[3]]
 			if typeof(value) == "number" and cfg then
 				local maxed = value >= cfg.max
-				c.level.Text = `{Kit.formatNumber(value)} / {Kit.formatNumber(cfg.max)}`
+				c.subtitle.Text = `{Kit.formatNumber(value)} / {Kit.formatNumber(cfg.max)}`
+				c.pill.Text = if maxed then "MAXED" else gain("+1", if pair[2] == "KickPower" then "Power" else "Speed")
 				setPrice(
-					c.button,
-					c.grad,
-					c.label,
+					c,
 					if maxed then nil else math.floor(cfg.costBase * cfg.costGrowth ^ (value - cfg.base)),
 					money
 				)
 			end
 		end
-		-- pen
 		local plvl = math.max(1, MyBase.level("PenLevel", data, "penLevel"))
 		local slots = math.min(Economy.PlotSlots.base + (plvl - 1) * Upgrades.Pen.slotsPerLevel, Economy.PlotSlots.max)
 		local maxed = slots >= Economy.PlotSlots.max
-		pen.level.Text = if maxed
-			then `{slots} slots (MAX)`
-			else `{slots} → {math.min(slots + Upgrades.Pen.slotsPerLevel, Economy.PlotSlots.max)} slots`
-		setPrice(
-			pen.button,
-			pen.grad,
-			pen.label,
-			if maxed then nil else Upgrades.Pen.costBase * Upgrades.Pen.costGrowth ^ (plvl - 1),
-			money
-		)
+		pen.subtitle.Text = `{slots} egg slots`
+		pen.pill.Text = if maxed then "MAXED" else gain(`+{Upgrades.Pen.slotsPerLevel}`, "slots")
+		setPrice(pen, if maxed then nil else Upgrades.Pen.costBase * Upgrades.Pen.costGrowth ^ (plvl - 1), money)
 	end
 	window.onOpen(refresh)
 
