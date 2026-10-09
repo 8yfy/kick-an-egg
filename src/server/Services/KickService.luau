@@ -52,6 +52,7 @@ local lastRequest: { [Player]: number } = {}
 local active: { [Player]: PendingChase } = {}
 local friendCache: { [number]: { [number]: boolean } } = {}
 local touchdownCallbacks: { (PendingChase) -> () } = {}
+local kickCallbacks: { (Player, KickRoll) -> () } = {}
 local kickResult: RemoteEvent
 
 local LAST_ZONE = Zones[#Zones]
@@ -202,6 +203,13 @@ local function friendsInServer(player: Player): number
 	return count
 end
 
+-- Player attribute "FriendBoost" (e.g. 0.2 = +20 % Rare+ weight) so the HUD can show it.
+local function refreshFriendBoosts()
+	for _, player in Players:GetPlayers() do
+		player:SetAttribute("FriendBoost", friendsInServer(player) * Economy.FriendLuckPerFriend)
+	end
+end
+
 -- Pure roll (no player state), shared by real kicks and :Simulate.
 local function roll(
 	kickPower: number,
@@ -278,6 +286,9 @@ local function onRequestKick(player: Player, timing: any)
 	DataService:Set(player, { stats = stats })
 
 	kickResult:FireClient(player, result)
+	for _, callback in kickCallbacks do
+		task.spawn(callback, player, result)
+	end
 
 	task.delay(pending.touchdown - workspace:GetServerTimeNow(), function()
 		if active[player] ~= pending then
@@ -306,6 +317,11 @@ end
 
 function KickService:OnTouchdown(callback: (PendingChase) -> ())
 	table.insert(touchdownCallbacks, callback)
+end
+
+-- Fires after every accepted kick (AnnounceService uses it for Legendary+ rolls).
+function KickService:OnKick(callback: (Player, KickRoll) -> ())
+	table.insert(kickCallbacks, callback)
 end
 
 -- Prints zone/rarity/mutation distributions for `n` kicks at random timing.
@@ -353,7 +369,12 @@ function KickService:Start()
 		lastRequest[player] = nil
 		active[player] = nil
 		friendCache[player.UserId] = nil
+		task.delay(1, refreshFriendBoosts) -- after the player is gone from GetPlayers
 	end)
+	Players.PlayerAdded:Connect(function()
+		task.spawn(refreshFriendBoosts)
+	end)
+	task.spawn(refreshFriendBoosts)
 end
 
 return KickService

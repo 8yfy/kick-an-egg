@@ -10,6 +10,17 @@ local Economy = {
 	PlotSlots = { base = 8, max = 20 },
 	FriendLuckPerFriend = 0.1,
 	AutosaveSeconds = 90,
+	SellIncomeSeconds = 60, -- a pet sells for this many seconds of its income (size + weather, no rebirth)
+
+	-- Placeholder IDs (0 = not created yet; skipped). Replace with real IDs before publishing.
+	Gamepasses = {
+		DoubleMoney = { id = 0, incomeMultiplier = 2 },
+	} :: { [string]: { id: number, incomeMultiplier: number } },
+	DevProducts = {
+		MoneySmall = { id = 0, money = 1000 },
+		MoneyMedium = { id = 0, money = 15000 },
+		MoneyLarge = { id = 0, money = 250000 },
+	} :: { [string]: { id: number, money: number } },
 }
 
 export type UpgradeKind = "KickPower" | "RunSpeed"
