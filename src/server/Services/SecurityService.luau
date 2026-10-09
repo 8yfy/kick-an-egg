@@ -11,6 +11,7 @@ local Remotes = require(ReplicatedStorage:WaitForChild("Shared").Remotes)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
 
 local SERVER_TO_CLIENT = {
+	"PickupEgg", -- client-to-server but unused since the player steers the egg; drain it too
 	"KickResult",
 	"ChaseStart",
 	"EggPickedUp",

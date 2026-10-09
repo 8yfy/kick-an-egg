@@ -48,7 +48,7 @@ section("KickService", function()
 	check("simulate ran", true)
 end)
 
-section("ChaseService.decide", function()
+section("ChaseService (steered egg)", function()
 	local CS = require(Services.ChaseService) :: any
 	local function mk(landZ: number, zone: number)
 		return {
@@ -56,46 +56,35 @@ section("ChaseService.decide", function()
 			startZ = landZ + Chase.Avalanche.spawnBehindLanding,
 			startTime = Chase.Avalanche.warnSeconds,
 			speed = Chase.avalancheSpeed(zone),
-			eggRunStart = Chase.Egg.runDelay,
-			pickedUp = false,
+			controlStart = Chase.Egg.runDelay,
 			resolved = false,
-			flags = 0,
 		}
 	end
-	local base = Vector3.new(0, 3, -20)
-	for _, z in { 50, 600, 2300 } do
-		local c, out, t = mk(z, math.floor(z / 120) + 1), nil, 0
+	-- Steers straight home at `v` from controlStart; returns the outcome.
+	local function run(c: any, v: number): string?
+		local out, t = nil, 0
 		while not out and t < 600 do
 			t += 0.1
-			out = CS.decide(c, t, base)
+			local z = c.landPos.Z - v * math.max(0, t - c.controlStart)
+			out = CS.decide(c, t, Vector3.new(5, 0, z))
 		end
-		check(`EggCaught z={z}`, out == "EggCaught")
+		return out
 	end
-	check("egg clamps at the safe line", CS.eggZ(mk(30, 1), 1000) == Chase.SafeLineZ)
-	local c, out, t = mk(300, 3), nil, 0
+	check("idle egg is caught", run(mk(50, 1), 0) == "EggCaught")
+	check("zone 1 at speed 16 is secured", run(mk(50, 1), 16) == "Secured")
+	check("zone 10 at speed 16 is caught", run(mk(1140, 10), 16) == "EggCaught")
+	check("zone 10 at speed 30 is secured", run(mk(1140, 10), 30) == "Secured")
+	local c = mk(50, 1)
+	c.resolved = true
+	local out, t = nil, 0
 	while not out and t < 600 do
 		t += 0.1
-		out = CS.decide(c, t, Vector3.new(0, 3, 400))
-	end
-	check("Caught in the field", out == "Caught")
-	c, out, t = mk(200, 2), nil, 1
-	c.pickedUp = true
-	while not out and t < 600 do
-		t += 0.1
-		out = CS.decide(c, t, Vector3.new(0, 3, 200 - 16 * 0.92 * (t - 1)))
-	end
-	check("Secured", out == "Secured")
-	c.resolved, out = true, nil
-	while not out and t < 600 do
-		t += 0.1
-		out = CS.decide(c, t, base)
+		out = CS.decide(c, t, Vector3.new(5, 0, -20))
 	end
 	check("Ended after secure", out == "Ended")
-	local safe = mk(30, 1)
-	safe.pickedUp = true
-	check("safe behind the line", CS.decide(safe, 2, Vector3.new(0, 3, -8)) ~= "Caught")
-	check("no body = Caught", CS.decide(mk(500, 5), 0, nil) == "Caught")
-	check("walking is plausible", CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 2), 0.1, 16))
+	check("speed = runSpeed x multiplier", CS.eggSpeedFor({ runSpeed = 20, speedMultiplier = 1.5 }) == 30)
+	check("multiplier defaults to 1", CS.eggSpeedFor({ runSpeed = 20 }) == 20)
+	check("normal move is plausible", CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 2), 0.1, 16))
 	check("teleport rejected", not CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 300), 0.1, 16))
 	check("teleport plausible later", CS.plausible(Vector3.zero, 0, Vector3.new(0, 0, 300), 9, 16))
 	check("falling ignored", CS.plausible(Vector3.zero, 0, Vector3.new(0, -200, 0), 0.1, 16))
