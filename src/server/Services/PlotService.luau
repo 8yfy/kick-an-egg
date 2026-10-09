@@ -1,13 +1,15 @@
 --!strict
 -- Bases and pedestals. Assigns a base on join (spawn there, owner sign), PlaceEgg onto a free
 -- pedestal, hatches on a server-time timer that survives rejoin, spawns pets (size via
--- Builder.scale) and pays income every second.
+-- Builder.scale). Every second each placed pet STORES its income on its pedestal; the owner
+-- collects it by stepping onto that pedestal (Economy.CollectRadius).
 --
 -- Data: plots = { [slot]: {uid, petId, size?, weather?, placedAt, hatchAt} } -- eggs hatching
---       pets  = { [petUid]: {petId, size?, weather?, slot?} }                  -- hatched pets
+--       pets  = { [petUid]: {petId, size?, weather?, slot?, stored?} }         -- hatched pets
+--       (`stored` is updated in place every tick without DataChanged; the model attribute shows it)
 -- Replicated models live in Base<i>.Plots with attributes for PlotController (client VFX/Anim):
 --   egg: Kind="Egg", Slot, PlacedAt, HatchAt, Rarity      pet: Kind="Pet", Slot, PetUid, Rarity,
---   PetName, Size, Weather, Income ($/s with multipliers), HatchedAt
+--   PetName, Size, Weather, Income ($/s with multipliers), Stored ($ waiting), HatchedAt
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -39,9 +41,12 @@ type PetEntry = {
 	size: string?,
 	weather: string?,
 	slot: number?,
+	stored: number?, -- income waiting on the pedestal
 }
 
 local INCOME_TICK = 1
+local COLLECT_TICK = 0.2
+local COLLECT_HEIGHT = 7 -- HumanoidRootPart up to this far above the pedestal top
 local SPAWN_ABOVE = 3
 local SIT_ABOVE = 0.15 -- MapBuilder: egg sits at Top.Position + up * 0.15
 local EMPTY_SIGN = "Empty Base"
@@ -187,6 +192,7 @@ local function spawnPetModel(player: Player, base: Model, petUid: string, pet: P
 	model:SetAttribute("Size", pet.size)
 	model:SetAttribute("Weather", pet.weather)
 	model:SetAttribute("Income", if data then PlotService.petIncome(pet, data, gamepassMultiplier(player)) else 0)
+	model:SetAttribute("Stored", math.floor(pet.stored or 0))
 	model:SetAttribute("HatchedAt", hatchedAt)
 	placeModel(base, slot, model)
 end
@@ -248,16 +254,62 @@ local function hatchDue(player: Player, now: number)
 	Analytics.funnel(player, Analytics.Funnel.FirstHatch, "FirstHatch")
 end
 
-local function payIncome(player: Player)
+local function petModel(base: Model, petUid: string): Model?
+	for _, child in plotsFolder(base):GetChildren() do
+		if child:IsA("Model") and child:GetAttribute("PetUid") == petUid then
+			return child
+		end
+	end
+	return nil
+end
+
+-- Each placed pet stores its income on its pedestal (no DataChanged; the model shows it).
+local function accrueIncome(player: Player)
 	local data = DataService:Get(player)
-	if not data then
+	local base = baseOf[player]
+	if not data or not base then
 		return
 	end
 	local gamepass = gamepassMultiplier(player)
-	local total = 0
-	for _, pet: PetEntry in data.pets do
+	for petUid, pet: PetEntry in data.pets do
 		if pet.slot then
-			total += PlotService.petIncome(pet, data, gamepass)
+			pet.stored = (pet.stored or 0) + PlotService.petIncome(pet, data, gamepass)
+			local model = petModel(base, petUid)
+			if model then
+				model:SetAttribute("Stored", math.floor(pet.stored :: number))
+			end
+		end
+	end
+end
+
+-- True if `position` (HumanoidRootPart) stands on the pedestal whose top is `top`.
+function PlotService.onPedestal(top: BasePart, position: Vector3): boolean
+	local offset = position - top.Position
+	return Vector3.new(offset.X, 0, offset.Z).Magnitude <= Economy.CollectRadius
+		and offset.Y >= 0
+		and offset.Y <= COLLECT_HEIGHT
+end
+
+-- Pays out every pedestal the owner is standing on.
+local function collect(player: Player)
+	local data = DataService:Get(player)
+	local base = baseOf[player]
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not data or not base or not hrp or not hrp:IsA("BasePart") then
+		return
+	end
+	local total = 0
+	for petUid, pet: PetEntry in data.pets do
+		local amount = math.floor(pet.stored or 0)
+		local top = if pet.slot and amount > 0 then pedestalTop(base, pet.slot) else nil
+		if top and PlotService.onPedestal(top, hrp.Position) then
+			pet.stored = (pet.stored :: number) - amount
+			total += amount
+			local model = petModel(base, petUid)
+			if model then
+				model:SetAttribute("Stored", 0)
+			end
 		end
 	end
 	if total > 0 then
@@ -431,7 +483,15 @@ function PlotService:Start()
 			local now = workspace:GetServerTimeNow()
 			for player in baseOf do
 				hatchDue(player, now)
-				payIncome(player)
+				accrueIncome(player)
+			end
+		end
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(COLLECT_TICK)
+			for player in baseOf do
+				collect(player)
 			end
 		end
 	end)

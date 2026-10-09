@@ -1,7 +1,8 @@
--- Chase winnability per zone with the current Config/Chase numbers (the player steers the egg).
--- For an egg landing in the middle of each zone: the minimum egg speed that reaches the safe line
--- ahead of the avalanche, and the speed multiplier that needs at base Run Speed and at max Run Speed.
--- Egg speed = runSpeed x speedMultiplier (trained on the training pad).
+-- Progression per zone with the current Config numbers (the player steers the egg).
+-- For an egg landing in the middle of each zone:
+--   strength: kick power needed to reach it with a perfect kick (0 rebirths)
+--   speed:    the minimum Run Speed (= egg speed, bought in the shop) that gets it home ahead of
+--             the avalanche, and the total shop cost of buying up to it from the base speed.
 -- Run: sh tools/run-tests.sh tools/tests/Balance.server.lua
 
 local Shared = game.ReplicatedStorage.Shared
@@ -28,27 +29,32 @@ local function secured(D, zone, v)
 	return true
 end
 
-print("[Bal] zone | avalanche speed | min egg speed | multiplier needed at Run Speed 16 | at 40")
+local function speedCost(target)
+	local total = 0
+	for v = Economy.RunSpeed.base, target - 1 do
+		total += Economy.upgradeCost("RunSpeed", v)
+	end
+	return total
+end
+
+print("[Bal] zone | strength needed | avalanche speed | Run Speed needed | shop cost from base")
 for _, zone in Zones do
 	local D = zone.start + zone.length / 2
+	local strength = D / (Economy.DistancePerPower * Economy.TimingBonus.perfect)
 	local need = nil
-	for v = 1, 400 do
+	for v = Economy.RunSpeed.base, Economy.RunSpeed.max do
 		if secured(D, zone.id, v) then
 			need = v
 			break
 		end
 	end
-	if need then
-		print(
-			("[Bal] %2d | %4.1f | %3d | x%.2f | x%.2f"):format(
-				zone.id,
-				Chase.avalancheSpeed(zone.id),
-				need,
-				math.max(1, need / Economy.RunSpeed.base),
-				math.max(1, need / Economy.RunSpeed.max)
-			)
+	print(
+		("[Bal] %2d | %5.1f | %4.1f | %s | %s"):format(
+			zone.id,
+			strength,
+			Chase.avalancheSpeed(zone.id),
+			if need then tostring(need) else "above max",
+			if need then tostring(speedCost(need)) else "-"
 		)
-	else
-		print(("[Bal] %2d | never"):format(zone.id))
-	end
+	)
 end
