@@ -197,6 +197,9 @@ end
 
 function FlightController:Start()
 	Remotes.get("KickResult").OnClientEvent:Connect(function(result: KickResult)
+		-- With StreamingEnabled the landing zone may be far outside the streamed radius:
+		-- ask for it during the flight so the egg lands (and runs) on real ground.
+		task.spawn(pcall, player.RequestStreamAroundAsync, player, result.landPos)
 		fly(result)
 	end)
 	player.CharacterAdded:Connect(function()

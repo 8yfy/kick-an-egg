@@ -14,6 +14,7 @@ local Remotes = require(Shared.Remotes)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
+local Analytics = require(script.Parent.Parent.Util.Analytics)
 local KickService = require(script.Parent.KickService)
 
 export type ChaseState = {
@@ -185,6 +186,7 @@ end
 
 local function lose(chase: ChaseState, reason: "Caught" | "EggCaught" | "Left")
 	remotes.EggLost:FireAllClients({ eggUid = chase.eggUid, reason = reason })
+	Analytics.custom(chase.owner, "EggLost", 1, reason, chase.petId)
 	if reason ~= "Left" then
 		setWalkSpeed(chase.owner, baseWalkSpeed(chase.owner))
 		bumpStat(chase.owner, "lost")
@@ -209,6 +211,8 @@ local function secure(chase: ChaseState)
 	end
 	setWalkSpeed(player, baseWalkSpeed(player))
 	remotes.EggSecured:FireAllClients({ eggUid = chase.eggUid })
+	Analytics.custom(player, "EggSecured", 1, chase.petId)
+	Analytics.funnel(player, Analytics.Funnel.FirstSecure, "FirstSecure")
 end
 
 -- Tick ---------------------------------------------------------------------

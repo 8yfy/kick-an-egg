@@ -42,6 +42,7 @@ local TEMPLATE: Data = {
 	plots = {},
 	stats = { kicks = 0, secured = 0, lost = 0 },
 	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
+	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
 }
 
 local DataService = {}
@@ -71,6 +72,32 @@ local function reconcile(data: Data, template: Data)
 			reconcile(data[k], v)
 		end
 	end
+end
+
+local function isFinite(value: any): boolean
+	return typeof(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+end
+
+-- Repairs corrupted or exploited numbers and wrong types so no service ever sees NaN or junk.
+local function sanitize(data: Data)
+	for _, key in { "eggs", "pets", "plots", "stats", "receipts" } do
+		if typeof(data[key]) ~= "table" then
+			data[key] = deepCopy(TEMPLATE[key])
+		end
+	end
+	data.money = if isFinite(data.money) then math.max(0, data.money) else Economy.StartingMoney
+	data.rebirths = if isFinite(data.rebirths) then math.max(0, math.floor(data.rebirths)) else 0
+	local powerCap = Economy.maxKickPower(data.rebirths)
+	data.kickPower = if isFinite(data.kickPower)
+		then math.clamp(math.floor(data.kickPower), Economy.KickPower.base, powerCap)
+		else Economy.KickPower.base
+	data.runSpeed = if isFinite(data.runSpeed)
+		then math.clamp(math.floor(data.runSpeed), Economy.RunSpeed.base, Economy.RunSpeed.max)
+		else Economy.RunSpeed.base
+	if data.plotSlots ~= nil and not isFinite(data.plotSlots) then
+		data.plotSlots = nil
+	end
+	data.onboarding = if isFinite(data.onboarding) then data.onboarding else 0
 end
 
 local function keyFor(player: Player): string
@@ -183,6 +210,7 @@ local function onPlayerAdded(player: Player)
 
 	local loaded = data :: Data
 	reconcile(loaded, TEMPLATE)
+	sanitize(loaded)
 	local profile: Profile = { data = loaded, inMemory = inMemory, released = false }
 
 	if not player.Parent then
@@ -243,6 +271,8 @@ function DataService:Increment(player: Player, key: string, delta: number): numb
 	self:Set(player, { [key] = value })
 	return value
 end
+
+DataService.sanitize = sanitize -- exposed for the headless tests
 
 -- Saves right away (keeps the lock). Used after purchases and trades. True on success.
 function DataService:SaveNow(player: Player): boolean

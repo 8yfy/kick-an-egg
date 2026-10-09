@@ -15,6 +15,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 
 local DataService = require(script.Parent.DataService)
+local Analytics = require(script.Parent.Parent.Util.Analytics)
 local PlotService = require(script.Parent.PlotService)
 
 local MAX_RECEIPTS = 50
@@ -32,13 +33,13 @@ local function passById(id: number): string?
 	return nil
 end
 
-local function productById(id: number): { id: number, money: number }?
-	for _, product in Economy.DevProducts do
+local function productById(id: number): (string?, { id: number, money: number }?)
+	for name, product in Economy.DevProducts do
 		if product.id ~= 0 and product.id == id then
-			return product
+			return name, product
 		end
 	end
-	return nil
+	return nil, nil
 end
 
 local function loadOwnership(player: Player)
@@ -87,8 +88,8 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 	if table.find(data.receipts, purchaseId) then
 		return Enum.ProductPurchaseDecision.PurchaseGranted -- already granted earlier
 	end
-	local product = productById(receipt.ProductId)
-	if not product then
+	local productName, product = productById(receipt.ProductId)
+	if not productName or not product then
 		warn(`[MonetizationService] unknown product {receipt.ProductId}`)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
@@ -98,6 +99,7 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 		table.remove(receipts, 1)
 	end
 	DataService:Set(player, { money = data.money + product.money, receipts = receipts })
+	Analytics.money(player, "Source", product.money, "IAP", productName)
 	if not DataService:SaveNow(player) then
 		return Enum.ProductPurchaseDecision.NotProcessedYet -- the receipt id is kept in memory; no double grant
 	end
@@ -110,6 +112,7 @@ function MonetizationService:Start()
 		local name = passById(passId)
 		if purchased and name then
 			self:SetOwned(player, name, true)
+			Analytics.custom(player, "GamepassBought", 1, name)
 		end
 	end)
 	DataService:OnLoaded(function(player)
