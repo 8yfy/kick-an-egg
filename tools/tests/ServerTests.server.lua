@@ -153,6 +153,41 @@ section("DataService.sanitize", function()
 	check("plotSlots cleared", d.plotSlots == nil)
 end)
 
+section("TrainingService", function()
+	local TS = require(Services.TrainingService) :: any
+	local pads = Economy.Training.pads
+	check("pad 1 gain", TS.trained(1, 1) == 1 + pads[1].gain)
+	check("better pad gains more", TS.trained(1, 3) - 1 > TS.trained(1, 1) - 1)
+	check("capped at maxMultiplier", TS.trained(Economy.Training.maxMultiplier, 5) == Economy.Training.maxMultiplier)
+	check("pad level clamped", TS.trained(1, 99) == TS.trained(1, #pads))
+	local pad = Instance.new("Part")
+	pad.Size = Vector3.new(10, 0.4, 10)
+	pad.CFrame = CFrame.new(0, 0.2, -22)
+	check("standing on the pad", TS.isOnPad(pad, Vector3.new(2, 3, -20)))
+	check("next to the pad", not TS.isOnPad(pad, Vector3.new(9, 3, -22)))
+	check("far above the pad", not TS.isOnPad(pad, Vector3.new(0, 30, -22)))
+	pad:Destroy()
+	check("next pad cost", Economy.trainingPadCost(1) == pads[2].cost)
+	check("no pad after the top", Economy.trainingPadCost(#pads) == nil)
+	local D = require(Services.DataService) :: any
+	local d = {
+		money = 0,
+		kickPower = 1,
+		runSpeed = 16,
+		rebirths = 0,
+		eggs = {},
+		pets = {},
+		plots = {},
+		stats = {},
+		receipts = {},
+		speedMultiplier = 0 / 0,
+		trainingPad = 42,
+	}
+	D.sanitize(d)
+	check("NaN multiplier -> 1", d.speedMultiplier == 1)
+	check("pad level clamped on load", d.trainingPad == #pads)
+end)
+
 section("every service loads", function()
 	for _, module in Services:GetChildren() do
 		if module:IsA("ModuleScript") then

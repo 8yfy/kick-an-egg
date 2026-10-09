@@ -53,6 +53,18 @@ function UpgradeService:Buy(player: Player, kind: Economy.UpgradeKind): boolean
 	return true
 end
 
+-- Next training pad level (faster speedMultiplier training). Returns true if bought.
+function UpgradeService:BuyTrainingPad(player: Player): boolean
+	local data = DataService:Get(player)
+	local cost = data and Economy.trainingPadCost(data.trainingPad)
+	if not data or not cost or data.money < cost then
+		return false
+	end
+	DataService:Set(player, { money = data.money - cost, trainingPad = data.trainingPad + 1 })
+	Analytics.money(player, "Sink", cost, "Shop", "TrainingPad")
+	return true
+end
+
 function UpgradeService:CanRebirth(player: Player): boolean
 	local data = DataService:Get(player)
 	if not data or KickService:GetActive(player) then
@@ -80,8 +92,13 @@ end
 
 function UpgradeService:Start()
 	Remotes.get("BuyUpgrade").OnServerEvent:Connect(function(player: Player, kind: any)
-		if limiter:allow(player) and (kind == "KickPower" or kind == "RunSpeed") then
+		if not limiter:allow(player) then
+			return
+		end
+		if kind == "KickPower" or kind == "RunSpeed" then
 			self:Buy(player, kind)
+		elseif kind == "TrainingPad" then
+			self:BuyTrainingPad(player)
 		end
 	end)
 	Remotes.get("Rebirth").OnServerEvent:Connect(function(player: Player)

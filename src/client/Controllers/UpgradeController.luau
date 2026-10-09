@@ -1,6 +1,6 @@
 --!strict
 -- Studio-only test keys until A's Store/Rebirth menus land (they fire the same remotes):
--- U = buy Kick Power, I = buy Run Speed, R = Rebirth.
+-- U = buy Kick Power, I = buy Run Speed, O = upgrade the training pad, R = Rebirth.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -24,6 +24,8 @@ function UpgradeController:Start()
 			buyUpgrade:FireServer("KickPower")
 		elseif input.KeyCode == Enum.KeyCode.I then
 			buyUpgrade:FireServer("RunSpeed")
+		elseif input.KeyCode == Enum.KeyCode.O then
+			buyUpgrade:FireServer("TrainingPad")
 		elseif input.KeyCode == Enum.KeyCode.R then
 			rebirth:FireServer()
 		end

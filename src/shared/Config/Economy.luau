@@ -12,6 +12,20 @@ local Economy = {
 	AutosaveSeconds = 90,
 	SellIncomeSeconds = 60, -- a pet sells for this many seconds of its income (size + weather, no rebirth)
 
+	-- Training pad: every `tickSeconds` on your pad adds `gain` to speedMultiplier (egg speed =
+	-- runSpeed x speedMultiplier). Pads are upgraded with money; `cost` = price to reach that level.
+	Training = {
+		tickSeconds = 1,
+		maxMultiplier = 10,
+		pads = {
+			{ gain = 0.002, cost = 0 },
+			{ gain = 0.005, cost = 2500 },
+			{ gain = 0.012, cost = 25000 },
+			{ gain = 0.03, cost = 250000 },
+			{ gain = 0.075, cost = 2500000 },
+		} :: { { gain: number, cost: number } },
+	},
+
 	-- Placeholder IDs (0 = not created yet; skipped). Replace with real IDs before publishing.
 	Gamepasses = {
 		DoubleMoney = { id = 0, incomeMultiplier = 2 },
@@ -35,6 +49,12 @@ end
 function Economy.upgradeCost(kind: UpgradeKind, value: number): number
 	local config = Economy[kind]
 	return math.floor(config.costBase * config.costGrowth ^ (value - config.base))
+end
+
+-- Price of the next training pad level, or nil at the top level.
+function Economy.trainingPadCost(level: number): number?
+	local nextPad = Economy.Training.pads[level + 1]
+	return if nextPad then nextPad.cost else nil
 end
 
 return Economy

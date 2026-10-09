@@ -43,6 +43,8 @@ local TEMPLATE: Data = {
 	stats = { kicks = 0, secured = 0, lost = 0 },
 	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
 	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
+	speedMultiplier = 1, -- trained on the training pad; egg speed = runSpeed x this
+	trainingPad = 1, -- training pad level (Economy.Training.pads)
 }
 
 local DataService = {}
@@ -98,6 +100,13 @@ local function sanitize(data: Data)
 		data.plotSlots = nil
 	end
 	data.onboarding = if isFinite(data.onboarding) then data.onboarding else 0
+	local training = Economy.Training
+	data.speedMultiplier = if isFinite(data.speedMultiplier)
+		then math.clamp(data.speedMultiplier, 1, training.maxMultiplier)
+		else 1
+	data.trainingPad = if isFinite(data.trainingPad)
+		then math.clamp(math.floor(data.trainingPad), 1, #training.pads)
+		else 1
 end
 
 local function keyFor(player: Player): string
