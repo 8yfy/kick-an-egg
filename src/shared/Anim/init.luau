@@ -3,7 +3,8 @@
 -- Names B will call: "EggRun" (panicked legged-egg sprint), "EggCarried" (legs kicking while held),
 -- "EggWobble" (on plot, hatching), "Idle", "Waddle", "Hop", "Sleep" (pets),
 -- "PlayerCarry" (player arms up holding the egg; target = player Character).
--- Implementations: Anim/Egg (EggRun, EggCarried, EggWobble), Anim/Player (PlayerCarry).
+-- Implementations: Anim/Egg (EggRun, EggCarried, EggWobble), Anim/Pet (Idle, Waddle, Hop, Sleep),
+-- Anim/Player (PlayerCarry).
 -- Unknown names return a no-op stop function. The stop function restores the rest pose.
 type Player = (model: Model, params: { [string]: any }) -> () -> ()
 
@@ -18,7 +19,12 @@ local function load(): { [string]: Player }
 	end
 	local Egg = require(script.Egg)
 	local PlayerAnims = require(script.Player)
+	local Pet = require(script.Pet)
 	local loaded: { [string]: Player } = {
+		Idle = Pet.Idle,
+		Waddle = Pet.Waddle,
+		Hop = Pet.Hop,
+		Sleep = Pet.Sleep,
 		EggRun = Egg.EggRun,
 		EggCarried = Egg.EggCarried,
 		EggWobble = Egg.EggWobble,
