@@ -1,5 +1,5 @@
 --!strict
--- Partner A owns this file. Tune freely.
+-- Partner B owns this file. Tune freely.
 local Economy = {
 	StartingMoney = 0,
 	KickPower = { base = 1, max = 100, costBase = 25, costGrowth = 1.18 },

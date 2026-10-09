@@ -1,7 +1,7 @@
 --!strict
--- CONTRACT (API). Partner B adds specs in Models/Eggs/*.luau and Models/Pets/*.luau,
+-- CONTRACT (API). Partner A adds specs in Models/Eggs/*.luau and Models/Pets/*.luau,
 -- one file per zone, e.g. Pets/Zone01.luau returning { [modelKey]: Spec }.
--- Missing keys fall back to a placeholder so Partner A is never blocked.
+-- Missing keys fall back to a placeholder so Partner B is never blocked.
 local Builder = require(script.Parent.BlockBuilder)
 local Models = {}
 

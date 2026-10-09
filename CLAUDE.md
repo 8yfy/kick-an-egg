@@ -1,7 +1,7 @@
 # Kick the Egg! — rules for Claude Code (read this, then only the files your task needs)
 
 Roblox game, Luau, synced with Rojo (`default.project.json`). Two partners work in parallel:
-**Partner A = gameplay/server/data**, **Partner B = art/VFX/UI**. See `docs/TASKS.md` for who owns what.
+**Partner A = art/models/VFX/UI**, **Partner B = gameplay/server/data**. See `docs/TASKS.md` for who owns what.
 
 ## The game in one paragraph
 Player taps KICK → an egg flies down a runway through 20 zones. Each time it enters a new zone,
@@ -46,4 +46,4 @@ sit on the plot and earn $/s. Money → Kick Power / Run Speed upgrades → Rebi
 - Services on the server (`src/server/Services`), controllers on the client
   (`src/client/Controllers`), each exposes `:Init()` and `:Start()`.
 - Commit messages: `feat(area): ...`, `fix(area): ...`, `contract: ...`.
-- Branches: `a/<feature>` for Partner A, `b/<feature>` for Partner B. PR into `main`.
+- Branches: `b/<feature>` for Partner B, `a/<feature>` for Partner A. PR into `main`.

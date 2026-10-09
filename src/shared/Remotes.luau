@@ -13,7 +13,7 @@
 -- S->C  DataChanged(partial: {[string]: any})
 -- S->C  WeatherChanged(weather: string?, endsAt: number?)
 -- S->C  Announce(text: string, rarity: string)
--- C->S  TradeRequest / TradeRespond / TradeOffer / TradeConfirm (Partner A defines payloads in TradeService)
+-- C->S  TradeRequest / TradeRespond / TradeOffer / TradeConfirm (Partner B defines payloads in TradeService)
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

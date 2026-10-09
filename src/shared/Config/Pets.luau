@@ -1,5 +1,5 @@
 --!strict
--- CONTRACT FILE (schema). Partner B adds entries freely; renaming fields needs a `contract:` PR.
+-- CONTRACT FILE (schema). Partner A adds entries freely; renaming fields needs a `contract:` PR.
 -- Every pet has a matching egg. `model` is the key in Builders/Models/Pets and Builders/Models/Eggs.
 -- Weights are relative within a zone. Target: 3–5 pets per zone, 60–100 total.
 
@@ -15,7 +15,7 @@ export type Pet = {
 }
 
 local Pets: { Pet } = {
-	-- Zone 1: Meadow (examples; Partner B fills the rest)
+	-- Zone 1: Meadow (examples; Partner A fills the rest)
 	{ id = "sprout_pup", name = "Sprout Pup", zone = 1, rarity = "Common", weight = 60, income = 1, hatchSeconds = 10, model = "SproutPup" },
 	{ id = "bumble_bloc", name = "Bumble Bloc", zone = 1, rarity = "Uncommon", weight = 30, income = 3, hatchSeconds = 20, model = "BumbleBloc" },
 	{ id = "meadow_stag", name = "Meadow Stag", zone = 1, rarity = "Rare", weight = 10, income = 8, hatchSeconds = 45, model = "MeadowStag" },

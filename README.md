@@ -11,6 +11,6 @@ random one, hatch it on your plot and collect cool bricky pets with size and wea
    `docs/PROMPT_PARTNER_B.md`, filling in the current task from `docs/TASKS.md`.
 
 ## Workflow
-- Branch per task: `a/<feature>` or `b/<feature>`, PR into `main`, the other partner merges.
+- Branch per task: `b/<feature>` or `a/<feature>`, PR into `main`, the other partner merges.
 - Contract files (see `CLAUDE.md`) only change through a `contract: ...` PR.
 - Play-test together at the end of each milestone.
