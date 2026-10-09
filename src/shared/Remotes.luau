@@ -9,7 +9,8 @@
 --                     landPos: Vector3, launchTime: number, flightSeconds: number,
 --                     eggModel: string, petId: string, rarity: string, size: string?, weather: string? })
 -- S->C  ChaseStart({ eggUid: string, ownerUserId: number, theme: string, startZ: number,
---                     startTime: number, speed: number, eggStartPos: Vector3, eggRunStart: number })
+--                     startTime: number, speed: number, eggStartPos: Vector3, eggRunStart: number,
+--                     eggModel: string, rarity: string })
 --                     -- fired to ALL clients at touchdown; startTime = touchdown + warnSeconds
 -- C->S  PickupEgg(eggUid: string)                  -- server checks distance <= Egg.pickupDistance
 -- S->C  EggPickedUp({ eggUid: string, userId: number })
