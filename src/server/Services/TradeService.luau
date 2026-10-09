@@ -28,6 +28,7 @@ local Remotes = require(Shared.Remotes)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
+local Analytics = require(script.Parent.Parent.Util.Analytics)
 local PlotService = require(script.Parent.PlotService)
 
 type Trade = {
@@ -146,6 +147,9 @@ local function complete(trade: Trade)
 	DataService:Set(trade.b, { pets = newB })
 	closeTrade(trade, "completed")
 	for _, player in { trade.a, trade.b } do
+		Analytics.custom(player, "TradeCompleted", #trade.offers[partnerOf(trade, player)])
+	end
+	for _, player in { trade.a, trade.b } do
 		PlotService:PlaceUnplacedPets(player)
 		task.spawn(function()
 			DataService:SaveNow(player)
@@ -256,7 +260,9 @@ local function onSellPet(player: Player, petUid: any)
 	end
 	local pets = table.clone(data.pets)
 	pets[petUid] = nil
-	DataService:Set(player, { pets = pets, money = data.money + TradeService.sellValue(pet) })
+	local value = TradeService.sellValue(pet)
+	DataService:Set(player, { pets = pets, money = data.money + value })
+	Analytics.money(player, "Source", value, "Gameplay", "SellPet")
 	PlotService:Refresh(player)
 end
 

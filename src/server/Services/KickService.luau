@@ -18,6 +18,7 @@ local Remotes = require(Shared.Remotes)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
+local Analytics = require(script.Parent.Parent.Util.Analytics)
 
 export type KickRoll = {
 	eggUid: string,
@@ -289,6 +290,8 @@ local function onRequestKick(player: Player, timing: any)
 	for _, callback in kickCallbacks do
 		task.spawn(callback, player, result)
 	end
+	Analytics.custom(player, "Kick", result.distance, `Zone{result.landZone}`, result.rarity)
+	Analytics.funnel(player, Analytics.Funnel.FirstKick, "FirstKick")
 
 	task.delay(pending.touchdown - workspace:GetServerTimeNow(), function()
 		if active[player] ~= pending then

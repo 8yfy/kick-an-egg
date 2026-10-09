@@ -23,6 +23,7 @@ local Remotes = require(Shared.Remotes)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
+local Analytics = require(script.Parent.Parent.Util.Analytics)
 
 type EggPlot = {
 	uid: string,
@@ -157,6 +158,7 @@ local function spawnEggModel(base: Model, slot: number, egg: EggPlot)
 	local config = petsById[egg.petId]
 	local model = Models.egg(if config then config.model else egg.petId)
 	model.Name = `Egg{slot}`
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic -- streams in whole, never half-built
 	model:SetAttribute("Kind", "Egg")
 	model:SetAttribute("Slot", slot)
 	model:SetAttribute("PlacedAt", egg.placedAt)
@@ -176,6 +178,7 @@ local function spawnPetModel(player: Player, base: Model, petUid: string, pet: P
 		Builder.scale(model, size.scale)
 	end
 	local data = DataService:Get(player)
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 	model:SetAttribute("Kind", "Pet")
 	model:SetAttribute("Slot", slot)
 	model:SetAttribute("PetUid", petUid)
@@ -240,7 +243,9 @@ local function hatchDue(player: Player, now: number)
 			spawnPetModel(player, base, info.petUid, pets[info.petUid], now)
 		end
 		eggHatched:FireAllClients(info)
+		Analytics.custom(player, "EggHatched", 1, pets[info.petUid].petId)
 	end
+	Analytics.funnel(player, Analytics.Funnel.FirstHatch, "FirstHatch")
 end
 
 local function payIncome(player: Player)
@@ -257,6 +262,7 @@ local function payIncome(player: Player)
 	end
 	if total > 0 then
 		DataService:Set(player, { money = data.money + total })
+		Analytics.addIncome(player, total)
 	end
 end
 
@@ -351,6 +357,7 @@ local function onPlaceEgg(player: Player, eggUid: any, slot: any)
 	local plots = table.clone(data.plots)
 	plots[tostring(slot)] = plot
 	DataService:Set(player, { eggs = eggs, plots = plots })
+	Analytics.funnel(player, Analytics.Funnel.FirstPlace, "FirstPlace")
 	spawnEggModel(base, slot, plot)
 end
 

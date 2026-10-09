@@ -11,6 +11,7 @@ local Remotes = require(Shared.Remotes)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
+local Analytics = require(script.Parent.Parent.Util.Analytics)
 local KickService = require(script.Parent.KickService)
 local ChaseService = require(script.Parent.ChaseService)
 local PlotService = require(script.Parent.PlotService)
@@ -44,6 +45,8 @@ function UpgradeService:Buy(player: Player, kind: Economy.UpgradeKind): boolean
 		return false
 	end
 	DataService:Set(player, { money = data.money - cost, [key] = value + 1 })
+	Analytics.money(player, "Sink", cost, "Shop", kind)
+	Analytics.funnel(player, Analytics.Funnel.FirstUpgrade, "FirstUpgrade")
 	if kind == "RunSpeed" then
 		ChaseService:RefreshWalkSpeed(player)
 	end
@@ -71,6 +74,7 @@ function UpgradeService:Rebirth(player: Player): boolean
 	})
 	ChaseService:RefreshWalkSpeed(player)
 	PlotService:Refresh(player) -- income labels include the rebirth multiplier
+	Analytics.custom(player, "Rebirth", data.rebirths) -- `data` is live: already the new count
 	return true
 end
 
