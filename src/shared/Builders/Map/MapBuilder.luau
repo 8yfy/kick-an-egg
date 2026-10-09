@@ -22,7 +22,7 @@
 --     .Sign.Board.SurfaceGui.OwnerLabel           TextLabel with the owner's name
 --     .Pedestals.Pedestal<n>                      invisible egg spot on the open pen floor: attribute Slot = n,
 --                                                 PrimaryPart = Top (egg sits at Top.Position + up * 0.15)
---     .TrainingRack                               Model with Plate (stand here) and Bag
+--     .TrainingRack                               Model: treadmill with Plate (belt, stand here), SignBoard, FxAnchor
 --   workspace.Map.Runway.Zone<id>                 Folder per zone
 -- ProximityPrompts carry an "Action" attribute the client UI handles:
 --   "UpgradePen" | "UpgradeTraining" | "OpenMenu:Store" | "OpenMenu:Index"
@@ -72,6 +72,7 @@ local DIRT = rgb(205, 130, 80)
 local GRASS, GRASS_DARK = rgb(120, 215, 75), rgb(104, 196, 64)
 local YELLOW = rgb(255, 220, 80)
 local SHIELD_ICON = "rbxassetid://77216163319959"
+local SHOE_ICON = "rbxassetid://100327618588257" -- same as UI Icons.WalkSpeed (treadmill screen)
 local SIGN = rgb(32, 38, 52)
 local BASE_COLORS = {
 	rgb(255, 85, 85),
@@ -776,9 +777,44 @@ local function refreshRack(base: Model, slot: CFrame)
 			plate.CanQuery = true
 			m.PrimaryPart = plate
 		end
+		-- Treadmill (map v3): the belt is a conveyor toward the entry, so you keep running to stay on;
+		-- slats and effect anchors don't collide; the tier's idle effect comes off the back of the belt.
+		local speed = TrainingRack.beltSpeed(info.tier)
+		m:SetAttribute("BeltSpeed", speed)
+		for _, d in m:GetDescendants() do
+			if d:IsA("BasePart") and (d.Name == "Slat" or d.Name == "FxAnchor" or d.Name == "PopAnchor") then
+				d.CanCollide = false
+				d.CanQuery = false
+			end
+		end
+		if plate and plate:IsA("BasePart") then
+			plate.AssemblyLinearVelocity = slot:VectorToWorldSpace(Vector3.new(0, 0, -speed))
+		end
+		local fxAnchor = m:FindFirstChild("FxAnchor")
+		if fxAnchor and fxAnchor:IsA("BasePart") then
+			MapFx.emit(fxAnchor, TrainingRack.ambient(info.tier))
+		end
 		local board = m:FindFirstChild("SignBoard")
 		if board and board:IsA("BasePart") then
-			surface(board, Enum.NormalId.Front, { { "Gain", "", 0.08, 0.5, YELLOW }, { "Level", "", 0.6, 0.32 } }, 24)
+			local gui = surface(
+				board,
+				Enum.NormalId.Front,
+				{ { "Gain", "", 0.08, 0.5, YELLOW }, { "Level", "", 0.6, 0.32 } },
+				40
+			)
+			for _, label in gui:GetChildren() do
+				if label:IsA("TextLabel") then
+					label.Position = UDim2.fromScale(0.3, label.Position.Y.Scale)
+					label.Size = UDim2.fromScale(0.66, label.Size.Y.Scale)
+				end
+			end
+			local shoe = Instance.new("ImageLabel")
+			shoe.Name = "Shoe"
+			shoe.BackgroundTransparency = 1
+			shoe.Image = SHOE_ICON
+			shoe.ScaleType = Enum.ScaleType.Fit
+			shoe.Position, shoe.Size = UDim2.fromScale(0.04, 0.1), UDim2.fromScale(0.24, 0.8)
+			shoe.Parent = gui
 		end
 		for _, n in { "LampL", "LampR" } do
 			local lampPart = m:FindFirstChild(n)
@@ -793,8 +829,8 @@ local function refreshRack(base: Model, slot: CFrame)
 		rack = m
 	end
 	local board = rack and rack:FindFirstChild("SignBoard")
-	setText(board and board:FindFirstChildOfClass("SurfaceGui"), "Gain", `+{info.gain} Power / kick`)
-	setText(board and board:FindFirstChildOfClass("SurfaceGui"), "Level", `Training · Lv {level}`)
+	setText(board and board:FindFirstChildOfClass("SurfaceGui"), "Gain", `+{info.gain} Power / step`)
+	setText(board and board:FindFirstChildOfClass("SurfaceGui"), "Level", `Treadmill · Lv {level}`)
 	local sign = base:FindFirstChild("RackSign")
 	local sgui = sign and sign:FindFirstChildOfClass("SurfaceGui")
 	local nextInfo = levels[level + 1]

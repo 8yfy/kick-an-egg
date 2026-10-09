@@ -246,7 +246,7 @@ local THEMES: { [number]: Theme } = {
 }
 
 -- Flat neon disc that grows to `diameter` and fades out.
-local function shockwave(ground: Vector3, color: Color3, diameter: number, seconds: number, delay: number)
+function ZoneLanding.shockwave(ground: Vector3, color: Color3, diameter: number, seconds: number, delay: number)
 	task.delay(delay, function()
 		local ring = Pool.get("Cylinder")
 		ring.Material = Enum.Material.Neon
@@ -294,9 +294,9 @@ function ZoneLanding.play(ground: Vector3, zoneId: number?)
 	local theme = THEMES[id] or THEMES[1]
 	local strength = (id - 1) / (#Zones - 1) -- 0 for zone 1 .. 1 for zone 20
 
-	shockwave(ground, zone.accent, 26 + 30 * strength, 0.55, 0)
+	ZoneLanding.shockwave(ground, zone.accent, 26 + 30 * strength, 0.55, 0)
 	if theme.doubleRing then
-		shockwave(ground, zone.ground:Lerp(Color3.new(1, 1, 1), 0.3), 16 + 20 * strength, 0.5, 0.12)
+		ZoneLanding.shockwave(ground, zone.ground:Lerp(Color3.new(1, 1, 1), 0.3), 16 + 20 * strength, 0.5, 0.12)
 	end
 	particles(ground, theme)
 	Burst.play(
