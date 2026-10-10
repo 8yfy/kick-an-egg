@@ -257,6 +257,24 @@ function SackService:Start()
 		player.CharacterAdded:Connect(function(character)
 			onCharacter(player, character)
 		end)
+		if RunService:IsStudio() then
+			-- Studio-only playtest commands (chat): /sack <tier> jumps to any sack, /cash <amount> adds money
+			player.Chatted:Connect(function(message)
+				local cmd, arg = string.match(message, "^/(%a+)%s+(%S+)")
+				local n = tonumber(arg)
+				local data = DataService:Get(player)
+				if not data or not n then
+					return
+				end
+				if cmd == "sack" then
+					DataService:Set(player, { rackLevel = math.clamp(math.floor(n), 1, #Upgrades.Sack.tiers) })
+					PlotService:MirrorBase(player)
+					refreshTools(player)
+				elseif cmd == "cash" then
+					DataService:Set(player, { money = data.money + math.max(0, n) })
+				end
+			end)
+		end
 		if player.Character then
 			onCharacter(player, player.Character)
 		end
