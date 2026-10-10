@@ -103,8 +103,8 @@ local CHAMBER_ARMS: Pose = {
 	LElbow = { 115, 0, 0 },
 }
 local SNAP_ARMS: Pose = {
-	RShoulder = { -35, 0, 20 },
-	RElbow = { 35, 0, 0 },
+	RShoulder = { -60, 0, 25 },
+	RElbow = { 75, 0, 0 },
 	LShoulder = { 70, 0, 15 },
 	LElbow = { 70, 0, 0 },
 }

@@ -738,8 +738,8 @@ local BUILD: { () -> () } = {
 					"Wing",
 					root,
 					root + Vector3.new(side * (1.6 - k * 0.35), 0.5 - k * 0.2, 0.9),
-					0.9 - k * 0.15,
-					0.1,
+					0.12,
+					1.05 - k * 0.2, -- a tall membrane (beam width x height)
 					scale
 				)
 			end
@@ -812,8 +812,8 @@ local BUILD: { () -> () } = {
 						"Feather",
 						root,
 						tip,
-						0.34,
 						0.1,
+						0.4,
 						if row == 0 then white else rgb(255, 241, 176),
 						{ studs = false }
 					)
@@ -848,7 +848,7 @@ local BUILD: { () -> () } = {
 			for k = 1, 4 do
 				local root = on(180 - side * 65, -2.4 - k * 0.35, RADIUS - 0.05)
 				local tip = root + Vector3.new(side * (2.3 - k * 0.3), 1.2 - k * 0.45, 0.7)
-				beam("Wing", root, tip, 0.38, 0.1, look.fx[k * 2 - 1], NEON)
+				beam("Wing", root, tip, 0.1, 0.45, look.fx[k * 2 - 1], NEON)
 			end
 		end
 		for k = 0, 3 do
