@@ -202,7 +202,15 @@ local BUILDERS: { [number]: Builder } = {
 		local head = at(0, 33, 0) * CFrame.Angles(math.rad(90), 0, 0)
 		cyl(m, "Candy", 2, 16, head, rgb(255, 120, 190))
 		for i = 0, 5 do
-			cyl(m, "Swirl" .. i, 2.2, 13 - i * 2.2, head, if i % 2 == 0 then rgb(255, 255, 255) else rgb(120, 220, 230))
+			-- each smaller ring is a little thicker so its faces sit proud of the one behind (no z-fighting)
+			cyl(
+				m,
+				"Swirl" .. i,
+				2.3 + i * 0.12,
+				13 - i * 2.2,
+				head,
+				if i % 2 == 0 then rgb(255, 255, 255) else rgb(120, 220, 230)
+			)
 		end
 		for i = 1, 7 do
 			local a = i * 0.9
