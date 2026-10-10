@@ -148,7 +148,8 @@ function Popup.toast(text: string, color: Color3, rainbow: boolean?)
 end
 
 -- Red pulsing screen-edge vignette. Returns a stop function (fades out).
-function Popup.vignette(color: Color3): () -> ()
+function Popup.vignette(color: Color3, pulse: number?): () -> ()
+	local half = pulse or 0.35
 	local g = screen("VFXVignette", -1)
 	if not g then
 		return function() end
@@ -187,13 +188,13 @@ function Popup.vignette(color: Color3): () -> ()
 	task.spawn(function()
 		while alive do
 			for _, e in edges do
-				tween(e, 0.35, { BackgroundTransparency = 0.3 }, Enum.EasingStyle.Sine)
+				tween(e, half, { BackgroundTransparency = 0.3 }, Enum.EasingStyle.Sine)
 			end
-			task.wait(0.35)
+			task.wait(half)
 			for _, e in edges do
-				tween(e, 0.35, { BackgroundTransparency = 0.7 }, Enum.EasingStyle.Sine)
+				tween(e, half, { BackgroundTransparency = 0.7 }, Enum.EasingStyle.Sine)
 			end
-			task.wait(0.35)
+			task.wait(half)
 		end
 	end)
 	return function()
@@ -204,6 +205,49 @@ function Popup.vignette(color: Color3): () -> ()
 		task.delay(0.45, function()
 			frame:Destroy()
 		end)
+	end
+end
+
+-- Screen-space speed streaks flying in from the edges (close calls). Returns a stop function.
+function Popup.speedLines(): () -> ()
+	local g = screen("VFXVignette", -1)
+	if not g then
+		return function() end
+	end
+	local holder = Instance.new("Frame")
+	holder.Name = "SpeedLines"
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.BackgroundTransparency = 1
+	holder.Parent = g
+	local rng = Random.new()
+	local alive = true
+	task.spawn(function()
+		while alive do
+			local line = Instance.new("Frame")
+			line.BorderSizePixel = 0
+			line.BackgroundColor3 = Color3.new(1, 1, 1)
+			line.BackgroundTransparency = 0.35
+			line.AnchorPoint = Vector2.new(0.5, 0.5)
+			local left = rng:NextNumber() < 0.5
+			local y = rng:NextNumber(0.1, 0.9)
+			line.Size = UDim2.fromScale(rng:NextNumber(0.12, 0.25), 0.006)
+			line.Position = UDim2.fromScale(if left then -0.15 else 1.15, y)
+			line.Parent = holder
+			tween(
+				line,
+				0.28,
+				{ Position = UDim2.fromScale(if left then 0.12 else 0.88, y), BackgroundTransparency = 1 },
+				Enum.EasingStyle.Quad
+			)
+			task.delay(0.3, function()
+				line:Destroy()
+			end)
+			task.wait(0.045)
+		end
+		holder:Destroy()
+	end)
+	return function()
+		alive = false
 	end
 end
 

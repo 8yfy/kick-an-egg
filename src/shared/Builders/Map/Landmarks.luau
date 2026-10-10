@@ -5,10 +5,18 @@
 local Bricks = require(script.Parent.Bricks)
 local MapFx = require(script.Parent.MapFx)
 
-local P, cyl, ball, glow, arc = Bricks.part, Bricks.cyl, Bricks.ball, Bricks.glow, Bricks.arc
 local rgb = Color3.fromRGB
 local NEON = Enum.Material.Neon
 local GLASS = Enum.Material.Glass
+
+-- Reference style: every round shape is a voxel stand-in (Bricks.blockCyl / blockBall / voxelRound).
+local P, cyl, ball, arc = Bricks.part, Bricks.blockCyl, Bricks.blockBall, Bricks.arc
+local function glow(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, shape: string?): BasePart
+	if shape == "Ball" or shape == "Cylinder" then
+		return Bricks.voxelRound(parent, name, size, cf, color, shape == "Ball", { material = NEON, collide = false })
+	end
+	return Bricks.glow(parent, name, size, cf, color, shape)
+end
 
 local Landmarks = {}
 

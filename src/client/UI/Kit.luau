@@ -162,6 +162,26 @@ function Kit.gradientText(label: TextLabel, top: Color3, bottom: Color3): UIGrad
 	return g
 end
 
+-- Fixed-size stroked text that grows to fit its width (stat lines, quest titles). Optional gradient.
+function Kit.text(parent: Instance, name: string, text: string, size: number, stroke: number?): TextLabel
+	local l = Instance.new("TextLabel")
+	l.Name = name
+	l.Text = text
+	l.BackgroundTransparency = 1
+	l.Font = Kit.FONT
+	l.TextSize = size
+	l.TextColor3 = Kit.Colors.white
+	l.AutomaticSize = Enum.AutomaticSize.X
+	l.Size = UDim2.fromOffset(0, size + 6)
+	local st = Instance.new("UIStroke")
+	st.Thickness = stroke or math.max(2, size // 14)
+	st.Color = Color3.new(0, 0, 0)
+	st.LineJoinMode = Enum.LineJoinMode.Round
+	st.Parent = l
+	l.Parent = parent
+	return l
+end
+
 -- Squash on press (0.9) and spring back with Back easing on release.
 function Kit.bouncy(button: GuiButton): UIScale
 	local scale = Instance.new("UIScale")
@@ -235,6 +255,26 @@ function Kit.button(p: ButtonProps): (TextButton, UIGradient)
 	return b, g
 end
 
+-- Round dark button (settings, sound); fills its parent. Callers add the icon.
+function Kit.roundButton(parent: Instance, name: string, onClick: () -> ()): TextButton
+	local b = Instance.new("TextButton")
+	b.Name = name
+	b.Text = ""
+	b.AutoButtonColor = false
+	b.Size = UDim2.fromScale(1, 1)
+	b.BackgroundColor3 = Color3.fromRGB(22, 26, 36)
+	b.BackgroundTransparency = 0.2
+	b.BorderSizePixel = 0
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0.5, 0)
+	c.Parent = b
+	Kit.borderStroke(b, 3)
+	Kit.bouncy(b)
+	b.Activated:Connect(onClick)
+	b.Parent = parent
+	return b
+end
+
 -- Reference-resolution scaling: every registered UIScale follows the viewport.
 local scales: { UIScale } = {}
 local current = 1
@@ -269,15 +309,44 @@ function Kit.pop(gui: GuiObject, seconds: number?)
 	Kit.tween(scale, seconds or 0.35, { Scale = rest }, Enum.EasingStyle.Back)
 end
 
-local function computeScale(): number
+-- Studio preview: pretend the screen is `size` (e.g. a phone) so the HUD can be screenshotted at that size.
+local preview: { size: Vector2, touch: boolean }? = nil
+function Kit.setPreview(size: Vector2?, touch: boolean?)
+	preview = if size then { size = size, touch = touch == true } else nil
+end
+
+local function viewport(): (Vector2, boolean)
+	if preview then
+		return preview.size, preview.touch
+	end
 	local cam = workspace.CurrentCamera
-	local vp = if cam then cam.ViewportSize else Vector2.new(1920, 1080)
+	return if cam then cam.ViewportSize else Vector2.new(1920, 1080), UserInputService.TouchEnabled
+end
+
+local function computeScale(): number
+	local vp, touch = viewport()
 	local s = math.min(vp.X / 1920, vp.Y / 1080)
-	if UserInputService.TouchEnabled then
+	if touch then
 		s *= 1.35 -- phones: bigger touch targets
 	end
 	return math.clamp(s, 0.45, 1.5)
 end
+
+-- Compact = phone landscape (short screen): HUD pieces move out of the thumbstick / jump corners.
+local layouts: { (compact: boolean) -> () } = {}
+function Kit.compact(): boolean
+	local vp = viewport()
+	return vp.Y < 600
+end
+
+-- Calls fn(compact) now and whenever the screen size changes.
+function Kit.onLayout(fn: (compact: boolean) -> ())
+	table.insert(layouts, fn)
+	fn(Kit.compact())
+end
+
+-- Re-applies scale + layout (set by watchViewport; also used after Kit.setPreview).
+function Kit.refreshLayout() end
 
 function Kit.autoScale(gui: GuiObject): UIScale
 	local s = Instance.new("UIScale")
@@ -293,7 +362,12 @@ function Kit.watchViewport()
 		for _, s in scales do
 			s.Scale = current
 		end
+		local compact = Kit.compact()
+		for _, fn in layouts do
+			fn(compact)
+		end
 	end
+	Kit.refreshLayout = refresh
 	refresh()
 	local cam = workspace.CurrentCamera
 	if cam then

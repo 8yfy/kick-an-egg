@@ -1,6 +1,5 @@
 --!strict
--- Zone progress bar on the left edge: one segment per zone (bottom = zone 1, top = zone 20), coloured
--- by the zone, with the player's avatar head as a marker at their current position along the runway.
+-- Zone track (approved HUD variant A): current zone name over a row of 20 bricks in the zone colours.
 -- Entering a new zone pops a big "ZONE n · NAME" banner (replaces the old zone arches/signs).
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,7 +10,7 @@ local Zones = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Con
 
 local ZoneBar = {}
 
-local HEIGHT, WIDTH = 520, 46
+local BRICK, GAP = 13, 3
 local EMOJI = {
 	"🌼",
 	"🏖️",
@@ -45,64 +44,76 @@ local function zoneAt(z: number): number
 end
 
 function ZoneBar.new(parent: Instance)
-	local root = Kit.panel({
-		name = "ZoneBar",
-		size = UDim2.fromOffset(WIDTH, HEIGHT),
-		position = UDim2.new(0, 14, 0.45, 0),
-		anchor = Vector2.new(0, 0.5),
-		parent = parent,
-		colors = Kit.Colors.dark,
-		radius = 14,
-	})
-	Kit.autoScale(root)
-	local track = Instance.new("Frame")
-	track.Name = "Track"
-	track.BackgroundTransparency = 1
-	track.Position = UDim2.fromOffset(5, 5)
-	track.Size = UDim2.new(1, -10, 1, -10)
-	track.ClipsDescendants = true
-	track.Parent = root
+	-- Zone track: "Zone 3  Autumn Forest" over a row of small bricks in the zone colours. Zones up to the
+	-- current one are solid, the current one is taller with a white outline. Above the menu tiles on
+	-- desktop, under the quest on phones.
 	local n = #Zones
-	for i, zone in Zones do
-		local seg = Instance.new("Frame")
-		seg.Name = "Zone" .. i
-		seg.BorderSizePixel = 0
-		seg.AnchorPoint = Vector2.new(0, 1)
-		seg.Position = UDim2.fromScale(0, 1 - (i - 1) / n)
-		seg.Size = UDim2.new(1, 0, 1 / n, -2)
-		Kit.gradient(seg, { zone.ground:Lerp(Color3.new(1, 1, 1), 0.15), zone.ground:Lerp(zone.accent, 0.35) })
-		Kit.corner(seg, 6)
-		seg.Parent = track
-		local num = Kit.label({
-			name = "Number",
-			text = tostring(i),
-			size = UDim2.fromScale(0.8, 0.8),
-			position = UDim2.fromScale(0.1, 0.1),
-			parent = seg,
-			stroke = 2,
-		})
-		num.TextTransparency = 0.15
-	end
+	local root = Kit.panel({ name = "ZoneTrack", size = UDim2.fromOffset(n * (BRICK + GAP) + 12, 72), parent = parent })
+	Kit.autoScale(root)
+	Kit.onLayout(function(compact: boolean)
+		root.AnchorPoint = if compact then Vector2.new(0.5, 0) else Vector2.new(0, 1)
+		root.Position = if compact then UDim2.new(0.5, 0, 0, 50) else UDim2.new(0, 30, 0.333, -34)
+	end)
+	local caption = Instance.new("Frame")
+	caption.Name = "Caption"
+	caption.BackgroundTransparency = 1
+	caption.Size = UDim2.new(1, 0, 0, 32)
+	local capList = Instance.new("UIListLayout")
+	capList.FillDirection = Enum.FillDirection.Horizontal
+	capList.Padding = UDim.new(0, 10)
+	capList.SortOrder = Enum.SortOrder.LayoutOrder
+	capList.Parent = caption
+	caption.Parent = root
+	local zoneText = Kit.text(caption, "Zone", "Base", 26, 3)
+	zoneText.LayoutOrder = 1
+	local nameText = Kit.text(caption, "Name", "", 26, 3)
+	nameText.LayoutOrder = 2
 
-	-- Avatar marker (headshot in a ring) + current zone name next to it.
-	local marker = Kit.panel({
-		name = "Marker",
-		size = UDim2.fromOffset(56, 56),
-		position = UDim2.new(0.5, 0, 1, 0),
-		anchor = Vector2.new(0.5, 0.5),
-		parent = root,
-		colors = Kit.Colors.yellow,
-		radius = 28,
-	})
-	marker.ZIndex = 5
-	local face = Instance.new("ImageLabel")
-	face.BackgroundTransparency = 1
-	face.Size = UDim2.new(1, -10, 1, -10)
-	face.Position = UDim2.fromOffset(5, 5)
-	face.Image = `rbxthumb://type=AvatarHeadShot&id={Players.LocalPlayer.UserId}&w=150&h=150`
-	face.ZIndex = 6
-	Kit.corner(face, 23)
-	face.Parent = marker
+	local row = Instance.new("Frame")
+	row.Name = "Bricks"
+	row.BackgroundTransparency = 1
+	row.Position = UDim2.fromOffset(0, 36)
+	row.Size = UDim2.new(1, 0, 0, 34)
+	local rowList = Instance.new("UIListLayout")
+	rowList.FillDirection = Enum.FillDirection.Horizontal
+	rowList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	rowList.Padding = UDim.new(0, GAP)
+	rowList.SortOrder = Enum.SortOrder.LayoutOrder
+	rowList.Parent = row
+	row.Parent = root
+	local bricks: { { frame: Frame, stroke: UIStroke } } = {}
+	for i, zone in Zones do
+		local brick = Instance.new("Frame")
+		brick.Name = "Zone" .. i
+		brick.LayoutOrder = i
+		brick.BorderSizePixel = 0
+		brick.BackgroundColor3 = zone.ground
+		Kit.corner(brick, 3)
+		local st = Instance.new("UIStroke")
+		st.Thickness = 2
+		st.Color = Color3.new(0, 0, 0)
+		st.Parent = brick
+		brick.Parent = row
+		bricks[i] = { frame = brick, stroke = st }
+	end
+	local function paint(id: number)
+		for i, b in bricks do
+			local here = i == id
+			b.frame.Size = if here then UDim2.fromOffset(BRICK + 4, 30) else UDim2.fromOffset(BRICK, 20)
+			b.frame.BackgroundTransparency = if i <= id then 0 else 0.55
+			b.stroke.Color = if here then Color3.new(1, 1, 1) else Color3.new(0, 0, 0)
+			b.stroke.Thickness = if here then 3 else 2
+		end
+		if id > 0 then
+			zoneText.Text = `Zone {id}`
+			nameText.Text = Zones[id].name
+			nameText.TextColor3 = Zones[id].accent:Lerp(Color3.new(1, 1, 1), 0.35)
+		else
+			zoneText.Text = "Base"
+			nameText.Text = ""
+		end
+	end
+	paint(0)
 
 	-- Big zone banner (top centre, under the quest bar)
 	local banner = Kit.label({
@@ -156,7 +167,6 @@ function ZoneBar.new(parent: Instance)
 		end)
 	end
 
-	local runEnd = Zones[n].start + Zones[n].length
 	RunService.RenderStepped:Connect(function()
 		local char = Players.LocalPlayer.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -164,12 +174,10 @@ function ZoneBar.new(parent: Instance)
 			return
 		end
 		local z = hrp.Position.Z
-		local k = math.clamp(z / runEnd, 0, 1)
-		marker.Position = UDim2.new(0.5, 0, 1 - k, 0)
-		local inRunway = z >= 0
-		local id = if inRunway then zoneAt(z) else 0
+		local id = if z >= 0 then zoneAt(z) else 0
 		if id ~= current then
 			current = id
+			paint(id)
 			if id > 0 then
 				announce(id)
 			end
