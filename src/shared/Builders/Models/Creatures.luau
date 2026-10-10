@@ -53,7 +53,8 @@ type Anchors = {
 	tailBase: Vector3,
 	headJoint: string,
 }
-type Ctx = { parts: { PartSpec }, def: Def, pal: Palette, a: Anchors, metal: Color3, glow: Color3 }
+type Eye = { x: number, y: number, z: number, w: number, h: number, joint: string }
+type Ctx = { parts: { PartSpec }, def: Def, pal: Palette, a: Anchors, metal: Color3, glow: Color3, eye: Eye? }
 
 local INK = Color3.fromRGB(30, 28, 40)
 local GOLD = Color3.fromRGB(255, 205, 60)
@@ -103,6 +104,7 @@ local function pair(
 end
 
 local function eyes(ctx: Ctx, x: number, y: number, faceZ: number, w: number, h: number, joint: string)
+	ctx.eye = { x = x, y = y, z = faceZ, w = w, h = h, joint = joint }
 	for _, p in Kit.eye(-1, -x, y, faceZ, w, h, joint) do
 		table.insert(ctx.parts, p)
 	end
@@ -924,6 +926,75 @@ local function dress(ctx: Ctx)
 	end
 end
 
+-- Small cute details, added in priority order while the rarity's max part budget has room:
+-- blush cheeks, brows, toes/claws on every foot, a back stripe.
+local function details(ctx: Ctx)
+	local budget = BUDGET[ctx.def.rarity] or BUDGET.Common
+	local room = budget[2] - #ctx.parts
+	local function fits(n: number): boolean
+		if room >= n then
+			room -= n
+			return true
+		end
+		return false
+	end
+	local e = ctx.eye
+	if e and fits(2) then
+		pair(
+			ctx,
+			"Cheek",
+			Vector3.new(e.w * 1.1, e.h * 0.4, 0.06),
+			Vector3.new(e.x + e.w * 0.6, e.y - e.h * 0.85, e.z - 0.04),
+			Color3.fromRGB(255, 150, 175),
+			{ joint = e.joint }
+		)
+	end
+	if e and fits(2) then
+		local brow = ctx.pal.main:Lerp(Color3.new(0, 0, 0), 0.45)
+		pair(
+			ctx,
+			"Brow",
+			Vector3.new(e.w * 1.2, 0.08, 0.06),
+			Vector3.new(e.x, e.y + e.h * 0.75, e.z - 0.04),
+			brow,
+			{ joint = e.joint, rot = { 0, 0, -12 } }
+		)
+	end
+	local claw = ctx.pal.belly:Lerp(Color3.new(0, 0, 0), 0.55)
+	local feet = {}
+	for _, p in ctx.parts do
+		if string.match(p.name or "", "^Paw") or string.match(p.name or "", "^Foot") then
+			table.insert(feet, p)
+		end
+	end
+	for _, f in feet do
+		if not fits(2) then
+			break
+		end
+		for _, dx in { -0.18, 0.18 } do
+			add(
+				ctx,
+				"Toe",
+				Vector3.new(0.14, 0.12, 0.1),
+				Vector3.new(f.pos[1] + dx, f.pos[2] - f.size[2] / 2 + 0.1, f.pos[3] - f.size[3] / 2 - 0.03),
+				claw,
+				{ joint = f.joint }
+			)
+		end
+	end
+	local t = ctx.a.torso
+	if fits(1) then
+		add(
+			ctx,
+			"BackStripe",
+			Vector3.new(0.35, 0.06, t.s.Z * 0.8),
+			Vector3.new(0, t.c.Y + t.s.Y / 2 + 0.03, t.c.Z),
+			ctx.pal.accent,
+			{ joint = "Body" }
+		)
+	end
+end
+
 -- Diamond scales on unique slots (torso sides/back/underside/faces, head sides) until the rarity's
 -- minimum part count is reached.
 local function pad(ctx: Ctx)
@@ -1062,6 +1133,7 @@ function Creatures.build(def: Def): Builder.Spec
 		shell(ctx)
 	end
 	dress(ctx)
+	details(ctx)
 	pad(ctx)
 	if d.ghost then
 		for _, p in ctx.parts do

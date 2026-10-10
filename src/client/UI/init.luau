@@ -4,13 +4,17 @@
 -- Reads only DataChanged and the chase remotes; never computes rewards.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Kit = require(script.Kit)
 local Stats = require(script.Hud.Stats)
 local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
+local SackButton = require(script.Hud.SackButton)
 local ChaseOverlay = require(script.Hud.ChaseOverlay)
 local Menus = require(script.Menus)
+local ZoneBar = require(script.Hud.ZoneBar)
+local Interact = require(script.Interact)
 
 local UI = {}
 
@@ -18,8 +22,10 @@ local data: { [string]: any } = {}
 local stats: Stats.Stats
 local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
+local sack: SackButton.SackButton
 local overlay: ChaseOverlay.ChaseOverlay
 local menus: Menus.Menus
+local interactUpdate: ((data: { [string]: any }) -> ())?
 
 function UI:Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -33,22 +39,50 @@ function UI:Init()
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
 
-	stats = Stats.new(gui)
-	quest = QuestBar.new(gui)
-	SoundToggle.new(gui)
-	kick = KickPanel.new(gui)
-	overlay = ChaseOverlay.new(gui)
-	menus = Menus.new(gui)
+	-- Studio only: workspace attribute HudPreview = "phone" lays the HUD out inside an 844x390 frame
+	-- (phone landscape) so both layouts can be screenshotted from Studio.
+	local root: Instance = gui
+	if RunService:IsStudio() and workspace:GetAttribute("HudPreview") == "phone" then
+		Kit.setPreview(Vector2.new(844, 390), true)
+		local frame = Instance.new("Frame")
+		frame.Name = "PhonePreview"
+		frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		frame.Position = UDim2.fromScale(0.5, 0.5)
+		frame.Size = UDim2.fromOffset(844, 390)
+		frame.BackgroundTransparency = 1
+		frame.ClipsDescendants = true
+		local outline = Instance.new("UIStroke")
+		outline.Thickness = 3
+		outline.Color = Color3.new(1, 1, 1)
+		outline.Parent = frame
+		frame.Parent = gui
+		root = frame
+	end
+
+	menus = Menus.new(root)
+	stats = Stats.new(root, function()
+		menus.open("Store")
+	end)
+	quest = QuestBar.new(root)
+	SoundToggle.new(root)
+	kick = KickPanel.new(root)
+	sack = SackButton.new(root:FindFirstChild("KickPanel") or root) -- the SACK box sits next to KICK
+	overlay = ChaseOverlay.new(root)
+	ZoneBar.new(root)
 	Kit.watchViewport()
 	stats.update(data)
 	quest.update(data)
 	menus.update(data)
+	sack.update(data)
 	gui.Parent = playerGui
 end
 
 function UI:Start()
 	-- Starts the client-side spinner for orbiting cubes / halos on rare eggs and pets.
 	require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"))
+	interactUpdate = Interact.start(function(name: string)
+		menus.open(name)
+	end)
 	task.spawn(function()
 		-- Remotes waits for the server-created folder, so wire up in the background.
 		local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
@@ -59,6 +93,10 @@ function UI:Start()
 			stats.update(data)
 			quest.update(data)
 			menus.update(data)
+			sack.update(data)
+			if interactUpdate then
+				interactUpdate(data)
+			end
 		end)
 
 		-- KICK stays locked from KickResult until our chase ends (the server rejects kicks meanwhile).
