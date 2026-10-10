@@ -22,15 +22,15 @@
 -- C->S  PlaceEgg(eggUid: string, slot: number)
 -- S->C  EggHatched({ eggUid: string, slot: number, petUid: string })
 -- C->S  BuyUpgrade(kind: "RunSpeed")                -- shop: +1 Run Speed ("KickPower" is not sold:
---                                                  -- strength is trained on the treadmill, see Train)
+--                                                  -- strength is trained on the Kick Sack, see Train)
 -- C->S  Rebirth()
 -- C->S  SellPet(petUid: string)
 -- S->C  DataChanged(partial: {[string]: any})
 -- S->C  WeatherChanged(weather: string?, endsAt: number?)
 -- S->C  Announce(text: string, rarity: string)
 -- C->S  TradeRequest / TradeRespond / TradeOffer / TradeConfirm (Partner B defines payloads in TradeService)
--- C->S  Train()                                   -- one training step on your treadmill (rate: Config/Upgrades.Rack.interval)
--- C->S  UpgradeTraining()                         -- buy the next treadmill level (Config/Upgrades.Rack.levels)
+-- C->S  Train()                                   -- one Kick Sack kick (equipped sack tool; rate: Config/Upgrades.Sack.interval)
+-- C->S  UpgradeTraining()                         -- buy the next Kick Sack (Config/Upgrades.Sack.tiers)
 -- C->S  UpgradePen()                              -- buy the next pen level (Config/Upgrades.Pen)
 
 local RunService = game:GetService("RunService")
