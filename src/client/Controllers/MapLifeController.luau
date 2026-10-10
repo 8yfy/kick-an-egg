@@ -27,6 +27,44 @@ local player = Players.LocalPlayer
 local spinners: { Spinner } = {}
 local merchants: { Merchant } = {}
 
+-- Stand sacks (Base<i>.SackStand.Sack) show their tier's idle VFX (VFX/SackAura) while the camera is
+-- near; step() moves them (spin) and then advances their effects.
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Sacks = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("Sacks"))
+local SackAura = require(Shared:WaitForChild("VFX"):WaitForChild("SackAura"))
+local AURA_ON, AURA_OFF = 90, 110 -- studs from the camera: effects start / stop
+local standSacks: { [Model]: any } = {} -- model -> SackAura context, or false while off
+local auraCheck = 0
+
+local function addStandSack(model: Instance)
+	if model:IsA("Model") and model.Name == "Sack" and typeof(model:GetAttribute("Tier")) == "number" then
+		standSacks[model] = false
+	end
+end
+
+local function refreshAuras()
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	for model, ctx in standSacks do
+		if not model.Parent then
+			standSacks[model] = nil
+			continue
+		end
+		local d = (model:GetPivot().Position - cam.CFrame.Position).Magnitude
+		if not ctx and d < AURA_ON then
+			local tier = model:GetAttribute("Tier") :: number
+			local ok, made =
+				pcall(SackAura.Apply, model, tier, model:GetPivot() * Sacks.vfxRoot(tier), Sacks.SCALE, true)
+			standSacks[model] = if ok then made else false
+		elseif ctx and d > AURA_OFF then
+			SackAura.Remove(model)
+			standSacks[model] = false
+		end
+	end
+end
+
 local function addSpinner(model: Instance)
 	if not model:IsA("Model") or not model.PrimaryPart then
 		return
@@ -67,6 +105,7 @@ local function watchBase(base: Instance)
 		if stand.Name == "SackStand" then
 			stand.ChildAdded:Connect(function(child)
 				task.defer(addSpinner, child)
+				task.defer(addStandSack, child)
 			end)
 		end
 	end
@@ -135,6 +174,16 @@ local function step(dt: number)
 			table.remove(spinners, i) -- replaced stand sacks
 		end
 	end
+	auraCheck -= dt
+	if auraCheck <= 0 then
+		auraCheck = 0.5
+		refreshAuras()
+	end
+	for _, ctx in standSacks do
+		if ctx then
+			ctx:step(dt) -- after the spin, so orbits and wings follow the turning sack
+		end
+	end
 	local character = player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	local me = if hrp and hrp:IsA("BasePart") then hrp.Position else nil
@@ -168,6 +217,7 @@ function MapLifeController:Start()
 		end
 		for _, d in map:GetDescendants() do
 			track(d)
+			addStandSack(d)
 		end
 		local safeZone = map:FindFirstChild("SafeZone")
 		local bases = safeZone and safeZone:FindFirstChild("Bases")

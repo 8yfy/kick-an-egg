@@ -172,11 +172,14 @@ section("SackService + pens + collecting", function()
 	check("no sack after the top", SS.sackCost(#levels) == nil)
 	local root = CFrame.lookAt(Vector3.new(30, 3, -40), Vector3.new(30, 3, -50))
 	local at = SS.placement(root, 0)
-	check("sack hangs ahead of the player", (Vector3.new(at.X, 3, at.Z) - Vector3.new(30, 3, -43.6)).Magnitude < 0.01)
+	check(
+		"sack hangs ahead of the player",
+		(Vector3.new(at.X, 3, at.Z) - Vector3.new(30, 3, -40 - SS.PLACE_DIST)).Magnitude < 0.01
+	)
 	check("sack hangs at kicking height", math.abs(at.Y - Sacks.HANG) < 0.01)
 	check("sack faces the player", at.LookVector:Dot(Vector3.new(0, 0, 1)) > 0.99)
 	check("next to the sack", SS.inRange(at, Vector3.new(30, 3, -40)))
-	check("away from the sack", not SS.inRange(at, Vector3.new(30 + Upgrades.Sack.range + 2, 3, -43.6)))
+	check("away from the sack", not SS.inRange(at, Vector3.new(30 + Upgrades.Sack.range + 2, 3, -40 - SS.PLACE_DIST)))
 	check("not from a different floor", not SS.inRange(at, Vector3.new(30, 40, -40)))
 	for tier = 1, Sacks.count do
 		local ok, model = pcall(function()

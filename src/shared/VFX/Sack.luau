@@ -11,7 +11,7 @@
 --   SackDrop    {tier, floor: Vector3, own?}                 the sack slams to a stop on its chain
 --   SackHit     {tier, at: Vector3, dir: Vector3, floor: Vector3, own?, super?, gain?}  one kick lands
 --   SackUpgrade {tier, floor?, own?}                         a new sack was bought
--- Sack.aura(model, tier) adds the idle aura; Sack.legTrail(character, tier) returns a remover.
+-- Sack.legTrail(character, tier) returns a remover. (The idle auras are VFX/SackAura, the remodel's.)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -450,51 +450,6 @@ function Sack.SackUpgrade(target: Instance?, params: { [string]: any })
 			nil,
 			{ text = `New Kick Sack: {info.name}!`, rarity = if stepOf(tier) >= 5 then "Legendary" else "Rare" }
 		)
-	end
-end
-
--- Idle aura on the sack body (Champion: glints; Elemental: theme mist; Mythic+: denser and lit).
-function Sack.aura(model: Model, tier: number)
-	local step = stepOf(tier)
-	local b = body(model)
-	if not b or step < 3 then
-		return
-	end
-	local look = Sacks.look(tier)
-	local e = Instance.new("ParticleEmitter")
-	e.Name = "SackAura"
-	e.Texture = SPARK
-	e.LightEmission = 1
-	e.Color = if #look.fx >= 3
-		then ColorSequence.new({
-			ColorSequenceKeypoint.new(0, look.fx[1]),
-			ColorSequenceKeypoint.new(0.5, look.fx[2]),
-			ColorSequenceKeypoint.new(1, look.fx[3]),
-		})
-		else ColorSequence.new(look.fx[1], look.fx[2] or look.fx[1])
-	e.Size = NumberSequence.new(0.35, 0)
-	e.Lifetime = NumberRange.new(0.8, 1.4)
-	e.Speed = NumberRange.new(0.5, 1.5)
-	e.SpreadAngle = Vector2.new(180, 180)
-	e.Rate = if step >= 6 then 30 elseif step >= 5 then 18 elseif step >= 4 then 10 else 3
-	e.Parent = b
-	if step >= 4 then
-		local mist = Instance.new("ParticleEmitter")
-		mist.Name = "SackMist"
-		mist.Texture = if look.theme == "embers" or look.theme == "fire" then FIRE else SMOKE
-		mist.LightEmission = 0.6
-		mist.Color = ColorSequence.new(look.fx[1])
-		mist.Transparency = NumberSequence.new(0.7, 1)
-		mist.Size = NumberSequence.new(1, 2.2)
-		mist.Lifetime = NumberRange.new(1, 1.6)
-		mist.Speed = NumberRange.new(0.3, 0.8)
-		mist.Rate = if step >= 5 then 8 else 4
-		mist.Parent = b
-		local light = Instance.new("PointLight")
-		light.Color = look.fx[1]
-		light.Range = if step >= 5 then 14 else 9
-		light.Brightness = 1.2
-		light.Parent = b
 	end
 end
 

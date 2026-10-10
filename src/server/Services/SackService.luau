@@ -29,13 +29,14 @@ local KickService = require(script.Parent.KickService)
 local PlotService = require(script.Parent.PlotService)
 
 local TOOL_ATTR = "KickSack"
-local PLACE_DIST = 3.6 -- studs from the player's root to the sack's axis (the kicking foot meets its front)
+local PLACE_DIST = Sacks.KICK_DIST -- studs from the player's root to the sack's axis (the kicking foot meets its front)
 local INTERVAL_SLACK = 0.85 -- accept kicks slightly early (network jitter); still ~1 per interval
 local CHECK_EVERY = 0.2
 local REPLACE_SPEED = 2.5 -- below this horizontal speed (studs/s) the player counts as standing still
 local REPLACE_COOLDOWN = 1.2
 
 local SackService = {}
+SackService.PLACE_DIST = PLACE_DIST
 
 type Out = { at: CFrame, placed: number }
 

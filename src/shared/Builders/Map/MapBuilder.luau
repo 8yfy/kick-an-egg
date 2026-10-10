@@ -766,6 +766,8 @@ local function refreshRack(base: Model, slot: CFrame)
 	local tiers = Upgrades.Sack.tiers
 	local level = math.clamp((base:GetAttribute("RackLevel") :: number?) or 1, 1, #tiers)
 	local show = math.min(level + 1, #tiers)
+	local hubY = Sacks.HANG + 0.3 -- the sack's hub; its chain reaches up to the beam
+	local beamY = hubY + Sacks.CHAIN_TOP + 0.45
 	local stand: Instance? = base:FindFirstChild("SackStand")
 	if not stand then
 		local m = Instance.new("Model")
@@ -773,18 +775,18 @@ local function refreshRack(base: Model, slot: CFrame)
 		local wood, dark = rgb(150, 98, 60), rgb(96, 62, 40)
 		block(m, "Plinth", Vector3.new(7.6, 0.6, 4), slot * CFrame.new(0, 0.3, 0), rgb(120, 124, 138))
 		for _, x in { -3, 3 } do
-			block(m, "Post", Vector3.new(0.9, 9.6, 0.9), slot * CFrame.new(x, 5.1, 0), wood)
+			block(m, "Post", Vector3.new(0.9, beamY - 0.15, 0.9), slot * CFrame.new(x, (beamY + 0.75) / 2, 0), wood)
 			block(m, "PostFoot", Vector3.new(1.5, 0.6, 1.5), slot * CFrame.new(x, 0.9, 0), dark)
 			block(
 				m,
 				"Brace",
 				Vector3.new(0.5, 2.4, 0.5),
-				slot * CFrame.new(x * 0.8, 8.6, 0) * CFrame.Angles(0, 0, math.rad(if x > 0 then 45 else -45)),
+				slot * CFrame.new(x * 0.8, beamY - 0.9, 0) * CFrame.Angles(0, 0, math.rad(if x > 0 then 45 else -45)),
 				dark,
 				{ studs = false }
 			)
 		end
-		block(m, "Beam", Vector3.new(7.8, 0.9, 1.2), slot * CFrame.new(0, 9.5, 0), wood)
+		block(m, "Beam", Vector3.new(7.8, 0.9, 1.2), slot * CFrame.new(0, beamY, 0), wood)
 		m.Parent = base
 		stand = m
 	end
@@ -794,7 +796,7 @@ local function refreshRack(base: Model, slot: CFrame)
 		if current then
 			current:Destroy()
 		end
-		local hang = slot * CFrame.new(0, Sacks.HANG + 0.4, 0)
+		local hang = slot * CFrame.new(0, hubY, 0)
 		local sack = stamp(Sacks.spec(show), hang, 1, stand, false, "Sack")
 		local pivot = Instance.new("Part")
 		pivot.Name = "Pivot"

@@ -13,6 +13,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Upgrades = require(Shared:WaitForChild("Config"):WaitForChild("Upgrades"))
@@ -22,24 +23,28 @@ local Sacks = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):Wai
 local PlayerAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Player"))
 local VFX = require(Shared:WaitForChild("VFX")) :: any
 local SackFx = require(Shared:WaitForChild("VFX"):WaitForChild("Sack"))
+local SackAura = require(Shared:WaitForChild("VFX"):WaitForChild("SackAura"))
 
 local SACK = Upgrades.Sack
 local SKY = 48 -- studs above the hang point the drop starts from / the retract ends at
 local FALL = 0.22 -- seconds of free fall before the slam
 local SLAM_STOP = 0.06 -- hit-stop when the chain catches
 local RETRACT = 0.3
-local CHAIN_LINKS = 16 -- links drawn above the spec's own chain; a plain rod continues into the sky
+local CHAIN_LINKS = 20 -- links drawn above the model's own chain; a plain rod continues into the sky
+local LINK_STEP = 0.34 -- studs between links (the remodel's chain)
 local SWING_W = 7 -- pendulum frequency (rad/s) and damping
 local SWING_DAMP = 3.2
 local SQUASH_K, SQUASH_C = 320, 15 -- kick squash spring
 local DROP_K, DROP_C = 190, 9 -- drop squash spring
-local PLACE_DIST = 3.6 -- matches SackService: root to sack axis
+local PLACE_DIST = Sacks.KICK_DIST -- matches SackService: root to sack axis
 local FAR = 220 -- beyond this many studs from the camera, idle sacks stop animating
+local FX_RANGE = 140 -- idle VFX (SackAura) only run within this many studs of the camera
 local CLICK_BUFFER = 0.45 -- seconds a click made mid-kick is kept for the next kick
 
-type Piece = { part: BasePart, rel: CFrame, size: Vector3, squash: boolean, spin: number, face: string? }
+type Piece = { part: BasePart, rel: CFrame, size: Vector3, squash: boolean, scaled: boolean }
 type Sack = {
 	model: Model,
+	fx: any, -- SackAura context (the tier's idle VFX), stepped after the sack moves
 	pieces: { Piece },
 	parts: { BasePart },
 	at: CFrame,
@@ -58,7 +63,6 @@ type Sack = {
 	v: number,
 	vv: number,
 	freeze: number,
-	wince: number,
 }
 type Char = {
 	character: Model,
@@ -113,23 +117,23 @@ local function addChain(model: Model, look: Sacks.Look)
 		p.Parent = model
 	end
 	local up = CFrame.Angles(0, 0, math.rad(90))
+	local top = Sacks.CHAIN_TOP
 	if look.rope then
 		part(
 			"Rope",
-			Vector3.new(80, 0.26, 0.26),
-			CFrame.new(0, 41.6, 0) * up,
+			Vector3.new(80, 0.17, 0.17),
+			CFrame.new(0, top + 40, 0) * up,
 			Enum.Material.Fabric,
 			Enum.PartType.Cylinder
 		)
 		return
 	end
-	local top = 1.6
 	for i = 1, CHAIN_LINKS do
-		local y = top + i * 0.45
+		local y = top + (i - 0.5) * LINK_STEP
 		local yaw = if i % 2 == 0 then 0 else math.rad(90)
-		part("Link", Vector3.new(0.12, 0.55, 0.36), CFrame.new(0, y, 0) * CFrame.Angles(0, yaw, 0), Enum.Material.Metal)
+		part("Link", Vector3.new(0.3, 0.44, 0.08), CFrame.new(0, y, 0) * CFrame.Angles(0, yaw, 0), Enum.Material.Metal)
 	end
-	local start = top + CHAIN_LINKS * 0.45
+	local start = top + CHAIN_LINKS * LINK_STEP
 	part(
 		"Rod",
 		Vector3.new(80, 0.2, 0.2),
@@ -142,9 +146,6 @@ end
 local function build(tier: number, at: CFrame, own: boolean): Sack
 	local model = Builder.build(Sacks.spec(tier), "Sack")
 	addChain(model, Sacks.look(tier))
-	local pieces: { Piece } = {}
-	local parts: { BasePart } = {}
-	local root = model.PrimaryPart
 	for _, d in model:GetDescendants() do
 		if d:IsA("WeldConstraint") or d:IsA("Motor6D") then
 			d:Destroy()
@@ -153,27 +154,26 @@ local function build(tier: number, at: CFrame, own: boolean): Sack
 			d.CanCollide = false
 			d.CanQuery = false
 			d.CanTouch = false
-			if d ~= root then
-				local rel = d.CFrame -- built around the origin = the hang point
-				local face = if d.Name == "EyeL" or d.Name == "EyeR" or d.Name == "Mouth" then d.Name else nil
-				local spin = if d.Name == "Orbit" then 1.6 elseif d.Name == "Halo" then 0.5 else 0
-				table.insert(
-					pieces,
-					{ part = d, rel = rel, size = d.Size, squash = rel.Y < -1, spin = spin, face = face }
-				)
-				table.insert(parts, d)
-			end
 		end
 	end
-	if root then
-		table.insert(parts, root)
-		table.insert(pieces, { part = root, rel = CFrame.identity, size = root.Size, squash = false, spin = 0 })
+	-- the tier's idle VFX, built around the origin (= the hang point) like the sack; we step it
+	local fx = SackAura.Apply(model, tier, Sacks.vfxRoot(tier), Sacks.SCALE, true)
+	local pieces: { Piece } = {}
+	local parts: { BasePart } = {}
+	for _, d in model:GetDescendants() do
+		-- parts the VFX poses itself (wings, arms) stay out: it re-poses them from its root every step
+		if d:IsA("BasePart") and d:GetAttribute("SackVFX_Rest") == nil then
+			local rel = d.CFrame
+			local squash = rel.Y < -1 and not d:IsDescendantOf(fx.folder)
+			table.insert(pieces, { part = d, rel = rel, size = d.Size, squash = squash, scaled = false })
+			table.insert(parts, d)
+		end
 	end
 	model:PivotTo(at + Vector3.new(0, SKY, 0))
 	model.Parent = sackFolder()
-	SackFx.aura(model, tier)
 	return {
 		model = model,
+		fx = fx,
 		pieces = pieces,
 		parts = parts,
 		at = at,
@@ -191,7 +191,6 @@ local function build(tier: number, at: CFrame, own: boolean): Sack
 		v = 0,
 		vv = 0,
 		freeze = 0,
-		wince = 0,
 	}
 end
 
@@ -264,38 +263,31 @@ local function stepSack(s: Sack, now: number, dt: number, camPos: Vector3): bool
 		Vector3.new((1 - s.q * 0.5) * (1 - s.v * 0.5), (1 - s.q * 0.3) * (1 + s.v), (1 + s.q) * (1 - s.v * 0.5))
 	local squashing = (scale - Vector3.one).Magnitude > 0.004
 	local center = Vector3.new(0, Sacks.CENTER, 0)
-	local wincing = now < s.wince
 	local cframes = table.create(#s.pieces)
 	for i, piece in s.pieces do
 		local rel = piece.rel
-		if piece.spin ~= 0 then
-			rel = CFrame.Angles(0, now * piece.spin, 0) * rel
-		end
-		local size = piece.size
 		if piece.squash and squashing then
 			local p = center + (rel.Position - center) * scale
 			rel = CFrame.new(p) * rel.Rotation
-			size = scaledSize(piece.rel, piece.size, scale)
-		end
-		if piece.face then
-			size = if not wincing
-				then size
-				elseif piece.face == "Mouth" then Vector3.new(size.X * 0.6, size.Y * 2.2, size.Z)
-				else Vector3.new(size.X * 1.2, size.Y * 0.2, size.Z)
-		end
-		if piece.part.Size ~= size then
-			piece.part.Size = size
+			piece.part.Size = scaledSize(piece.rel, piece.size, scale)
+			piece.scaled = true
+		elseif piece.scaled then
+			piece.part.Size = piece.size -- squash over: back to rest (sizes are otherwise the VFX's to animate)
+			piece.scaled = false
 		end
 		cframes[i] = hang * rel
 	end
 	workspace:BulkMoveTo(s.parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	if (s.at.Position - camPos).Magnitude < FX_RANGE then
+		s.fx:step(dt) -- after the move: orbits, wings and particles follow the swinging sack
+	end
 	return true
 end
 
 -- Kicks -----------------------------------------------------------------------
 
 local function impactPoint(s: Sack): Vector3
-	return (s.at * CFrame.new(0, Sacks.CENTER - 1, -Sacks.RADIUS)).Position -- where the sole lands (2.4 up)
+	return (s.at * CFrame.new(0, 2.4 - Sacks.HANG, -Sacks.RADIUS)).Position -- where the sole lands (2.4 up)
 end
 
 local function land(c: Char, s: Sack, own: boolean, super: boolean)
@@ -307,7 +299,6 @@ local function land(c: Char, s: Sack, own: boolean, super: boolean)
 	s.phiV += rng:NextNumber(-0.7, 0.7)
 	s.q, s.qv = -0.15 * power, 0
 	s.freeze = os.clock() + (if super and stepOf(s.tier) >= 6 then 0.1 else 0.04)
-	s.wince = os.clock() + 0.3
 	VFX.play("SackHit", s.model, {
 		tier = s.tier,
 		at = impactPoint(s),
@@ -494,6 +485,9 @@ local function standing(c: Char): boolean
 end
 
 function SackController:Start()
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		SackAura.Quality = 0.6 -- fewer custom particles on phones
+	end
 	local function added(player: Player)
 		player.CharacterAdded:Connect(function(character)
 			track(player, character)
