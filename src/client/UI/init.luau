@@ -2,36 +2,59 @@
 -- Partner A HUD root. Shaped like a controller so Partner B's client loader can start it:
 --   local UI = require(script.Parent.UI); UI:Init(); UI:Start()
 -- Reads only DataChanged and the chase remotes; never computes rewards.
+-- Kick The Egg UI system (UI handoff): left rail (Shop / Index / Rebirth / Training), cash + kick power
+-- counters, right rail (Eggs / Pets drawers) and the modal screens in UI/Screens, all on UI/System (theme,
+-- motion, components, one modal manager, data adapter). A's kick panel, sack box, quest/zone bars, chase
+-- overlay, sound and Settings / Trade windows stay as they were.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Kit = require(script.Kit)
-local Stats = require(script.Hud.Stats)
 local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
 local SackButton = require(script.Hud.SackButton)
 local ChaseOverlay = require(script.Hud.ChaseOverlay)
+local Rail = require(script.Hud.Rail)
+local Counters = require(script.Hud.Counters)
+local Drawers = require(script.Hud.Drawers)
 local Menus = require(script.Menus)
 local ZoneBar = require(script.Hud.ZoneBar)
 local Interact = require(script.Interact)
+local AssetIds = require(script.System.AssetIds)
+local Data = require(script.System.Data)
+local Modal = require(script.System.Modal)
+local TrainingShop = require(script.Screens.TrainingShop)
+local Shop = require(script.Screens.Shop)
+local PetIndex = require(script.Screens.PetIndex)
+local PetInventory = require(script.Screens.PetInventory)
+local Rebirth = require(script.Screens.Rebirth)
 
 local UI = {}
 
 local data: { [string]: any } = {}
-local stats: Stats.Stats
 local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
 local sack: SackButton.SackButton
 local overlay: ChaseOverlay.ChaseOverlay
 local menus: Menus.Menus
+local rail: Rail.LeftRail
+local counters: Counters.Counters
+local drawers: Drawers.Drawers
 local interactUpdate: ((data: { [string]: any }) -> ())?
+
+-- World prompts (Interact: "OpenMenu:<name>") open the new screens; anything else stays A's window.
+local PROMPT_SCREENS: { [string]: string } = { Store = "Training", Index = "Index", Rebirth = "Rebirth" }
 
 function UI:Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local old = playerGui:FindFirstChild("HUD")
 	if old then
 		old:Destroy()
+	end
+	local oldModals = playerGui:FindFirstChild("Modals")
+	if oldModals then
+		oldModals:Destroy()
 	end
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "HUD"
@@ -59,29 +82,56 @@ function UI:Init()
 		root = frame
 	end
 
-	menus = Menus.new(root)
-	stats = Stats.new(root, function()
-		menus.open("Store")
-	end)
+	Modal.init(playerGui)
+	TrainingShop.define()
+	Shop.define()
+	PetIndex.define()
+	PetInventory.define()
+	Rebirth.define()
+
+	menus = Menus.new(root, { tiles = false }) -- Settings gear + Trade window; the rail replaces the tiles
 	quest = QuestBar.new(root)
 	SoundToggle.new(root)
 	kick = KickPanel.new(root)
 	sack = SackButton.new(root:FindFirstChild("KickPanel") or root) -- the SACK box sits next to KICK
 	overlay = ChaseOverlay.new(root)
 	ZoneBar.new(root)
+	rail = Rail.new(root)
+	counters = Counters.new(root)
+	drawers = Drawers.new(root)
+	Drawers.openTrade = function()
+		menus.open("Trade")
+	end
 	Kit.watchViewport()
-	stats.update(data)
 	quest.update(data)
 	menus.update(data)
 	sack.update(data)
+	Data.onChanged(function()
+		rail.update()
+		counters.update()
+		drawers.update()
+		Modal.refresh()
+	end)
 	gui.Parent = playerGui
+
+	if RunService:IsStudio() then
+		local missing = AssetIds.missing()
+		if #missing > 0 then
+			print(`[UI] {#missing} UI handoff images not uploaded yet (stand-ins in use); see UI/System/AssetIds`)
+		end
+	end
 end
 
 function UI:Start()
 	-- Starts the client-side spinner for orbiting cubes / halos on rare eggs and pets.
 	require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"))
 	interactUpdate = Interact.start(function(name: string)
-		menus.open(name)
+		local screen = PROMPT_SCREENS[name]
+		if screen then
+			Modal.open(screen)
+		else
+			menus.open(name)
+		end
 	end)
 	task.spawn(function()
 		-- Remotes waits for the server-created folder, so wire up in the background.
@@ -90,7 +140,7 @@ function UI:Start()
 			for k, v in partial do
 				data[k] = v
 			end
-			stats.update(data)
+			Data.apply(partial)
 			quest.update(data)
 			menus.update(data)
 			sack.update(data)
@@ -104,12 +154,26 @@ function UI:Start()
 		Remotes.get("KickResult").OnClientEvent:Connect(function(result: { [string]: any })
 			myEgg = result.eggUid
 			kick.setBusy(true)
+			Data.setBusy(true)
 		end)
 		Remotes.get("ChaseEnded").OnClientEvent:Connect(function(p: { [string]: any })
 			if p and p.eggUid == myEgg then
 				myEgg = nil
 				kick.setBusy(false)
+				Data.setBusy(false)
 				overlay.stop()
+			end
+		end)
+
+		-- Hatches: toast + Pets badge. EggHatched goes to every client; it's ours when the new petUid is in our
+		-- own data (the server writes it just before firing).
+		Remotes.get("EggHatched").OnClientEvent:Connect(function(p: { [string]: any })
+			task.wait(0.2)
+			local pets = Data.state.pets
+			local pet = typeof(pets) == "table" and typeof(p) == "table" and pets[p.petUid] or nil
+			local config = pet and Data.pet(pet.petId)
+			if config then
+				drawers.hatched(config.name)
 			end
 		end)
 

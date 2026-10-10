@@ -19,7 +19,8 @@ local TILE, GAP = 156, 16
 local TILE_BG = Color3.fromRGB(22, 26, 36)
 local GOLD = Color3.fromRGB(255, 216, 74)
 
-function Menus.new(parent: Instance): Menus
+-- `tiles = false` hides the 2x2 tile grid (the new left rail, UI/Hud/Rail, opens the screens instead).
+function Menus.new(parent: Instance, opts: { tiles: boolean? }?): Menus
 	local menus: { [string]: any } = {
 		Index = IndexMenu.new(parent),
 		Store = StoreMenu.new(parent),
@@ -49,6 +50,7 @@ function Menus.new(parent: Instance): Menus
 		parent = parent,
 	})
 	Kit.autoScale(grid)
+	grid.Visible = not opts or opts.tiles ~= false
 	Kit.onLayout(function(compact: boolean)
 		grid.Position = if compact then UDim2.fromOffset(10, 8) else UDim2.new(0, 30, 0.333, 0)
 	end)
