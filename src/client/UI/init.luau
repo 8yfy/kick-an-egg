@@ -9,6 +9,7 @@ local Stats = require(script.Hud.Stats)
 local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
+local SackButton = require(script.Hud.SackButton)
 local ChaseOverlay = require(script.Hud.ChaseOverlay)
 local Menus = require(script.Menus)
 local ZoneBar = require(script.Hud.ZoneBar)
@@ -20,6 +21,7 @@ local data: { [string]: any } = {}
 local stats: Stats.Stats
 local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
+local sack: SackButton.SackButton
 local overlay: ChaseOverlay.ChaseOverlay
 local menus: Menus.Menus
 local interactUpdate: ((data: { [string]: any }) -> ())?
@@ -43,12 +45,14 @@ function UI:Init()
 	quest = QuestBar.new(gui)
 	SoundToggle.new(gui)
 	kick = KickPanel.new(gui)
+	sack = SackButton.new(gui:FindFirstChild("KickPanel") or gui) -- the SACK box sits next to KICK
 	overlay = ChaseOverlay.new(gui)
 	ZoneBar.new(gui)
 	Kit.watchViewport()
 	stats.update(data)
 	quest.update(data)
 	menus.update(data)
+	sack.update(data)
 	gui.Parent = playerGui
 end
 
@@ -68,6 +72,7 @@ function UI:Start()
 			stats.update(data)
 			quest.update(data)
 			menus.update(data)
+			sack.update(data)
 			if interactUpdate then
 				interactUpdate(data)
 			end

@@ -2,9 +2,9 @@
 -- CONTRACT FILE: change only via a `contract:` PR (numbers are Partner B's to tune).
 -- Per-player upgrades: the Kick Sack gear (strength training) and the pen.
 --
--- Sack: a Tool in your backpack. Equip it and your current sack drops from the sky on a chain in front of
---   you; standing next to it auto-kicks once every `interval` seconds (the client fires Remotes.Train at
---   the moment of impact). The server counts a kick only when the sack is out (`dropSeconds` after it
+-- Sack: a Tool, taken out with the SACK box next to the KICK button (the Roblox hotbar is hidden). Out, your
+--   current sack drops from the sky on a chain in front of you; each left click (tap) next to it kicks, at most
+--   once every `interval` seconds (the client fires Remotes.Train at the moment of impact). The server counts a kick only when the sack is out (`dropSeconds` after it
 --   was placed), you are within `range` studs of it and not mid-chase; each kick adds `tiers[tier].gain`
 --   to `stat` (strength = kickPower, capped by Economy.maxKickPower). Buying the next sack
 --   (Remotes.UpgradeTraining) costs `tiers[tier + 1].cost`: sacks are a ladder, bought in order.

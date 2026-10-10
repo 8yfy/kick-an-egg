@@ -5,8 +5,9 @@
 --     and springs back; a moved / removed sack is yanked back up into the sky
 --   * the sack is a damped pendulum: every kick swings it away and squashes it, then it swings back
 --   * characters with a sack out hold a fighting stance and play the kick (Anim/Player poses)
---   * the local player auto-kicks while the sack tool is out and they stand next to it: one kick per
---     Config/Upgrades.Sack.interval; Remotes.Train fires at the moment the foot lands.
+--   * the local player kicks with a left click (a tap on mobile) while the sack is out (the SACK box next
+--     to KICK equips its Tool): at most one kick per Config/Upgrades.Sack.interval, one quick click is
+--     buffered; Remotes.Train fires at the moment the foot lands.
 -- Other players' kicks come from their SackHits counter. All of it is local-only visuals.
 
 local Players = game:GetService("Players")
@@ -34,6 +35,7 @@ local SQUASH_K, SQUASH_C = 320, 15 -- kick squash spring
 local DROP_K, DROP_C = 190, 9 -- drop squash spring
 local PLACE_DIST = 3.6 -- matches SackService: root to sack axis
 local FAR = 220 -- beyond this many studs from the camera, idle sacks stop animating
+local CLICK_BUFFER = 0.45 -- seconds a click made mid-kick is kept for the next kick
 
 type Piece = { part: BasePart, rel: CFrame, size: Vector3, squash: boolean, spin: number, face: string? }
 type Sack = {
@@ -340,30 +342,30 @@ local function toolOut(character: Model): boolean
 	return tool ~= nil and tool:GetAttribute("KickSack") == true
 end
 
--- Local auto-kick: stand next to your sack with the tool out.
-local function autoKick(now: number)
+-- One local kick, if the sack is out and in reach and the last kick has finished. Returns whether it kicked.
+local function tryKick(now: number): boolean
 	local character = localPlayer.Character
 	local c = character and chars[character]
 	local s = c and c.sack
 	if not c or not s or not character or s.leaving or not s.dropped then
-		return
+		return false
 	end
 	if now - s.born < SACK.dropSeconds or now - lastKick < SACK.interval or not toolOut(character) then
-		return
+		return false
 	end
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not hrp or not hrp:IsA("BasePart") or not humanoid or humanoid.MoveDirection.Magnitude > 0.1 then
-		return
+	if not hrp or not hrp:IsA("BasePart") or not humanoid then
+		return false
 	end
 	local state = humanoid:GetState()
 	if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
-		return
+		return false
 	end
 	local axis = Vector3.new(s.at.X, hrp.Position.Y, s.at.Z)
 	local offset = hrp.Position - axis
 	if offset.Magnitude > SACK.range - 0.5 then
-		return
+		return false
 	end
 	-- square up to the sack at kicking distance (small nudges only)
 	local dir = if offset.Magnitude > 0.1 then offset.Unit else s.at.LookVector
@@ -372,6 +374,24 @@ local function autoKick(now: number)
 	hrp.CFrame = CFrame.lookAt(pos, Vector3.new(axis.X, pos.Y, axis.Z))
 	lastKick = now
 	startKick(c, true)
+	return true
+end
+
+-- Left click / tap with the sack out (the Tool's Activated) kicks. A click during the previous kick is
+-- remembered for CLICK_BUFFER seconds, so quick clicking chains kicks without dropping any.
+local queuedUntil = 0
+local hooked: { [Tool]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+
+local function hookTool(child: Instance)
+	if child:IsA("Tool") and child:GetAttribute("KickSack") and not hooked[child] then
+		hooked[child] = true
+		child.Activated:Connect(function()
+			local now = os.clock()
+			if not tryKick(now) then
+				queuedUntil = now + CLICK_BUFFER
+			end
+		end)
+	end
 end
 
 -- Characters ----------------------------------------------------------------
@@ -487,6 +507,27 @@ function SackController:Start()
 		added(player)
 	end
 
+	-- the sack Tool lives in the backpack (a new one after every respawn) or in hand
+	local function hookAll(container: Instance)
+		for _, child in container:GetChildren() do
+			hookTool(child)
+		end
+		container.ChildAdded:Connect(hookTool)
+	end
+	localPlayer.ChildAdded:Connect(function(child)
+		if child:IsA("Backpack") then
+			hookAll(child)
+		end
+	end)
+	local backpack = localPlayer:FindFirstChildOfClass("Backpack")
+	if backpack then
+		hookAll(backpack)
+	end
+	localPlayer.CharacterAdded:Connect(hookAll)
+	if localPlayer.Character then
+		hookAll(localPlayer.Character)
+	end
+
 	-- poses after the Animator, before physics
 	RunService.Stepped:Connect(function()
 		local now = os.clock()
@@ -510,7 +551,9 @@ function SackController:Start()
 		last = now
 		local cam = workspace.CurrentCamera
 		local camPos = if cam then cam.CFrame.Position else Vector3.zero
-		autoKick(now)
+		if queuedUntil > now and tryKick(now) then
+			queuedUntil = 0
+		end
 		for _, c in chars do
 			local s = c.sack
 			if s then

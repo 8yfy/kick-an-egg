@@ -1,6 +1,7 @@
 --!strict
 -- Kick Sack gear (Config/Upgrades.Sack), server side:
---   * Every character gets a Tool named after the player's current sack (attribute KickSack = true).
+--   * Every character gets a Tool named after the player's current sack (attribute KickSack = true); the
+--     client takes it out with the SACK box next to KICK (UI/Hud/SackButton), not the Roblox hotbar.
 --     Equipping it places the sack in front of the player as character attributes, which every client
 --     draws (SackController): SackAt (CFrame: hang point, front facing the player), SackTier (number),
 --     SackPlaced (server time of the drop). Unequipping clears them.
@@ -145,7 +146,7 @@ local function refreshTools(player: Player)
 	local info = tierOf(tier)
 	for _, tool in toolsOf(player) do
 		tool.Name = info.name
-		tool.ToolTip = `Auto-kick: +{info.gain} Kick Power`
+		tool.ToolTip = `Click to kick: +{info.gain} Kick Power`
 		tool:SetAttribute("Tier", tier)
 	end
 	if out[player] then
