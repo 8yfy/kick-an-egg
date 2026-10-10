@@ -10,6 +10,7 @@ local Services = SSS.Server.Services
 
 local Chase = require(Shared.Config.Chase) :: any
 local Economy = require(Shared.Config.Economy) :: any
+local Builder = require(Shared.Builders.BlockBuilder) :: any
 
 local passed, failed = 0, 0
 local function check(name: string, ok: boolean)
@@ -150,28 +151,49 @@ section("DataService.sanitize", function()
 	check("plotSlots cleared", d.plotSlots == nil)
 end)
 
-section("RackService + pens + collecting", function()
+section("SackService + pens + collecting", function()
 	local Upgrades = require(Shared.Config.Upgrades) :: any
 	local RS = require(Services.RackService) :: any
+	local SS = require(Services.SackService) :: any
 	local PS = require(Services.PlotService) :: any
-	local levels = Upgrades.Rack.levels
-	check("rack 1 adds its gain", RS.trained(1, 1, 0) == 1 + levels[1].gain)
-	check("better rack trains faster", RS.trained(1, 5, 0) > RS.trained(1, 1, 0))
-	check("strength capped", RS.trained(Economy.maxKickPower(0), #levels, 0) == Economy.maxKickPower(0))
-	check("rebirth raises the cap", RS.trained(Economy.maxKickPower(0), 1, 1) > Economy.maxKickPower(0))
-	check("next rack cost", RS.rackCost(1) == levels[2].cost)
-	check("no rack after the top", RS.rackCost(#levels) == nil)
+	local Sacks = require(Shared.Builders.Models.Sacks) :: any
+	local levels = Upgrades.Sack.tiers
+	check("20 sacks", #levels == 20 and Sacks.count == 20)
+	for i = 2, #levels do
+		if levels[i].gain <= levels[i - 1].gain or levels[i].cost <= levels[i - 1].cost then
+			check(`sack {i} beats sack {i - 1}`, false)
+		end
+	end
+	check("sack 1 adds its gain", SS.trained(1, 1, 0) == 1 + levels[1].gain)
+	check("better sack trains faster", SS.trained(1, 5, 0) > SS.trained(1, 1, 0))
+	check("strength capped", SS.trained(Economy.maxKickPower(0), #levels, 0) == Economy.maxKickPower(0))
+	check("rebirth raises the cap", SS.trained(Economy.maxKickPower(0), 1, 1) > Economy.maxKickPower(0))
+	check("next sack cost", SS.sackCost(1) == levels[2].cost)
+	check("no sack after the top", SS.sackCost(#levels) == nil)
+	local root = CFrame.lookAt(Vector3.new(30, 3, -40), Vector3.new(30, 3, -50))
+	local at = SS.placement(root, 0)
+	check("sack hangs ahead of the player", (Vector3.new(at.X, 3, at.Z) - Vector3.new(30, 3, -43.6)).Magnitude < 0.01)
+	check("sack hangs at kicking height", math.abs(at.Y - Sacks.HANG) < 0.01)
+	check("sack faces the player", at.LookVector:Dot(Vector3.new(0, 0, 1)) > 0.99)
+	check("next to the sack", SS.inRange(at, Vector3.new(30, 3, -40)))
+	check("away from the sack", not SS.inRange(at, Vector3.new(30 + Upgrades.Sack.range + 2, 3, -43.6)))
+	check("not from a different floor", not SS.inRange(at, Vector3.new(30, 40, -40)))
+	for tier = 1, Sacks.count do
+		local ok, model = pcall(function()
+			return Builder.build(Sacks.spec(tier), "Sack")
+		end)
+		local parts = if ok then #model:GetDescendants() else 0
+		check(`sack {tier} builds`, ok and parts > 20 and parts < 700)
+		if ok then
+			model:Destroy()
+		end
+	end
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
 	check("pen slots capped", PS.slotsForPen(99) == Economy.PlotSlots.max)
 	check("pen 1 -> 2 cost", RS.penCost(1) == Upgrades.Pen.costBase)
 	check("pen 2 -> 3 cost", RS.penCost(2) == Upgrades.Pen.costBase * Upgrades.Pen.costGrowth)
 	check("no pen upgrade at max slots", RS.penCost(99) == nil)
-	local plate = Instance.new("Part")
-	plate.Position = Vector3.new(30, 0.5, -40)
-	check("on the plate", RS.inRange(plate, Vector3.new(31, 3, -40)))
-	check("away from the plate", not RS.inRange(plate, Vector3.new(30 + Upgrades.Rack.range + 2, 3, -40)))
-	plate:Destroy()
 	local top = Instance.new("Part")
 	top.Size = Vector3.new(2.8, 0.3, 2.8)
 	top.Position = Vector3.new(10, 1.35, -30)
@@ -195,7 +217,7 @@ section("RackService + pens + collecting", function()
 	}
 	D.sanitize(d)
 	check("fractional strength kept", d.kickPower == 3.25)
-	check("rack level clamped", d.rackLevel == #levels)
+	check("sack tier clamped", d.rackLevel == #levels)
 	check("NaN pen level -> 1", d.penLevel == 1)
 	check("old tool field dropped", d.tool == nil)
 end)

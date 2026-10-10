@@ -22,7 +22,7 @@
 --     .Sign.Board.SurfaceGui.OwnerLabel           TextLabel with the owner's name
 --     .Pedestals.Pedestal<n>                      invisible egg spot on the open pen floor: attribute Slot = n,
 --                                                 PrimaryPart = Top (egg sits at Top.Position + up * 0.15)
---     .TrainingRack                               Model: treadmill with Plate (belt, stand here), SignBoard, FxAnchor
+--     .SackStand                                  Model: gallows with the next Kick Sack hanging ("Sack", Spin)
 --   workspace.Map.Runway.Zone<id>                 Folder per zone
 -- ProximityPrompts carry an "Action" attribute the client UI handles:
 --   "UpgradePen" | "UpgradeTraining" | "OpenMenu:Store" | "OpenMenu:Index"
@@ -30,7 +30,7 @@ local Lighting = game:GetService("Lighting")
 local PhysicsService = game:GetService("PhysicsService")
 local Builder = require(script.Parent.Parent.BlockBuilder)
 local Props = require(script.Parent.Props)
-local TrainingRack = require(script.Parent.TrainingRack)
+local Sacks = require(script.Parent.Parent.Models.Sacks)
 local MapFx = require(script.Parent.MapFx)
 local Bricks = require(script.Parent.Bricks)
 local Landmarks = require(script.Parent.Landmarks)
@@ -72,7 +72,6 @@ local DIRT = rgb(205, 130, 80)
 local GRASS, GRASS_DARK = rgb(120, 215, 75), rgb(104, 196, 64)
 local YELLOW = rgb(255, 220, 80)
 local SHIELD_ICON = "rbxassetid://77216163319959"
-local SHOE_ICON = "rbxassetid://100327618588257" -- same as UI Icons.WalkSpeed (treadmill screen)
 local SIGN = rgb(32, 38, 52)
 local BASE_COLORS = {
 	rgb(255, 85, 85),
@@ -761,80 +760,65 @@ local function fountain(parent: Instance, c: Vector3)
 	l.Parent = water
 end
 
+-- Kick Sack display stand (replaced the treadmill): a brick gallows with the NEXT sack you can buy
+-- hanging from it (your own sack once maxed). The sack turns slowly on clients (MapLife "Spin").
 local function refreshRack(base: Model, slot: CFrame)
-	local levels = Upgrades.Rack.levels
-	local level = math.clamp((base:GetAttribute("RackLevel") :: number?) or 1, 1, #levels)
-	local info = levels[level]
-	local rack = base:FindFirstChild("TrainingRack")
-	if not (rack and rack:GetAttribute("Tier") == info.tier) then
-		if rack then
-			rack:Destroy()
+	local tiers = Upgrades.Sack.tiers
+	local level = math.clamp((base:GetAttribute("RackLevel") :: number?) or 1, 1, #tiers)
+	local show = math.min(level + 1, #tiers)
+	local stand: Instance? = base:FindFirstChild("SackStand")
+	if not stand then
+		local m = Instance.new("Model")
+		m.Name = "SackStand"
+		local wood, dark = rgb(150, 98, 60), rgb(96, 62, 40)
+		block(m, "Plinth", Vector3.new(7.6, 0.6, 4), slot * CFrame.new(0, 0.3, 0), rgb(120, 124, 138))
+		for _, x in { -3, 3 } do
+			block(m, "Post", Vector3.new(0.9, 9.6, 0.9), slot * CFrame.new(x, 5.1, 0), wood)
+			block(m, "PostFoot", Vector3.new(1.5, 0.6, 1.5), slot * CFrame.new(x, 0.9, 0), dark)
+			block(
+				m,
+				"Brace",
+				Vector3.new(0.5, 2.4, 0.5),
+				slot * CFrame.new(x * 0.8, 8.6, 0) * CFrame.Angles(0, 0, math.rad(if x > 0 then 45 else -45)),
+				dark,
+				{ studs = false }
+			)
 		end
-		local m = stamp(TrainingRack.spec(info.tier), slot, 1, base, true, "TrainingRack")
-		m:SetAttribute("Tier", info.tier)
-		local plate = m:FindFirstChild("Plate")
-		if plate and plate:IsA("BasePart") then
-			plate.CanQuery = true
-			m.PrimaryPart = plate
+		block(m, "Beam", Vector3.new(7.8, 0.9, 1.2), slot * CFrame.new(0, 9.5, 0), wood)
+		m.Parent = base
+		stand = m
+	end
+	assert(stand, "stand")
+	local current = stand:FindFirstChild("Sack")
+	if not (current and current:GetAttribute("Tier") == show) then
+		if current then
+			current:Destroy()
 		end
-		-- Treadmill (map v3): the belt is a conveyor toward the entry, so you keep running to stay on;
-		-- slats and effect anchors don't collide; the tier's idle effect comes off the back of the belt.
-		local speed = TrainingRack.beltSpeed(info.tier)
-		m:SetAttribute("BeltSpeed", speed)
-		for _, d in m:GetDescendants() do
-			if d:IsA("BasePart") and (d.Name == "Slat" or d.Name == "FxAnchor" or d.Name == "PopAnchor") then
-				d.CanCollide = false
+		local hang = slot * CFrame.new(0, Sacks.HANG + 0.4, 0)
+		local sack = stamp(Sacks.spec(show), hang, 1, stand, false, "Sack")
+		local pivot = Instance.new("Part")
+		pivot.Name = "Pivot"
+		pivot.Size = Vector3.one * 0.2
+		pivot.Transparency = 1
+		pivot.Anchored = true
+		pivot.CanCollide = false
+		pivot.CanQuery = false
+		pivot.CanTouch = false
+		pivot.CFrame = hang
+		pivot.Parent = sack
+		sack.PrimaryPart = pivot
+		sack:SetAttribute("Tier", show)
+		sack:SetAttribute("Spin", 30)
+		for _, d in sack:GetDescendants() do
+			if d:IsA("BasePart") then
 				d.CanQuery = false
 			end
 		end
-		if plate and plate:IsA("BasePart") then
-			plate.AssemblyLinearVelocity = slot:VectorToWorldSpace(Vector3.new(0, 0, -speed))
-		end
-		local fxAnchor = m:FindFirstChild("FxAnchor")
-		if fxAnchor and fxAnchor:IsA("BasePart") then
-			MapFx.emit(fxAnchor, TrainingRack.ambient(info.tier))
-		end
-		local board = m:FindFirstChild("SignBoard")
-		if board and board:IsA("BasePart") then
-			local gui = surface(
-				board,
-				Enum.NormalId.Front,
-				{ { "Gain", "", 0.08, 0.5, YELLOW }, { "Level", "", 0.6, 0.32 } },
-				40
-			)
-			for _, label in gui:GetChildren() do
-				if label:IsA("TextLabel") then
-					label.Position = UDim2.fromScale(0.3, label.Position.Y.Scale)
-					label.Size = UDim2.fromScale(0.66, label.Size.Y.Scale)
-				end
-			end
-			local shoe = Instance.new("ImageLabel")
-			shoe.Name = "Shoe"
-			shoe.BackgroundTransparency = 1
-			shoe.Image = SHOE_ICON
-			shoe.ScaleType = Enum.ScaleType.Fit
-			shoe.Position, shoe.Size = UDim2.fromScale(0.04, 0.1), UDim2.fromScale(0.24, 0.8)
-			shoe.Parent = gui
-		end
-		for _, n in { "LampL", "LampR" } do
-			local lampPart = m:FindFirstChild(n)
-			if lampPart and lampPart:IsA("BasePart") then
-				MapFx.emit(
-					lampPart,
-					if info.tier == "Inferno" then "InfernoEmbers" else "LampGlow",
-					if info.tier == "Inferno" then nil else lampPart.Color
-				)
-			end
-		end
-		rack = m
 	end
-	local board = rack and rack:FindFirstChild("SignBoard")
-	setText(board and board:FindFirstChildOfClass("SurfaceGui"), "Gain", `+{info.gain} Power / step`)
-	setText(board and board:FindFirstChildOfClass("SurfaceGui"), "Level", `Treadmill · Lv {level}`)
 	local sign = base:FindFirstChild("RackSign")
 	local sgui = sign and sign:FindFirstChildOfClass("SurfaceGui")
-	local nextInfo = levels[level + 1]
-	setText(sgui, "Level", if nextInfo then `Level {level} > Level {level + 1}` else `Level {level} (MAX)`)
+	local nextInfo = tiers[level + 1]
+	setText(sgui, "Level", if nextInfo then nextInfo.name else `{tiers[level].name} (MAX)`)
 	setText(sgui, "Cost", if nextInfo then `${Fx.formatNumber(nextInfo.cost)}` else "MAXED")
 end
 
@@ -992,13 +976,13 @@ local function buildBase(parent: Instance, i: number)
 
 	upgradeSign(base, "PenSign", "Upgrade Pen", Vector3.new(cx - 10, 0, zE + out * 2.5), face, "UpgradePen", `Pen {i}`)
 
-	-- Training station on the avenue beside the entrance; step faces away from the pen
+	-- Kick Sack stand on the avenue beside the entrance; the sack faces the avenue
 	local rackSlot = CFrame.new(cx + 16, 0, zE + out * 14)
 		* (if out > 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity)
 	upgradeSign(
 		base,
 		"RackSign",
-		"Upgrade Station",
+		"Next Kick Sack",
 		Vector3.new(cx + 5, 0, zE + out * 22),
 		face,
 		"UpgradeTraining",

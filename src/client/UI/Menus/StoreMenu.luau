@@ -1,8 +1,8 @@
 --!strict
 -- Shop: a horizontal row of tall cards (gradient + studs, title + subtitle, big preview, a dark stat
 -- pill with the gain in green, a chunky price button). Cards:
---   Treadmill (UpgradeTraining, live 3D preview of the next tier), Kick Power (info: trained on the
---   treadmill), Run Speed
+--   Kick Sack (UpgradeTraining, live 3D preview of the next sack), Kick Power (info: trained by kicking
+--   your sack), Run Speed
 --   (BuyUpgrade), Bigger Pen (UpgradePen), and "SOON" cards for Partner B's gamepasses.
 -- Prices come from the documented Config formulas (display only; the server charges).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -172,10 +172,10 @@ function StoreMenu.new(parent: Instance): Menu
 	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = scroll
 
-	local station = card(scroll, 1, "Treadmill", { rgb(110, 205, 255), rgb(40, 120, 235) }, function()
+	local station = card(scroll, 1, "Kick Sack", { rgb(110, 205, 255), rgb(40, 120, 235) }, function()
 		fire("UpgradeTraining")
 	end)
-	-- Kick Power is trained on the treadmill, not bought (map v3): an info card, no purchase
+	-- Kick Power is trained on the Kick Sack, not bought: an info card, no purchase
 	local power = card(scroll, 2, "Kick Power", { rgb(255, 190, 80), rgb(245, 110, 30) }, nil)
 	power.button.Active = false
 	Icons.view(power.preview, "Bolt")
@@ -203,27 +203,27 @@ function StoreMenu.new(parent: Instance): Menu
 	end
 
 	local data: { [string]: any } = {}
-	local shownTier = ""
+	local shownTier = 0
 	local function refresh()
 		local money = if typeof(data.money) == "number" then data.money else 0
-		local levels = Upgrades.Rack.levels
+		local levels = Upgrades.Sack.tiers
 		local lvl = math.clamp(MyBase.level("RackLevel", data, "rackLevel"), 1, #levels)
 		local now, nxt = levels[lvl], levels[lvl + 1]
-		local tier = if nxt then nxt.tier else now.tier
+		local tier = if nxt then lvl + 1 else lvl
 		if shownTier ~= tier then
 			shownTier = tier
 			station.preview:ClearAllChildren()
-			Icons.rack(station.preview, tier)
+			Icons.sack(station.preview, tier)
 		end
-		station.subtitle.Text = if nxt then `Lv {lvl} → {lvl + 1} · {tier}` else `Lv {lvl} · MAX`
-		station.pill.Text = if nxt then gain(`+{nxt.gain}`, "per step") else gain(`+{now.gain}`, "per step")
+		station.subtitle.Text = if nxt then `Tier {lvl + 1} · {nxt.name}` else `{now.name} · MAX`
+		station.pill.Text = if nxt then gain(`+{nxt.gain}`, "per kick") else gain(`+{now.gain}`, "per kick")
 		setPrice(station, if nxt then nxt.cost else nil, money)
 		local strength = if typeof(data.kickPower) == "number" then data.kickPower else Economy.KickPower.base
 		local rebirths = if typeof(data.rebirths) == "number" then data.rebirths else 0
 		power.subtitle.Text = `{Kit.formatNumber(strength)} / {Kit.formatNumber(
 			Economy.KickPower.max + rebirths * Economy.Rebirth.powerCapBonus
 		)}`
-		power.pill.Text = "Train on your treadmill"
+		power.pill.Text = "Kick your sack"
 		power.label.Text = "TRAIN"
 		for _, pair in { { speed, "RunSpeed", "runSpeed" } } do
 			local c = pair[1] :: Card

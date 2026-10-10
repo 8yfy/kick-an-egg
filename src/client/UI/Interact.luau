@@ -2,12 +2,10 @@
 -- World interactions (client):
 --   * ProximityPrompts from the map carry an "Action" attribute: UpgradePen / UpgradeTraining fire their
 --     remotes, "OpenMenu:<Name>" opens a window.
---   * Training: while running on your own treadmill's belt (Plate), every Config/Upgrades.Rack.interval:
---     fire Remotes.Train (the server validates and grants) and play TreadStep (streaks, puff, "+X Power").
+--   * (Strength training is the Kick Sack gear: Controllers/SackController.)
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local MyBase = require(script.Parent.MyBase)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Upgrades = require(Shared:WaitForChild("Config"):WaitForChild("Upgrades"))
@@ -70,7 +68,7 @@ local function refreshAlerts(data: { [string]: any })
 		return
 	end
 	local money = if typeof(data.money) == "number" then data.money else 0
-	local levels = Upgrades.Rack.levels
+	local levels = Upgrades.Sack.tiers
 	local rl = MyBase.level("RackLevel", data, "rackLevel")
 	local nextRack = levels[rl + 1]
 	alert(base:FindFirstChild("RackSign"), nextRack ~= nil and money >= nextRack.cost)
@@ -81,7 +79,6 @@ local function refreshAlerts(data: { [string]: any })
 end
 
 function Interact.start(openMenu: (name: string) -> ()): (data: { [string]: any }) -> ()
-	local data: { [string]: any } = {}
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 		if player ~= Players.LocalPlayer then
 			return
@@ -94,35 +91,7 @@ function Interact.start(openMenu: (name: string) -> ()): (data: { [string]: any 
 		end
 	end)
 
-	local VFX = require(Shared:WaitForChild("VFX")) :: any
-	local last = 0
-	RunService.Heartbeat:Connect(function()
-		if os.clock() - last < Upgrades.Rack.interval then
-			return
-		end
-		local base = MyBase.get()
-		local rack = base and base:FindFirstChild("TrainingRack")
-		local plate = rack and rack:FindFirstChild("Plate")
-		local char = Players.LocalPlayer.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		if not (rack and plate and plate:IsA("BasePart") and hrp and hrp:IsA("BasePart")) then
-			return
-		end
-		-- Treadmill (map v3): anywhere on the running belt counts (the conveyor keeps you near the console)
-		local rel = plate.CFrame:PointToObjectSpace(hrp.Position)
-		local half = plate.Size / 2
-		if math.abs(rel.X) > half.X + 0.5 or math.abs(rel.Z) > half.Z + 0.5 or rel.Y < 0 or rel.Y > 6 then
-			return
-		end
-		last = os.clock()
-		fire("Train")
-		local levels = Upgrades.Rack.levels
-		local level = math.clamp(MyBase.level("RackLevel", data, "rackLevel"), 1, #levels)
-		VFX.play("TreadStep", rack, { tier = levels[level].tier, gain = levels[level].gain })
-	end)
-
 	return function(d: { [string]: any })
-		data = d
 		refreshAlerts(d)
 	end
 end

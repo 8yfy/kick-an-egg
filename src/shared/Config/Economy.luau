@@ -2,7 +2,7 @@
 -- Partner B owns this file. Tune freely.
 local Economy = {
 	StartingMoney = 0,
-	-- Kick power = Strength: trained at your base's training rack (Config/Upgrades.Rack), not bought.
+	-- Kick power = Strength: trained by kicking your Kick Sack gear (Config/Upgrades.Sack), not bought.
 	-- costBase/costGrowth are unused while the Store's Kick Power card is disabled.
 	KickPower = { base = 1, max = 100, costBase = 25, costGrowth = 1.18 },
 	-- Run Speed = egg speed while steering; bought in the shop (BuyUpgrade "RunSpeed").

@@ -1,7 +1,7 @@
 --!strict
 -- Studio-only shop keys (A's Store and the base's ProximityPrompts fire the same remotes):
--- U = upgrade the training rack, I = buy Run Speed, O = upgrade the pen, R = Rebirth.
--- Training itself (Train) is fired by A's UI while you stand on your rack's plate.
+-- U = buy the next Kick Sack, I = buy Run Speed, O = upgrade the pen, R = Rebirth.
+-- Training itself (Train) is fired by SackController while your sack tool is out.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")

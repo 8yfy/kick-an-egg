@@ -6,8 +6,9 @@
 --   Chase:         "AvalancheWarn" {theme, startZ, seconds}, "AvalancheStart" {theme, startZ, speed, startTime},
 --                  "AvalancheStop" {}, "EggPickup" {}, "EggSecured" {rarity}, "EggCaught" {theme}
 --   Base:          "HatchCrack" {progress}, "HatchBurst" {rarity}, "PetReveal" {rarity, name}, "MoneyPop" {amount},
---                  "Announce" {text, rarity}, "TreadStep" {tier, gain} and "TreadUpgrade" {tier, own?}
---                  (target = the TrainingRack treadmill model)
+--                  "Announce" {text, rarity}
+--   Kick Sack:     "SackDrop" {tier, floor, own?}, "SackHit" {tier, at, dir, floor, own?, super?, gain?},
+--                  "SackUpgrade" {tier, floor?, own?} (target = the sack model; see VFX/Sack)
 --   plus every weather mutation's `vfx` name from Config/Mutations via VFX.attach (looping on a pet).
 -- "AvalancheStart" returns nothing; the effect drives itself from Config/Chase.frontZ() every frame
 -- and is removed by "AvalancheStop" (target = the same folder/model passed to AvalancheStart).
@@ -32,15 +33,16 @@ local function load(): { [string]: Handler }
 	local ChaseFx = require(script.ChaseFx)
 	local Egg = require(script.Egg)
 	local Hatch = require(script.Hatch)
-	local Treadmill = require(script.Treadmill)
+	local Sack = require(script.Sack)
 	local loaded: { [string]: Handler } = {
 		HatchCrack = Hatch.HatchCrack,
 		HatchBurst = Hatch.HatchBurst,
 		PetReveal = Hatch.PetReveal,
 		MoneyPop = Hatch.MoneyPop,
 		TrainHit = Hatch.TrainHit,
-		TreadStep = Treadmill.Step,
-		TreadUpgrade = Treadmill.Upgrade,
+		SackDrop = Sack.SackDrop,
+		SackHit = Sack.SackHit,
+		SackUpgrade = Sack.SackUpgrade,
 		Announce = Hatch.Announce,
 		KickImpact = Egg.KickImpact,
 		ZoneEnter = Egg.ZoneEnter,

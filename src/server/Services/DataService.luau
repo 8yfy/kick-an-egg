@@ -44,7 +44,7 @@ local TEMPLATE: Data = {
 	stats = { kicks = 0, secured = 0, lost = 0 },
 	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
 	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
-	rackLevel = 1, -- training rack level (Config/Upgrades.Rack.levels); trains kickPower (strength)
+	rackLevel = 1, -- Kick Sack tier (Config/Upgrades.Sack.tiers); its kicks train kickPower (strength)
 	penLevel = 1, -- pen level: more pedestal slots (Config/Upgrades.Pen)
 }
 
@@ -103,7 +103,7 @@ local function sanitize(data: Data)
 	data.onboarding = if isFinite(data.onboarding) then data.onboarding else 0
 	data.tool = nil -- old backpack-tool tier (replaced by the training rack)
 	data.rackLevel = if isFinite(data.rackLevel)
-		then math.clamp(math.floor(data.rackLevel), 1, #Upgrades.Rack.levels)
+		then math.clamp(math.floor(data.rackLevel), 1, #Upgrades.Sack.tiers)
 		else 1
 	data.penLevel = if isFinite(data.penLevel) then math.max(1, math.floor(data.penLevel)) else 1
 end

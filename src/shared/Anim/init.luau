@@ -3,10 +3,10 @@
 -- Names B will call: "EggRun" (legged-egg sprint while the player steers it; the egg's speed is
 -- its HumanoidRootPart-free Hitbox velocity, so scale the leg cycle by Hitbox.AssemblyLinearVelocity),
 -- "EggWobble" (on plot, hatching), "Idle", "Waddle", "Hop", "Sleep" (pets),
--- "PlayerKick" (Anim/Player). No longer called since the player steers the egg and trains on a
--- treadmill: "EggCarried", "PlayerCarry" (still implemented).
+-- "PlayerKick" (Anim/Player: the Kick Sack front kick; SackController drives the same poses). No longer
+-- called since the player steers the egg: "EggCarried", "PlayerCarry" (still implemented).
 -- Implementations: Anim/Egg (EggRun, EggCarried, EggWobble), Anim/Pet (Idle, Waddle, Hop, Sleep),
--- Anim/Player (PlayerCarry).
+-- Anim/Player (PlayerCarry, PlayerKick).
 -- Unknown names return a no-op stop function. The stop function restores the rest pose.
 type Player = (model: Model, params: { [string]: any }) -> () -> ()
 

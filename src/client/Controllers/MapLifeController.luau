@@ -1,8 +1,8 @@
 --!strict
 -- Brings map v3 scenery to life on this client (local-only motion of anchored map models):
---   models with a "Spin" attribute (degrees / second) turn in place (the hub's egg statues);
---   treadmills (Base<i>.TrainingRack) scroll their belt slats at BeltSpeed and play "TreadUpgrade"
---   when their RackLevel goes up;
+--   models with a "Spin" attribute (degrees / second) turn in place (the hub's egg statues and the
+--   sack hanging on each base's Kick Sack stand, Base<i>.SackStand.Sack, which plays "SackUpgrade"
+--   when the base's RackLevel goes up);
 --   models with a "Merchant" attribute bob, turn to face the local player when they are near and
 --   show their "Greeting" in a speech bubble.
 
@@ -16,6 +16,7 @@ local FACE_RANGE = 24 -- studs: merchants turn toward you inside this
 local TALK_RANGE = 14 -- studs: the speech bubble shows inside this
 local TURN_RATE = 4 -- how fast merchants turn (per second, exponential)
 local BOB = 0.15
+local OWNER_SETTLE = 2 -- seconds after an owner change in which level changes are just restored data
 
 local MapLifeController = {}
 
@@ -26,51 +27,18 @@ local player = Players.LocalPlayer
 local spinners: { Spinner } = {}
 local merchants: { Merchant } = {}
 
--- Treadmills: belt slats scroll toward the entry at the rack's BeltSpeed; upgrades get a VFX.
-type Belt = { rack: Model, plate: BasePart, slats: { { part: BasePart, rel: CFrame } }, speed: number, length: number }
-local belts: { [Model]: Belt } = {}
-local OWNER_SETTLE = 2 -- seconds after an owner change in which level changes are just restored data
-
-local function trackBelt(rack: Instance)
-	if not rack:IsA("Model") or rack.Name ~= "TrainingRack" then
+local function addSpinner(model: Instance)
+	if not model:IsA("Model") or not model.PrimaryPart then
 		return
 	end
-	local plate = rack:FindFirstChild("Plate")
-	if not plate or not plate:IsA("BasePart") then
-		return
-	end
-	local slats = {}
-	for _, d in rack:GetChildren() do
-		if d:IsA("BasePart") and d.Name == "Slat" then
-			table.insert(slats, { part = d, rel = plate.CFrame:ToObjectSpace(d.CFrame) })
-		end
-	end
-	local speed = rack:GetAttribute("BeltSpeed")
-	belts[rack] = {
-		rack = rack,
-		plate = plate,
-		slats = slats,
-		speed = if typeof(speed) == "number" then speed else 6,
-		length = plate.Size.Z,
-	}
-	rack.AncestryChanged:Connect(function()
-		if not rack:IsDescendantOf(workspace) then
-			belts[rack] = nil
-		end
-	end)
-end
-
-local function stepBelts(t: number)
-	for _, belt in belts do
-		local span = belt.length - 0.4
-		for _, s in belt.slats do
-			local z = (s.rel.Z - belt.speed * t + belt.length / 2 - 0.2) % span - belt.length / 2 + 0.2
-			s.part.CFrame = belt.plate.CFrame * CFrame.new(s.rel.X, s.rel.Y, z)
-		end
+	local spin = model:GetAttribute("Spin")
+	if typeof(spin) == "number" then
+		table.insert(spinners, { model = model, base = model:GetPivot(), speed = math.rad(spin) })
 	end
 end
 
--- Celebrates real upgrades (RackLevel going up), not the level restored when an owner joins.
+-- The stand's sack is rebuilt for every new tier: spin the new one and celebrate real upgrades
+-- (RackLevel going up), not the level restored when an owner joins.
 local function watchBase(base: Instance)
 	local ownerChangedAt = os.clock()
 	local level = base:GetAttribute("RackLevel")
@@ -87,22 +55,25 @@ local function watchBase(base: Instance)
 		if os.clock() - ownerChangedAt < OWNER_SETTLE then
 			return
 		end
-		task.delay(0.35, function() -- the server may rebuild the treadmill for a new tier first
-			local rack = base:FindFirstChild("TrainingRack")
-			if rack then
-				VFX.play("TreadUpgrade", rack, {
-					tier = rack:GetAttribute("Tier"),
-					own = base:GetAttribute("OwnerUserId") == player.UserId,
-				})
+		task.delay(0.35, function() -- the server rebuilds the stand's sack first
+			local stand = base:FindFirstChild("SackStand")
+			local sack = stand and stand:FindFirstChild("Sack")
+			if sack then
+				VFX.play("SackUpgrade", sack, { tier = new, own = base:GetAttribute("OwnerUserId") == player.UserId })
 			end
 		end)
 	end)
-	for _, child in base:GetChildren() do
-		trackBelt(child)
+	local function watchStand(stand: Instance)
+		if stand.Name == "SackStand" then
+			stand.ChildAdded:Connect(function(child)
+				task.defer(addSpinner, child)
+			end)
+		end
 	end
-	base.ChildAdded:Connect(function(child)
-		task.defer(trackBelt, child)
-	end)
+	for _, child in base:GetChildren() do
+		watchStand(child)
+	end
+	base.ChildAdded:Connect(watchStand)
 end
 
 local function makeBubble(model: Model, text: string): BillboardGui?
@@ -141,10 +112,7 @@ local function track(model: Instance)
 	if not model:IsA("Model") or not model.PrimaryPart then
 		return
 	end
-	local spin = model:GetAttribute("Spin")
-	if typeof(spin) == "number" then
-		table.insert(spinners, { model = model, base = model:GetPivot(), speed = math.rad(spin) })
-	end
+	addSpinner(model)
 	if model:GetAttribute("Merchant") ~= nil then
 		local greeting = model:GetAttribute("Greeting")
 		table.insert(merchants, {
@@ -159,10 +127,12 @@ end
 
 local function step(dt: number)
 	local t = os.clock()
-	stepBelts(t)
-	for _, s in spinners do
+	for i = #spinners, 1, -1 do
+		local s = spinners[i]
 		if s.model.Parent then
 			s.model:PivotTo(s.base * CFrame.Angles(0, s.speed * t, 0))
+		else
+			table.remove(spinners, i) -- replaced stand sacks
 		end
 	end
 	local character = player.Character

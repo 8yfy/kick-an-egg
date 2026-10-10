@@ -53,24 +53,24 @@ function Icons.glow(parent: Instance, size: UDim2?): ImageLabel
 	return img
 end
 
-function Icons.rack(parent: Instance, tier: string, size: UDim2?): ViewportFrame
+function Icons.sack(parent: Instance, tier: number, size: UDim2?): ViewportFrame
 	local Shared = ReplicatedStorage:WaitForChild("Shared")
 	local Builder = require(Shared:WaitForChild("Builders"):WaitForChild("BlockBuilder")) :: any
-	local TrainingRack = require((Shared :: any).Builders.Map.TrainingRack) :: any
+	local Sacks = require((Shared :: any).Builders.Models.Sacks) :: any
 	local vp = Instance.new("ViewportFrame")
-	vp.Name = "Rack" .. tier
+	vp.Name = "Sack" .. tier
 	vp.BackgroundTransparency = 1
 	vp.Size = size or UDim2.fromScale(1, 1)
 	vp.Ambient = Color3.fromRGB(200, 200, 205)
 	vp.LightDirection = Vector3.new(-0.5, -1, -0.8)
-	local model = Builder.build(TrainingRack.spec(tier), "Rack")
+	local model = Builder.build(Sacks.spec(tier), "Sack")
 	model:PivotTo(CFrame.new())
 	model.Parent = vp
 	local cf, sz = model:GetBoundingBox()
 	local cam = Instance.new("Camera")
 	cam.FieldOfView = 30
 	local dist = sz.Magnitude / 2 / math.tan(math.rad(15)) * 1.05
-	cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(dist * 0.55, dist * 0.3, -dist * 0.8), cf.Position)
+	cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(dist * 0.35, dist * 0.15, -dist * 0.92), cf.Position)
 	cam.Parent = vp
 	vp.CurrentCamera = cam
 	vp.Parent = parent
