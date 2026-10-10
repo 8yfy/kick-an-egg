@@ -25,6 +25,9 @@
 --                                                  -- strength is trained on the Kick Sack, see Train)
 -- C->S  Rebirth()
 -- C->S  SellPet(petUid: string)
+-- C->S  SellPets(petUids: {string})                -- sell several at once (max 100); the server skips any it can't sell
+-- S->C  PetsSold({ count: number, total: number, petUids: {string} }) -- reply to SellPets: what was actually sold
+-- C->S  ClaimIndexReward(zone: number)            -- Pet Index: claim a fully discovered zone's reward (Economy.IndexRewards)
 -- S->C  DataChanged(partial: {[string]: any})
 -- S->C  WeatherChanged(weather: string?, endsAt: number?)
 -- S->C  Announce(text: string, rarity: string)
@@ -50,6 +53,9 @@ local EVENTS = {
 	"BuyUpgrade",
 	"Rebirth",
 	"SellPet",
+	"SellPets",
+	"PetsSold",
+	"ClaimIndexReward",
 	"DataChanged",
 	"WeatherChanged",
 	"Announce",
