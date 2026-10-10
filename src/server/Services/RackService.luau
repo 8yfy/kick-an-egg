@@ -40,6 +40,8 @@ local function onUpgradePen(player: Player)
 	end
 	DataService:Set(player, { money = data.money - cost, penLevel = data.penLevel + 1 })
 	PlotService:MirrorBase(player)
+	PlotService:PlaceUnplacedPets(player) -- the new pedestals take waiting pets, then waiting eggs
+	PlotService:PlaceWaitingEggs(player)
 	Analytics.money(player, "Sink", cost, "Shop", "Pen")
 	Analytics.funnel(player, Analytics.Funnel.FirstUpgrade, "FirstUpgrade")
 end

@@ -18,6 +18,7 @@
 --
 --   C->S SellPet(petUid: string) → money += base income x size x weather x Economy.SellIncomeSeconds,
 --        plus the pet's uncollected cash. Traded pets keep their uncollected cash.
+--   C->S SellPets(petUids) → the same for each listed pet in one write; replies PetsSold { count, total, petUids }.
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -42,6 +43,7 @@ type Trade = {
 }
 
 local MAX_OFFER = 8
+local MAX_SELL_BATCH = 100 -- SellPets: pets per request
 local REQUEST_TTL = 30
 local CONFIRM_DELAY = 2
 
@@ -152,6 +154,7 @@ local function complete(trade: Trade)
 	end
 	for _, player in { trade.a, trade.b } do
 		PlotService:PlaceUnplacedPets(player)
+		PlotService:PlaceWaitingEggs(player) -- pedestals freed by pets traded away
 		task.spawn(function()
 			DataService:SaveNow(player)
 		end)
@@ -265,6 +268,42 @@ local function onSellPet(player: Player, petUid: any)
 	DataService:Set(player, { pets = pets, money = data.money + value })
 	Analytics.money(player, "Source", value, "Gameplay", "SellPet")
 	PlotService:Refresh(player)
+	PlotService:PlaceWaitingEggs(player) -- its pedestal is free now
+end
+
+-- Sells every listed pet the player owns and isn't offering in a trade, in one data write, and
+-- replies with what was actually sold (the sell screen shows that, not its own estimate).
+local function onSellPets(player: Player, petUids: any)
+	if not limiter:allow(player) or typeof(petUids) ~= "table" then
+		return
+	end
+	local data = DataService:Get(player)
+	if not data then
+		return
+	end
+	local pets = table.clone(data.pets)
+	local total, sold, seen = 0, {}, {}
+	for i, petUid in petUids do
+		if i > MAX_SELL_BATCH then
+			break
+		end
+		if typeof(petUid) == "string" and not seen[petUid] then
+			seen[petUid] = true
+			local pet = pets[petUid]
+			if pet and not TradeService:IsOffered(player, petUid) then
+				total += TradeService.sellValue(pet) + math.floor(pet.stored or 0)
+				pets[petUid] = nil
+				table.insert(sold, petUid)
+			end
+		end
+	end
+	if #sold > 0 then
+		DataService:Set(player, { pets = pets, money = data.money + total })
+		Analytics.money(player, "Source", total, "Gameplay", "SellPet")
+		PlotService:Refresh(player)
+		PlotService:PlaceWaitingEggs(player)
+	end
+	Remotes.get("PetsSold"):FireClient(player, { count = #sold, total = total, petUids = sold })
 end
 
 function TradeService:Init()
@@ -279,6 +318,7 @@ function TradeService:Start()
 	remotes.TradeOffer.OnServerEvent:Connect(onOffer)
 	remotes.TradeConfirm.OnServerEvent:Connect(onConfirm)
 	Remotes.get("SellPet").OnServerEvent:Connect(onSellPet)
+	Remotes.get("SellPets").OnServerEvent:Connect(onSellPets)
 	Players.PlayerRemoving:Connect(function(player)
 		requests[player] = nil
 		for target, request in requests do

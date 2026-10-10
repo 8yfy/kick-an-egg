@@ -1,8 +1,8 @@
 --!strict
 -- The shop's speed card: BuyUpgrade("RunSpeed") = +1 Run Speed (= egg speed) for Economy.upgradeCost.
 -- Strength (kickPower) is trained at the rack and better racks are bought (RackService), so
--- BuyUpgrade("KickPower") is ignored. Rebirth(): only at the strength cap; resets money, strength
--- and Run Speed, keeps eggs, pets, rack and pen, +1 rebirth (more income, higher strength cap).
+-- BuyUpgrade("KickPower") is ignored. Rebirth(): only at the strength cap; resets Economy.Rebirth.resets (money, strength
+-- and Run Speed), keeps the rest (eggs, pets, sacks, pen, index), +1 rebirth (more income, higher strength cap).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -18,6 +18,13 @@ local ChaseService = require(script.Parent.ChaseService)
 local PlotService = require(script.Parent.PlotService)
 
 local UpgradeService = {}
+
+-- Values Economy.Rebirth.resets puts back (the Rebirth screen lists the same keys).
+local RESET_TO: { [string]: number } = {
+	money = Economy.StartingMoney,
+	kickPower = Economy.KickPower.base,
+	runSpeed = Economy.RunSpeed.base,
+}
 
 local limiter = RateLimiter.new()
 
@@ -67,12 +74,11 @@ function UpgradeService:Rebirth(player: Player): boolean
 		return false
 	end
 	local data = DataService:Get(player) :: DataService.Data
-	DataService:Set(player, {
-		rebirths = data.rebirths + 1,
-		money = Economy.StartingMoney,
-		kickPower = Economy.KickPower.base,
-		runSpeed = Economy.RunSpeed.base,
-	})
+	local partial: { [string]: any } = { rebirths = data.rebirths + 1 }
+	for _, key in Economy.Rebirth.resets do
+		partial[key] = RESET_TO[key]
+	end
+	DataService:Set(player, partial)
 	ChaseService:RefreshWalkSpeed(player)
 	PlotService:Refresh(player) -- income labels include the rebirth multiplier
 	Analytics.custom(player, "Rebirth", data.rebirths) -- `data` is live: already the new count

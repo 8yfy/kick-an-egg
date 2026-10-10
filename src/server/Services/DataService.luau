@@ -46,6 +46,8 @@ local TEMPLATE: Data = {
 	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
 	rackLevel = 1, -- Kick Sack tier (Config/Upgrades.Sack.tiers); its kicks train kickPower (strength)
 	penLevel = 1, -- pen level: more pedestal slots (Config/Upgrades.Pen)
+	discovered = {}, -- { [petId]: true } pets ever hatched (Pet Index; owned pets count too)
+	indexClaims = {}, -- { [zoneId as string]: true } claimed Pet Index zone rewards (Economy.IndexRewards)
 }
 
 local DataService = {}
@@ -83,7 +85,7 @@ end
 
 -- Repairs corrupted or exploited numbers and wrong types so no service ever sees NaN or junk.
 local function sanitize(data: Data)
-	for _, key in { "eggs", "pets", "plots", "stats", "receipts" } do
+	for _, key in { "eggs", "pets", "plots", "stats", "receipts", "discovered", "indexClaims" } do
 		if typeof(data[key]) ~= "table" then
 			data[key] = deepCopy(TEMPLATE[key])
 		end
@@ -106,6 +108,27 @@ local function sanitize(data: Data)
 		then math.clamp(math.floor(data.rackLevel), 1, #Upgrades.Sack.tiers)
 		else 1
 	data.penLevel = if isFinite(data.penLevel) then math.max(1, math.floor(data.penLevel)) else 1
+	-- The Pet Index only reveals pets you have had: keep `discovered` to booleans and backfill it from
+	-- owned pets (saves from before the index existed)
+	local discovered = {}
+	for petId, seen in data.discovered do
+		if typeof(petId) == "string" and seen == true then
+			discovered[petId] = true
+		end
+	end
+	for _, pet in data.pets do
+		if typeof(pet) == "table" and typeof(pet.petId) == "string" then
+			discovered[pet.petId] = true
+		end
+	end
+	data.discovered = discovered
+	local claims = {}
+	for zone, claimed in data.indexClaims do
+		if typeof(zone) == "string" and claimed == true then
+			claims[zone] = true
+		end
+	end
+	data.indexClaims = claims
 end
 
 local function keyFor(player: Player): string

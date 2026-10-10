@@ -9,7 +9,17 @@ local Economy = {
 	RunSpeed = { base = 16, max = 40, costBase = 50, costGrowth = 1.25 },
 	DistancePerPower = 24, -- studs per kick power point (before timing/multipliers)
 	TimingBonus = { perfect = 1.5, good = 1.15, miss = 0.85 },
-	Rebirth = { requiresMaxPower = true, multiplierPerRebirth = 0.5, powerCapBonus = 25 },
+	Rebirth = {
+		requiresMaxPower = true, -- needs kickPower at maxKickPower(rebirths); never mid-chase
+		multiplierPerRebirth = 0.5, -- pet income x (1 + rebirths * this)
+		powerCapBonus = 25, -- each rebirth raises the strength cap
+		-- What a rebirth does (UpgradeService applies `resets`; the Rebirth screen lists both lists).
+		resets = { "money", "kickPower", "runSpeed" }, -- to StartingMoney / KickPower.base / RunSpeed.base
+		keeps = { "eggs", "pets", "rackLevel", "penLevel", "discovered" },
+	},
+	-- Pet Index: zone id -> reward for discovering every pet of that zone, claimed once
+	-- (Remotes.ClaimIndexReward). Empty = no rewards configured; the Index then shows no reward panel.
+	IndexRewards = {} :: { [number]: { money: number } },
 	PlotSlots = { base = 8, max = 20 },
 	FriendLuckPerFriend = 0.1,
 	AutosaveSeconds = 90,

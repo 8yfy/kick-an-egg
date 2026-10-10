@@ -1,6 +1,7 @@
 --!strict
--- Bases and pedestals. Assigns a base on join (spawn there, owner sign), PlaceEgg onto a free
--- pedestal, hatches on a server-time timer that survives rejoin, spawns pets (size via
+-- Bases and pedestals. Assigns a base on join (spawn there, owner sign), puts secured eggs on free
+-- pedestals (PlaceWaitingEggs; PlaceEgg picks a slot), hatches on a server-time timer that survives rejoin and
+-- records the pet as discovered (Pet Index), spawns pets (size via
 -- Builder.scale). Every second each placed pet STORES its income on its pedestal; the owner
 -- collects it by stepping onto that pedestal (Economy.CollectRadius).
 --
@@ -239,6 +240,7 @@ local function hatchDue(player: Player, now: number)
 	end
 	local plots = table.clone(data.plots)
 	local pets = table.clone(data.pets)
+	local discovered = table.clone(data.discovered)
 	local hatched: { { eggUid: string, slot: number, petUid: string } } = {}
 	for _, key in due do
 		local egg: EggPlot = plots[key]
@@ -246,9 +248,10 @@ local function hatchDue(player: Player, now: number)
 		local petUid = HttpService:GenerateGUID(false)
 		local slot = tonumber(key) :: number
 		pets[petUid] = { petId = egg.petId, size = egg.size, weather = egg.weather, slot = slot }
+		discovered[egg.petId] = true -- the Pet Index reveals a pet once you have hatched it
 		table.insert(hatched, { eggUid = egg.uid, slot = slot, petUid = petUid })
 	end
-	DataService:Set(player, { plots = plots, pets = pets })
+	DataService:Set(player, { plots = plots, pets = pets, discovered = discovered })
 
 	local base = baseOf[player]
 	for _, info in hatched do
@@ -365,6 +368,7 @@ local function assignBase(player: Player)
 	PlotService:MirrorBase(player)
 	hatchDue(player, workspace:GetServerTimeNow()) -- eggs that finished while offline
 	rebuildModels(player)
+	PlotService:PlaceWaitingEggs(player) -- eggs secured earlier that never got a pedestal
 	if player.Character then
 		spawnAtBase(player, player.Character)
 	end
@@ -382,30 +386,10 @@ local function releaseBase(player: Player)
 	baseOf[player] = nil
 end
 
-local function onPlaceEgg(player: Player, eggUid: any, slot: any)
-	if not limiter:allow(player) or typeof(eggUid) ~= "string" or typeof(slot) ~= "number" then
-		return
-	end
-	local data = DataService:Get(player)
-	local base = baseOf[player]
-	if not data or not base then
-		return
-	end
-	if slot ~= math.floor(slot) or slot < 1 or slot > slotCount(data) or slotTaken(data, slot) then
-		return
-	end
-	local index: number? = nil
-	for i, egg in data.eggs do
-		if egg.uid == eggUid then
-			index = i
-			break
-		end
-	end
-	if not index then
-		return -- not this player's egg
-	end
+-- Moves inventory egg `index` onto free pedestal `slot` (both already validated) and starts its timer.
+local function placeEgg(player: Player, data: DataService.Data, base: Model, index: number, slot: number)
 	local eggs = table.clone(data.eggs)
-	local egg = eggs[index :: number]
+	local egg = eggs[index]
 	table.remove(eggs, index)
 	local config = petsById[egg.petId]
 	local now = workspace:GetServerTimeNow()
@@ -422,6 +406,49 @@ local function onPlaceEgg(player: Player, eggUid: any, slot: any)
 	DataService:Set(player, { eggs = eggs, plots = plots })
 	Analytics.funnel(player, Analytics.Funnel.FirstPlace, "FirstPlace")
 	spawnEggModel(base, slot, plot)
+end
+
+local function onPlaceEgg(player: Player, eggUid: any, slot: any)
+	if not limiter:allow(player) or typeof(eggUid) ~= "string" or typeof(slot) ~= "number" then
+		return
+	end
+	local data = DataService:Get(player)
+	local base = baseOf[player]
+	if not data or not base then
+		return
+	end
+	if slot ~= math.floor(slot) or slot < 1 or slot > slotCount(data) or slotTaken(data, slot) then
+		return
+	end
+	for i, egg in data.eggs do
+		if egg.uid == eggUid then
+			placeEgg(player, data, base, i, slot)
+			return
+		end
+	end
+end
+
+-- Puts waiting inventory eggs (oldest first) on free pedestals: after an egg is secured, on join, and
+-- whenever a pedestal frees up (a pet sold or traded away, a bigger pen). Eggs that don't fit wait.
+function PlotService:PlaceWaitingEggs(player: Player)
+	local base = baseOf[player]
+	if not base then
+		return
+	end
+	local slot = 1
+	while true do
+		local data = DataService:Get(player)
+		if not data or #data.eggs == 0 then
+			return
+		end
+		while slot <= slotCount(data) and slotTaken(data, slot) do
+			slot += 1
+		end
+		if slot > slotCount(data) then
+			return
+		end
+		placeEgg(player, data, base, 1, slot)
+	end
 end
 
 -- Public API -----------------------------------------------------------------

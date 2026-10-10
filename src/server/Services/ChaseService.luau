@@ -20,6 +20,7 @@ local Remotes = require(Shared.Remotes)
 local DataService = require(script.Parent.DataService)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
 local KickService = require(script.Parent.KickService)
+local PlotService = require(script.Parent.PlotService)
 
 export type ChaseState = {
 	owner: Player,
@@ -290,6 +291,7 @@ local function secure(chase: ChaseState)
 		table.insert(eggs, { uid = chase.eggUid, petId = chase.petId, size = chase.size, weather = chase.weather })
 		DataService:Set(player, { eggs = eggs })
 		bumpStat(player, "secured")
+		PlotService:PlaceWaitingEggs(player) -- straight onto a free pedestal; it waits if none is free
 	end
 	remotes.EggSecured:FireAllClients({ eggUid = chase.eggUid })
 	releaseEgg(chase, EGG_CLEANUP_DELAY)

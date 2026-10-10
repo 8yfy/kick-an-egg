@@ -223,6 +223,59 @@ section("SackService + pens + collecting", function()
 	check("sack tier clamped", d.rackLevel == #levels)
 	check("NaN pen level -> 1", d.penLevel == 1)
 	check("old tool field dropped", d.tool == nil)
+	local d2 = {
+		money = 0,
+		kickPower = 1,
+		runSpeed = 16,
+		rebirths = 0,
+		eggs = {},
+		pets = { a = { petId = "sprout_pup", slot = 1 }, b = { petId = "gull_bloc" } },
+		plots = {},
+		stats = {},
+		receipts = {},
+		discovered = { maple_fox = true, junk = 5, [7] = true },
+		indexClaims = "nope",
+	}
+	D.sanitize(d2)
+	check("owned pets count as discovered", d2.discovered.sprout_pup == true and d2.discovered.gull_bloc == true)
+	check("discovered keeps earlier finds", d2.discovered.maple_fox == true)
+	check("discovered drops junk", d2.discovered.junk == nil and d2.discovered[7] == nil)
+	check("bad indexClaims reset", typeof(d2.indexClaims) == "table" and next(d2.indexClaims) == nil)
+end)
+
+section("Pet Index + rebirth rules", function()
+	local IS = require(Services.IndexService) :: any
+	local Pets = require(Shared.Config.Pets) :: any
+	local zone1 = {}
+	for _, pet in Pets do
+		if pet.zone == 1 then
+			zone1[pet.id] = true
+		end
+	end
+	check("zone complete with every zone pet", IS.zoneComplete(zone1, 1))
+	local missing = table.clone(zone1)
+	missing[next(missing)] = nil
+	check("zone not complete when one is missing", not IS.zoneComplete(missing, 1))
+	check("unknown zone never complete", not IS.zoneComplete(zone1, 999))
+	local D = require(Services.DataService) :: any
+	local template = {
+		money = 0,
+		kickPower = 1,
+		runSpeed = 16,
+		rebirths = 0,
+		eggs = {},
+		pets = {},
+		plots = {},
+		stats = {},
+		receipts = {},
+	}
+	D.sanitize(template)
+	for _, key in Economy.Rebirth.resets do
+		check(`rebirth resets a real field: {key}`, template[key] ~= nil)
+	end
+	for _, key in Economy.Rebirth.keeps do
+		check(`rebirth keeps a real field: {key}`, template[key] ~= nil or key == "rackLevel" or key == "penLevel")
+	end
 end)
 
 section("every service loads", function()
