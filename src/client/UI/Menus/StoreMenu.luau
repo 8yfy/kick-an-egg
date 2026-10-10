@@ -1,7 +1,8 @@
 --!strict
 -- Shop: a horizontal row of tall cards (gradient + studs, title + subtitle, big preview, a dark stat
 -- pill with the gain in green, a chunky price button). Cards:
---   Training Station (UpgradeTraining, live 3D preview of the next tier), Kick Power / Run Speed
+--   Treadmill (UpgradeTraining, live 3D preview of the next tier), Kick Power (info: trained on the
+--   treadmill), Run Speed
 --   (BuyUpgrade), Bigger Pen (UpgradePen), and "SOON" cards for Partner B's gamepasses.
 -- Prices come from the documented Config formulas (display only; the server charges).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -99,7 +100,9 @@ local function card(parent: Instance, order: number, title: string, colors: { Co
 		stroke = 3,
 	})
 	pill.RichText = true
-	local b, g = Kit.button({
+	-- declared first so the onClick closure below sees the local (it read a nil global before)
+	local b: TextButton, g: UIGradient
+	b, g = Kit.button({
 		name = "Buy",
 		text = "",
 		size = UDim2.new(1, -28, 0, 64),
@@ -169,12 +172,12 @@ function StoreMenu.new(parent: Instance): Menu
 	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = scroll
 
-	local station = card(scroll, 1, "Training Station", { rgb(110, 205, 255), rgb(40, 120, 235) }, function()
+	local station = card(scroll, 1, "Treadmill", { rgb(110, 205, 255), rgb(40, 120, 235) }, function()
 		fire("UpgradeTraining")
 	end)
-	local power = card(scroll, 2, "Kick Power", { rgb(255, 190, 80), rgb(245, 110, 30) }, function()
-		fire("BuyUpgrade", "KickPower")
-	end)
+	-- Kick Power is trained on the treadmill, not bought (map v3): an info card, no purchase
+	local power = card(scroll, 2, "Kick Power", { rgb(255, 190, 80), rgb(245, 110, 30) }, nil)
+	power.button.Active = false
 	Icons.view(power.preview, "Bolt")
 	local speed = card(scroll, 3, "Run Speed", { rgb(120, 235, 255), rgb(40, 170, 235) }, function()
 		fire("BuyUpgrade", "RunSpeed")
@@ -213,9 +216,16 @@ function StoreMenu.new(parent: Instance): Menu
 			Icons.rack(station.preview, tier)
 		end
 		station.subtitle.Text = if nxt then `Lv {lvl} → {lvl + 1} · {tier}` else `Lv {lvl} · MAX`
-		station.pill.Text = if nxt then gain(`+{nxt.gain}`, "per kick") else gain(`+{now.gain}`, "per kick")
+		station.pill.Text = if nxt then gain(`+{nxt.gain}`, "per step") else gain(`+{now.gain}`, "per step")
 		setPrice(station, if nxt then nxt.cost else nil, money)
-		for _, pair in { { power, "KickPower", "kickPower" }, { speed, "RunSpeed", "runSpeed" } } do
+		local strength = if typeof(data.kickPower) == "number" then data.kickPower else Economy.KickPower.base
+		local rebirths = if typeof(data.rebirths) == "number" then data.rebirths else 0
+		power.subtitle.Text = `{Kit.formatNumber(strength)} / {Kit.formatNumber(
+			Economy.KickPower.max + rebirths * Economy.Rebirth.powerCapBonus
+		)}`
+		power.pill.Text = "Train on your treadmill"
+		power.label.Text = "TRAIN"
+		for _, pair in { { speed, "RunSpeed", "runSpeed" } } do
 			local c = pair[1] :: Card
 			local cfg = (Economy :: any)[pair[2]]
 			local value = data[pair[3]]

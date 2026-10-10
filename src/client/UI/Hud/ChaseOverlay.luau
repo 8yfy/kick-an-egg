@@ -1,9 +1,8 @@
 --!strict
 -- Owner-only chase overlay: "distance to avalanche" bar (green -> red) under the quest bar and an
--- arrow above the KICK panel pointing to the egg, then HOME once you carry it.
+-- arrow above the KICK panel pointing HOME from the egg you steer (map v3).
 -- Front position comes from Chase.frontZ (same as the server). The egg position is the egg model
--- if one named after eggUid exists in workspace, otherwise the server's run formula.
-local Players = game:GetService("Players")
+-- named after eggUid (workspace.Chases[eggUid]), otherwise where it landed.
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Kit = require(script.Parent.Parent.Kit)
@@ -112,12 +111,11 @@ function ChaseOverlay.new(parent: Instance): ChaseOverlay
 
 	bar.Visible, holder.Visible = false, false
 	local payload: { [string]: any }? = nil
-	local carrying = false
 	local conn: RBXScriptConnection? = nil
 	local eggModel: Instance? = nil
 	local lastLookup = 0
 
-	local function eggPosition(p: { [string]: any }, now: number): Vector3
+	local function eggPosition(p: { [string]: any }): Vector3
 		if (not eggModel or not eggModel.Parent) and os.clock() - lastLookup > 1 then
 			lastLookup = os.clock()
 			eggModel = workspace:FindFirstChild(tostring(p.eggUid), true)
@@ -126,22 +124,22 @@ function ChaseOverlay.new(parent: Instance): ChaseOverlay
 		if m and m:IsA("Model") then
 			return m:GetPivot().Position
 		end
-		local startPos: Vector3 = p.eggStartPos or Vector3.zero
-		local run = math.max(0, now - (p.eggRunStart or now))
-		return Vector3.new(startPos.X, startPos.Y, startPos.Z - Chase.Egg.runSpeed * run)
+		-- not replicated yet: the egg is still where it landed (the player steers it from there)
+		return p.eggStartPos or Vector3.zero
 	end
 
+	-- Map v3: the player steers the egg, so the egg is what runs from the avalanche and the arrow
+	-- always points home from it (the character waits at the plaza).
 	local function update()
 		local p = payload
 		local cam = workspace.CurrentCamera
-		local char = Players.LocalPlayer.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		if not (p and cam and hrp and hrp:IsA("BasePart")) then
+		if not (p and cam) then
 			return
 		end
 		local now = workspace:GetServerTimeNow()
+		local egg = eggPosition(p)
 		local front = Chase.frontZ(p.startZ, p.startTime, p.speed, now)
-		local d = math.max(0, front - hrp.Position.Z)
+		local d = math.max(0, front - egg.Z)
 		local k = math.clamp(d / FAR, 0, 1)
 		fill.Size = UDim2.fromScale(math.max(k, 0.04), 1)
 		local hot = Kit.Colors.red
@@ -152,16 +150,14 @@ function ChaseOverlay.new(parent: Instance): ChaseOverlay
 		distText.Text = `{math.floor(d)} studs`
 		distText.TextColor3 = if k < 0.25 then hot[1] else Kit.Colors.white
 
-		local target = if carrying then Vector3.new(0, 0, Chase.SafeLineZ - 4) else eggPosition(p, now)
-		local rel = cam.CFrame:VectorToObjectSpace(target - hrp.Position)
+		local home = Vector3.new(egg.X, egg.Y, Chase.SafeLineZ - 4)
+		local rel = cam.CFrame:VectorToObjectSpace(home - egg)
 		dial.Rotation = math.deg(math.atan2(rel.X, -rel.Z))
-		local flat = Vector2.new(target.X - hrp.Position.X, target.Z - hrp.Position.Z).Magnitude
-		arrowText.Text = `{if carrying then "HOME" else "EGG"} {math.floor(flat)}`
+		arrowText.Text = `HOME {math.floor(math.max(0, egg.Z - Chase.SafeLineZ))}`
 	end
 
 	local function stop()
 		payload = nil
-		carrying = false
 		eggModel = nil
 		if conn then
 			conn:Disconnect()
@@ -180,7 +176,6 @@ function ChaseOverlay.new(parent: Instance): ChaseOverlay
 			conn = RunService.RenderStepped:Connect(update)
 		end,
 		pickedUp = function()
-			carrying = true
 			Kit.pop(holder, 0.25)
 		end,
 		stop = stop,

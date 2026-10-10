@@ -3,6 +3,7 @@
 -- bounce once and fade. Fire-and-forget; every piece returns to the pool.
 local RunService = game:GetService("RunService")
 local Pool = require(script.Parent.Pool)
+local Clock = require(script.Parent.Clock)
 
 local GRAVITY = Vector3.new(0, -60, 0)
 local rng = Random.new()
@@ -38,10 +39,11 @@ function Burst.play(
 			spin = rng:NextNumber(4, 12),
 		})
 	end
-	local t0 = os.clock()
+	local t0 = Clock.now()
 	local conn: RBXScriptConnection
-	conn = RunService.RenderStepped:Connect(function(dt)
-		local k = (os.clock() - t0) / seconds
+	conn = RunService.RenderStepped:Connect(function(rdt)
+		local dt = Clock.dt(rdt)
+		local k = (Clock.now() - t0) / seconds
 		if k >= 1 then
 			conn:Disconnect()
 			for _, b in bits do
@@ -60,7 +62,7 @@ function Burst.play(
 				b.pos = Vector3.new(b.pos.X, 0.2, b.pos.Z)
 				b.vel = Vector3.new(b.vel.X * 0.5, math.abs(b.vel.Y) * 0.3, b.vel.Z * 0.5)
 			end
-			b.part.CFrame = CFrame.new(b.pos) * CFrame.fromAxisAngle(b.axis, b.spin * (os.clock() - t0))
+			b.part.CFrame = CFrame.new(b.pos) * CFrame.fromAxisAngle(b.axis, b.spin * (Clock.now() - t0))
 			b.part.Transparency = math.clamp((k - 0.6) / 0.4, 0, 1)
 		end
 	end)

@@ -22,11 +22,12 @@ local Burst = require(script.Parent.Burst)
 local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Themes = require(script.Parent.Themes)
+local ZoneLanding = require(script.Parent.ZoneLanding)
 
 local Egg = {}
 
 local SWAP_FAST, SWAP_SLOW = 0.07, 0.18
-local HIP = 1.15 -- body lift once the legs are out
+
 local LEG_COLOR, FOOT_COLOR = Color3.fromRGB(255, 165, 50), Color3.fromRGB(255, 130, 40)
 
 function Egg.KickImpact(target: Instance?, params: { [string]: any })
@@ -185,7 +186,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 	if not pos then
 		return
 	end
-	local ground = Vector3.new(pos.X, 0.3, pos.Z)
+	-- the egg's pivot is on the ground (zones at y 0, the launch ramp higher), so follow it
+	local ground = Vector3.new(pos.X, pos.Y + 0.3, pos.Z)
 	local rarity = Rarities[params.rarity or "Common"] or Rarities.Common
 	local zone = Zones[params.zone or 1]
 	local dustColor = if zone then zone.ground:Lerp(Color3.new(1, 1, 1), 0.45) else Color3.new(1, 1, 1)
@@ -209,6 +211,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 
 	-- Rarity light pillar: 40 studs, fades over 1.5 s.
 	Fx.pillar(ground, rarity.color, 40, 1.5)
+	-- Map v3: the zone's own landing signature (shockwave, themed burst, debris, thump)
+	ZoneLanding.play(ground, params.zone)
 end
 
 local function limb(
@@ -249,38 +253,97 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 	local motors = Rig.motors(egg)
 	local body = motors.Body
 	local key = Fx.keyOfModel(egg)
-	local rare = (Rarities[Fx.rarityOfKey(key)] or Rarities.Common).order >= Rarities.Rare.order
+	local rarity = Rarities[Fx.rarityOfKey(key)] or Rarities.Common
+	local rare = rarity.order >= Rarities.Rare.order
+
+	-- Size everything from the egg's body (eggs range from small to huge), so the legs always read.
+	local _, size = egg:GetBoundingBox()
+	local sz = math.clamp(size.Y / 3.4, 0.8, 2.6)
+	local legLen = 1.15 * sz
+	local footH = 0.55 * sz
+	local hipLift = legLen + footH * 0.75 -- the body rises until the sneakers rest on the ground
+	local legX = math.max(0.55, size.X * 0.22)
+	local armX, armY = math.max(1.2, size.X * 0.5), size.Y * 0.5
+
+	-- Chunky sneaker parts welded to a leg (no collisions, massless).
+	local function attach(leg: BasePart, name: string, partSize: Vector3, offset: CFrame, color: Color3)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = partSize
+		p.Color = color
+		p.Material = Enum.Material.SmoothPlastic
+		p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+		p.CanCollide, p.CanQuery, p.CanTouch, p.Massless = false, false, false, true
+		p.CFrame = leg.CFrame * offset
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0, weld.Part1 = leg, p
+		weld.Parent = p
+		p.Parent = egg
+	end
 
 	-- Legs start tucked under the ground and push the egg up.
 	local legs: { Motor6D } = {}
+	local shoe = rarity.color:Lerp(FOOT_COLOR, if rarity.order <= 1 then 0.6 else 0.15)
 	for _, side in { -1, 1 } do
 		local s = if side < 0 then "L" else "R"
-		local m, leg =
-			limb(egg, root, "Leg" .. s, Vector3.new(0.55, 0.9, 0.55), CFrame.new(side * 0.6, 0, 0), 0.45, LEG_COLOR)
-		local foot = Instance.new("Part")
-		foot.Name = "Foot" .. s
-		foot.Size = Vector3.new(0.8, 0.35, 1.1)
-		foot.Color = FOOT_COLOR
-		foot.Material = Enum.Material.SmoothPlastic
-		foot.CanCollide, foot.CanQuery, foot.CanTouch, foot.Massless = false, false, false, true
-		foot.CFrame = leg.CFrame * CFrame.new(0, -0.45 + 0.175 - 0.1, -0.15)
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0, weld.Part1 = leg, foot
-		weld.Parent = foot
-		foot.Parent = egg
+		local m, leg = limb(
+			egg,
+			root,
+			"Leg" .. s,
+			Vector3.new(0.6 * sz, legLen, 0.6 * sz),
+			CFrame.new(side * legX, 0, 0),
+			legLen / 2,
+			LEG_COLOR
+		)
+		local bottom = -legLen / 2
+		attach(
+			leg,
+			"Sock" .. s,
+			Vector3.new(0.68 * sz, 0.22 * sz, 0.68 * sz),
+			CFrame.new(0, bottom + 0.2 * sz, 0),
+			Color3.new(1, 1, 1)
+		)
+		attach(
+			leg,
+			"Foot" .. s,
+			Vector3.new(0.95 * sz, 0.4 * sz, 1.35 * sz),
+			CFrame.new(0, bottom - 0.12 * sz, -0.25 * sz),
+			shoe
+		)
+		attach(
+			leg,
+			"Sole" .. s,
+			Vector3.new(1.02 * sz, 0.18 * sz, 1.45 * sz),
+			CFrame.new(0, bottom - 0.4 * sz, -0.25 * sz),
+			Color3.new(1, 1, 1)
+		)
+		attach(
+			leg,
+			"Toe" .. s,
+			Vector3.new(0.9 * sz, 0.22 * sz, 0.32 * sz),
+			CFrame.new(0, bottom - 0.24 * sz, -0.86 * sz),
+			Color3.new(1, 1, 1)
+		)
 		table.insert(legs, m)
 	end
 	local arms: { Motor6D } = {}
 	if rare then
 		for _, side in { -1, 1 } do
 			local s = if side < 0 then "L" else "R"
-			local m =
-				limb(egg, root, "Arm" .. s, Vector3.new(0.4, 0.9, 0.4), CFrame.new(side * 1.55, 1.7, 0), 0.4, LEG_COLOR)
+			local m = limb(
+				egg,
+				root,
+				"Arm" .. s,
+				Vector3.new(0.42 * sz, 0.95 * sz, 0.42 * sz),
+				CFrame.new(side * armX, armY, 0),
+				0.42 * sz,
+				LEG_COLOR
+			)
 			table.insert(arms, m)
 		end
 	end
 
-	-- Squash (dip) -> stretch (Back overshoot up to HIP) -> settle -> shake off dust.
+	-- Squash (dip) -> stretch (Back overshoot up to hipLift) -> settle -> shake off dust.
 	local bodyBase = if body then Rig.base(body) else CFrame.identity
 	local pos = egg:GetPivot().Position
 	local t0 = os.clock()
@@ -298,14 +361,14 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 			local k = (t - 0.12) / 0.38
 			local s = 2.2
 			local back = 1 + (s + 1) * (k - 1) ^ 3 + s * (k - 1) ^ 2
-			lift, roll = -0.25 + (HIP + 0.25) * back, 0
+			lift, roll = -0.25 + (hipLift + 0.25) * back, 0
 		elseif t < 1.0 then
 			local k = (t - 0.5) / 0.5
-			lift, roll = HIP, math.sin(k * math.pi * 6) * math.rad(12) * (1 - k)
+			lift, roll = hipLift, math.sin(k * math.pi * 6) * math.rad(12) * (1 - k)
 		else
 			conn:Disconnect()
 			if body then
-				Rig.setBase(body, bodyBase * CFrame.new(0, HIP, 0))
+				Rig.setBase(body, bodyBase * CFrame.new(0, hipLift, 0))
 				Rig.reset(body)
 			end
 			for _, m in legs do
@@ -322,12 +385,12 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 		local hip = math.max(0, lift)
 		for i, m in legs do
 			local side = if i == 1 then -1 else 1
-			m.C0 = CFrame.new(side * 0.6, hip, 0)
+			m.C0 = CFrame.new(side * legX, hip, 0)
 		end
 		for i, m in arms do -- shoulders ride with the body, arms flick out as it lands
 			local side = if i == 1 then -1 else 1
-			m.C0 = CFrame.new(side * 1.55, hip + 1.7, 0)
-				* CFrame.Angles(0, 0, side * math.rad(25) * math.clamp(hip / HIP, 0, 1))
+			m.C0 = CFrame.new(side * armX, hip + armY, 0)
+				* CFrame.Angles(0, 0, side * math.rad(25) * math.clamp(hip / hipLift, 0, 1))
 		end
 	end)
 	task.delay(0.5, function()

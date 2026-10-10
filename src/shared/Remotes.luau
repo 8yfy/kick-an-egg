@@ -9,24 +9,28 @@
 --                     landPos: Vector3, launchTime: number, flightSeconds: number,
 --                     eggModel: string, petId: string, rarity: string, size: string?, weather: string? })
 -- S->C  ChaseStart({ eggUid: string, ownerUserId: number, theme: string, startZ: number,
---                     startTime: number, speed: number, eggStartPos: Vector3, eggRunStart: number })
---                     -- fired to ALL clients at touchdown; startTime = touchdown + warnSeconds
--- C->S  PickupEgg(eggUid: string)                  -- server checks distance <= Egg.pickupDistance
--- S->C  EggPickedUp({ eggUid: string, userId: number })
--- S->C  EggSecured({ eggUid: string })             -- owner crossed SafeLineZ while carrying it
--- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" })
+--                     startTime: number, speed: number, eggStartPos: Vector3, eggRunStart: number,
+--                     eggModel: string, rarity: string })
+--                     -- fired to ALL clients at touchdown; startTime = touchdown + warnSeconds.
+--                     -- The egg is the server model workspace.Chases[eggUid]; its owner steers it
+--                     -- from eggRunStart (attribute Speed = studs/s, Hitbox has SteerVelocity/SteerAlign).
+-- C->S  PickupEgg(eggUid: string)                  -- UNUSED since the player steers the egg (drained)
+-- S->C  EggPickedUp({ eggUid: string, userId: number }) -- UNUSED since the player steers the egg
+-- S->C  EggSecured({ eggUid: string })             -- the egg crossed SafeLineZ
+-- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" }) -- "Caught" is no longer sent
 -- S->C  ChaseEnded({ eggUid: string })             -- avalanche crumbles at the safe line
 -- C->S  PlaceEgg(eggUid: string, slot: number)
 -- S->C  EggHatched({ eggUid: string, slot: number, petUid: string })
--- C->S  BuyUpgrade(kind: "KickPower" | "RunSpeed")
+-- C->S  BuyUpgrade(kind: "RunSpeed")                -- shop: +1 Run Speed ("KickPower" is not sold:
+--                                                  -- strength is trained on the treadmill, see Train)
 -- C->S  Rebirth()
 -- C->S  SellPet(petUid: string)
 -- S->C  DataChanged(partial: {[string]: any})
 -- S->C  WeatherChanged(weather: string?, endsAt: number?)
 -- S->C  Announce(text: string, rarity: string)
 -- C->S  TradeRequest / TradeRespond / TradeOffer / TradeConfirm (Partner B defines payloads in TradeService)
--- C->S  Train()                                   -- one training kick at your rack (rate: Config/Upgrades.Rack.interval)
--- C->S  UpgradeTraining()                         -- buy the next rack level (Config/Upgrades.Rack.levels)
+-- C->S  Train()                                   -- one training step on your treadmill (rate: Config/Upgrades.Rack.interval)
+-- C->S  UpgradeTraining()                         -- buy the next treadmill level (Config/Upgrades.Rack.levels)
 -- C->S  UpgradePen()                              -- buy the next pen level (Config/Upgrades.Pen)
 
 local RunService = game:GetService("RunService")
