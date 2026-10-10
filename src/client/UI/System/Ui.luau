@@ -1,9 +1,11 @@
 --!strict
--- Native Roblox building blocks for the Kick The Egg UI system (Figma "Kick The Egg — UI System" components):
--- text, stud panels, gradient buttons with states, tabs, progress bars, rarity chips, scroll lists with
--- responsive grids, icons with controlled fallbacks and lazy 3D art (sacks / pets / eggs in ViewportFrames,
--- built only when first scrolled into view). Fixed TextSize (never below Theme.Layout.minText) instead of
--- TextScaled so text stays readable and wraps intentionally.
+-- Native building blocks for the Kick The Egg UI (UI handoff v2 VISUAL-CONTRACT): art images from the
+-- AssetIds registry (Fit, white tint, untouched alpha; a named marker if the image can't load), stud
+-- surfaces with 5 px near-black borders, section headers (gradient + quiet studs + two diagonal strips +
+-- clipped shine), chunky gradient buttons with a top highlight and states, full-width tabs, progress bars,
+-- scroll lists with responsive grids and lazy 3D pet/egg previews (pets and eggs have no supplied art).
+-- Text is always real TextLabels (never baked into images), fixed sizes, never below Theme.Layout.minText.
+local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -14,7 +16,7 @@ local Theme = require(script.Parent.Theme)
 local C, L = Theme.Colors, Theme.Layout
 local Ui = {}
 
-export type Gradient = "lime" | "cyan" | "violet" | "purple" | "orange" | "gold" | "red" | "grey" | "disabled"
+export type Pair = Theme.Pair
 
 -- Basics ---------------------------------------------------------------------------------------------------
 
@@ -26,18 +28,18 @@ end
 
 function Ui.stroke(gui: GuiObject, thickness: number?, color: Color3?): UIStroke
 	local s = Instance.new("UIStroke")
-	s.Thickness = thickness or L.stroke
-	s.Color = color or C.stroke
+	s.Thickness = thickness or 4
+	s.Color = color or C.border
 	s.LineJoinMode = Enum.LineJoinMode.Round
 	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	s.Parent = gui
 	return s
 end
 
-function Ui.padding(gui: GuiObject, px: number, top: number?)
+function Ui.padding(gui: GuiObject, x: number, y: number?)
 	local p = Instance.new("UIPadding")
-	p.PaddingLeft, p.PaddingRight = UDim.new(0, px), UDim.new(0, px)
-	p.PaddingTop, p.PaddingBottom = UDim.new(0, top or px), UDim.new(0, top or px)
+	p.PaddingLeft, p.PaddingRight = UDim.new(0, x), UDim.new(0, x)
+	p.PaddingTop, p.PaddingBottom = UDim.new(0, y or x), UDim.new(0, y or x)
 	p.Parent = gui
 end
 
@@ -54,26 +56,45 @@ function Ui.list(gui: GuiObject, gap: number, horizontal: boolean?, align: Enum.
 	return l
 end
 
-function Ui.gradient(gui: GuiObject, key: Gradient): UIGradient
-	local pair = Theme.Gradients[key]
+-- Vertical gradient fill (top -> bottom). More than two colours make a multi-stop ramp.
+function Ui.fill(gui: GuiObject, pair: Pair, rotation: number?): UIGradient
 	local g = gui:FindFirstChild("Fill")
 	if not (g and g:IsA("UIGradient")) then
 		local ng = Instance.new("UIGradient")
 		ng.Name = "Fill"
-		ng.Rotation = 90
 		ng.Parent = gui
 		g = ng
 	end
 	local grad = g :: UIGradient
-	grad.Color = ColorSequence.new(pair[1], pair[2])
+	grad.Rotation = rotation or 90
+	if #pair >= 3 then
+		local stops = {}
+		for i, c in pair do
+			table.insert(stops, ColorSequenceKeypoint.new((i - 1) / (#pair - 1), c))
+		end
+		grad.Color = ColorSequence.new(stops)
+	else
+		grad.Color = ColorSequence.new(pair[1], pair[2])
+	end
 	gui.BackgroundColor3 = Color3.new(1, 1, 1)
 	gui.BackgroundTransparency = 0
 	return grad
 end
 
--- Quiet tiled studs behind a surface (alpha ~0.1; Theme.Studs). Not animated.
-function Ui.studs(gui: GuiObject, transparency: number?): ImageLabel?
-	local image = AssetIds.get("texture/studs")
+function Ui.frame(parent: Instance, name: string, size: UDim2?, position: UDim2?): Frame
+	local f = Instance.new("Frame")
+	f.Name = name
+	f.BackgroundTransparency = 1
+	f.BorderSizePixel = 0
+	f.Size = size or UDim2.fromScale(1, 1)
+	f.Position = position or UDim2.new()
+	f.Parent = parent
+	return f
+end
+
+-- Small shallow square studs (tiled texture), quiet and static.
+function Ui.studs(gui: GuiObject, transparency: number?, tile: number?): ImageLabel?
+	local image = AssetIds.get("texture_studs")
 	if not image then
 		return nil
 	end
@@ -84,7 +105,7 @@ function Ui.studs(gui: GuiObject, transparency: number?): ImageLabel?
 	img.Image = image
 	img.ImageTransparency = transparency or Theme.Studs.body
 	img.ScaleType = Enum.ScaleType.Tile
-	img.TileSize = UDim2.fromOffset(Theme.Studs.tile, Theme.Studs.tile)
+	img.TileSize = UDim2.fromOffset(tile or Theme.Studs.tile, tile or Theme.Studs.tile)
 	img.ZIndex = 0
 	local corner = gui:FindFirstChildOfClass("UICorner")
 	if corner then
@@ -94,17 +115,36 @@ function Ui.studs(gui: GuiObject, transparency: number?): ImageLabel?
 	return img
 end
 
--- Faint light inner edge (the bevelled look of the mockups).
-function Ui.innerEdge(gui: GuiObject, transparency: number?)
+-- 1-2 px light inner edge.
+function Ui.innerEdge(gui: GuiObject, transparency: number?, inset: number?)
+	local i = inset or 4
 	local rim = Instance.new("Frame")
 	rim.Name = "InnerEdge"
 	rim.BackgroundTransparency = 1
-	rim.Size = UDim2.new(1, -6, 1, -6)
-	rim.Position = UDim2.fromOffset(3, 3)
-	rim.ZIndex = 0
+	rim.Size = UDim2.new(1, -2 * i, 1, -2 * i)
+	rim.Position = UDim2.fromOffset(i, i)
+	rim.ZIndex = 1
 	Ui.corner(rim, math.max(2, L.radius - 3))
-	Ui.stroke(rim, 2, C.innerEdge).Transparency = transparency or 0.55
+	Ui.stroke(rim, 2, Color3.new(1, 1, 1)).Transparency = transparency or 0.75
 	rim.Parent = gui
+end
+
+-- Two diagonal translucent strips (header decoration, static) clipped by the parent.
+function Ui.strips(gui: GuiObject, at: number?)
+	local x = at or 0.62
+	for i, w in { 70, 34 } do
+		local s = Instance.new("Frame")
+		s.Name = "Strip" .. i
+		s.BackgroundColor3 = Color3.new(1, 1, 1)
+		s.BackgroundTransparency = 0.82
+		s.BorderSizePixel = 0
+		s.AnchorPoint = Vector2.new(0.5, 0.5)
+		s.Size = UDim2.new(0, w, 3, 0)
+		s.Rotation = 28
+		s.Position = UDim2.new(x + (i - 1) * 0.06, 0, 0.5, 0)
+		s.ZIndex = 1
+		s.Parent = gui
+	end
 end
 
 export type TextOpts = {
@@ -116,7 +156,7 @@ export type TextOpts = {
 	autoX: boolean?,
 }
 
--- Fredoka text with a dark outline. Height = size + 8; `wrap` grows it vertically instead, `autoX` grows width.
+-- Fredoka text with a dark outline. Height = size + 8; `wrap` grows vertically, `autoX` grows width.
 function Ui.text(parent: Instance, text: string, size: number, opts: TextOpts?): TextLabel
 	local o: TextOpts = opts or {}
 	local l = Instance.new("TextLabel")
@@ -140,58 +180,175 @@ function Ui.text(parent: Instance, text: string, size: number, opts: TextOpts?):
 		l.Size = UDim2.new(1, 0, 0, l.TextSize + 8)
 	end
 	local s = Instance.new("UIStroke")
-	s.Thickness = o.stroke or math.max(2, math.floor(l.TextSize / 12))
-	s.Color = C.stroke
+	s.Thickness = o.stroke or math.max(2, math.floor(l.TextSize / 11))
+	s.Color = C.border
 	s.LineJoinMode = Enum.LineJoinMode.Round
 	s.Parent = l
 	l.Parent = parent
 	return l
 end
 
--- Charcoal stud panel (card / section background).
-function Ui.panel(parent: Instance, name: string, color: Color3?): Frame
+-- Bordered surface: gradient (or flat colour) + studs + near-black border.
+function Ui.surface(parent: Instance, name: string, fill: Pair | Color3, studs: number?, border: number?): Frame
 	local f = Instance.new("Frame")
 	f.Name = name
-	f.BackgroundColor3 = color or C.panel
 	f.BorderSizePixel = 0
 	Ui.corner(f)
-	Ui.stroke(f)
-	Ui.studs(f)
+	if typeof(fill) == "Color3" then
+		f.BackgroundColor3 = fill
+	else
+		Ui.fill(f, fill)
+	end
+	Ui.stroke(f, border or 4)
+	Ui.studs(f, studs)
 	f.Parent = parent
 	return f
 end
 
-function Ui.frame(parent: Instance, name: string, size: UDim2?, position: UDim2?): Frame
-	local f = Instance.new("Frame")
-	f.Name = name
-	f.BackgroundTransparency = 1
-	f.BorderSizePixel = 0
-	f.Size = size or UDim2.fromScale(1, 1)
-	f.Position = position or UDim2.new()
-	f.Parent = parent
-	return f
+-- Art -----------------------------------------------------------------------------------------------------
+
+-- Conspicuous named placeholder for art that has no image (or failed to load). Never a substitute picture.
+local function missingMarker(parent: Instance, key: string): Frame
+	local m = Instance.new("Frame")
+	m.Name = "MissingArt"
+	m.BackgroundColor3 = Color3.fromHex("2A0A24")
+	m.BackgroundTransparency = 0.1
+	m.Size = UDim2.fromScale(1, 1)
+	Ui.corner(m)
+	Ui.stroke(m, 3, C.missing)
+	local t =
+		Ui.text(m, "MISSING ART\n" .. key, 17, { wrap = true, align = Enum.TextXAlignment.Center, color = C.missing })
+	t.AnchorPoint = Vector2.new(0.5, 0.5)
+	t.Position = UDim2.fromScale(0.5, 0.5)
+	t.Size = UDim2.new(1, -8, 0, 0)
+	m.Parent = parent
+	return m
 end
 
--- An image from AssetIds, or a stroked glyph when no id exists (controlled placeholder, never a broken image).
-function Ui.icon(parent: Instance, key: string, size: number, glyph: string?): GuiObject
-	local image = AssetIds.get(key)
-	if image then
-		local img = Instance.new("ImageLabel")
-		img.Name = "Icon"
-		img.BackgroundTransparency = 1
-		img.Size = UDim2.fromOffset(size, size)
-		img.Image = image
-		img.ScaleType = Enum.ScaleType.Fit
-		img.Parent = parent
+-- A supplied PNG as an ImageLabel: Fit, white tint, untouched alpha, filling `parent` (or `size`). If the
+-- registry has no image, or Roblox reports the load failed, a named missing-art marker shows instead.
+function Ui.art(parent: Instance, key: string, size: UDim2?, scaleType: Enum.ScaleType?): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Art"
+	img.BackgroundTransparency = 1
+	img.ImageColor3 = Color3.new(1, 1, 1)
+	img.ImageTransparency = 0
+	img.ScaleType = scaleType or Enum.ScaleType.Fit
+	img.Size = size or UDim2.fromScale(1, 1)
+	img:SetAttribute("ArtKey", key)
+	local id = AssetIds.get(key)
+	img.Parent = parent
+	if not id then
+		missingMarker(img, key)
 		return img
 	end
-	if not glyph then
-		local empty = Ui.frame(parent, "Icon", UDim2.fromOffset(size, size))
-		return empty
+	img.Image = id
+	task.spawn(function()
+		local ok = true
+		pcall(function()
+			ContentProvider:PreloadAsync({ img }, function(_content: string, status: Enum.AssetFetchStatus)
+				if status == Enum.AssetFetchStatus.Failure then
+					ok = false
+				end
+			end)
+		end)
+		if not ok and img.Parent then
+			warn(`[Ui.art] image for "{key}" failed to load ({id})`)
+			missingMarker(img, key)
+		end
+	end)
+	return img
+end
+
+-- Cropped art that fills its box (banner backdrops, zone strips).
+function Ui.cover(parent: Instance, key: string): ImageLabel
+	return Ui.art(parent, key, nil, Enum.ScaleType.Crop)
+end
+
+-- Glow + rays images behind featured art (separate tinted layers, sized from the holder's height).
+function Ui.glow(holder: GuiObject, color: Color3, rays: boolean?, scale: number?): ImageLabel?
+	local s = scale or 1
+	if rays then
+		local r = AssetIds.get("fx_rays")
+		if r then
+			local img = Instance.new("ImageLabel")
+			img.Name = "Rays"
+			img.BackgroundTransparency = 1
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.fromScale(0.5, 0.5)
+			img.Size = UDim2.fromScale(1.3 * s, 1.3 * s)
+			img.SizeConstraint = Enum.SizeConstraint.RelativeYY
+			img.Image = r
+			img.ImageColor3 = color
+			img.ImageTransparency = 0.55
+			img.ZIndex = 1
+			img.Parent = holder
+		end
 	end
-	local t = Ui.text(parent, glyph, math.floor(size * 0.8), { align = Enum.TextXAlignment.Center, name = "Icon" })
-	t.Size = UDim2.fromOffset(size, size)
-	return t
+	local image = AssetIds.get("fx_glow")
+	if not image then
+		return nil
+	end
+	local img = Instance.new("ImageLabel")
+	img.Name = "Glow"
+	img.BackgroundTransparency = 1
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.Position = UDim2.fromScale(0.5, 0.5)
+	img.Size = UDim2.fromScale(1.05 * s, 1.05 * s)
+	img.SizeConstraint = Enum.SizeConstraint.RelativeYY
+	img.Image = image
+	img.ImageColor3 = color
+	img.ImageTransparency = 0.25
+	img.ZIndex = 1
+	img.Parent = holder
+	return img
+end
+
+-- Section header ------------------------------------------------------------------------------------------
+
+export type Header = { gui: Frame, title: TextLabel, icon: GuiObject? }
+
+-- Gradient + quiet studs + two diagonal strips + clipped shine sweep; big uppercase outlined title.
+function Ui.header(
+	parent: Instance,
+	fill: Pair,
+	title: string,
+	iconKey: string?,
+	height: number?,
+	titleSize: number?
+): Header
+	local h = height or L.header
+	local f = Instance.new("Frame")
+	f.Name = "Header"
+	f.Size = UDim2.new(1, 0, 0, h)
+	f.ClipsDescendants = true
+	f.BorderSizePixel = 0
+	Ui.corner(f)
+	Ui.fill(f, fill)
+	Ui.studs(f, Theme.Studs.header)
+	Ui.strips(f)
+	f.Parent = parent
+	Motion.shine(f)
+	local row = Ui.frame(f, "TitleRow", UDim2.new(1, -24, 1, 0), UDim2.fromOffset(18, 0))
+	row.ZIndex = 3
+	Ui.list(row, 12, true)
+	local icon: GuiObject? = nil
+	if iconKey then
+		local iconSize = math.floor(h * 0.74)
+		local holder = Ui.frame(row, "Icon", UDim2.fromOffset(iconSize, iconSize))
+		holder.LayoutOrder = 1
+		Ui.art(holder, iconKey).ZIndex = 3
+		icon = holder
+	end
+	local t = Ui.text(
+		row,
+		string.upper(title),
+		titleSize or math.floor(h * 0.56),
+		{ autoX = true, stroke = 4, name = "Title" }
+	)
+	t.LayoutOrder = 2
+	t.ZIndex = 3
+	return { gui = f, title = t, icon = icon }
 end
 
 -- Buttons --------------------------------------------------------------------------------------------------
@@ -200,15 +357,16 @@ export type Button = {
 	gui: TextButton,
 	label: TextLabel,
 	setText: (text: string) -> (),
-	setGradient: (key: Gradient) -> (),
+	setStyle: (style: string) -> (),
 	setEnabled: (on: boolean) -> (),
 	setPending: (on: boolean, text: string?) -> (),
+	setTextColor: (color: Color3) -> (),
 	enabled: () -> boolean,
 }
 
 export type ButtonOpts = {
 	text: string,
-	gradient: Gradient,
+	style: string, -- Theme.Buttons key
 	size: UDim2,
 	textSize: number?,
 	icon: string?, -- AssetIds key drawn left of the label
@@ -216,8 +374,8 @@ export type ButtonOpts = {
 	onClick: () -> (),
 }
 
--- Gradient action button: label always visible, 48 px minimum target, hover/press/focus motion, disabled and
--- pending states (pending ignores clicks until the caller clears it, so requests can't double-submit).
+-- Chunky gradient button: near-black border, top highlight, quiet studs, label always visible, >= 48 px
+-- target, hover/press/focus motion, disabled and pending (blocks repeats until the caller clears it).
 function Ui.button(parent: Instance, o: ButtonOpts): Button
 	local b = Instance.new("TextButton")
 	b.Name = o.name or o.text
@@ -227,28 +385,44 @@ function Ui.button(parent: Instance, o: ButtonOpts): Button
 	b.Size = o.size
 	b.Selectable = true
 	Ui.corner(b)
-	Ui.gradient(b, o.gradient)
-	local stroke = Ui.stroke(b)
-	Ui.studs(b, Theme.Studs.header)
-	Ui.innerEdge(b, 0.5)
+	Ui.fill(b, Theme.Buttons[o.style] or Theme.Buttons.grey)
+	Ui.stroke(b, 4)
+	Ui.studs(b, Theme.Studs.header, 20)
+	local hi = Instance.new("Frame") -- top highlight
+	hi.Name = "Highlight"
+	hi.BackgroundColor3 = Color3.new(1, 1, 1)
+	hi.BackgroundTransparency = 0.78
+	hi.BorderSizePixel = 0
+	hi.Position = UDim2.fromOffset(4, 4)
+	hi.Size = UDim2.new(1, -8, 0.38, -4)
+	hi.ZIndex = 1
+	Ui.corner(hi, 5)
+	hi.Parent = b
 	local row = Ui.frame(b, "Content")
-	local list = Ui.list(row, 8, true, Enum.HorizontalAlignment.Center)
+	row.ZIndex = 2
+	local list = Ui.list(row, 10, true, Enum.HorizontalAlignment.Center)
 	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	local ts = o.textSize or 28
 	if o.icon then
-		local icon = Ui.icon(row, o.icon, (o.textSize or 24) + 10)
-		icon.LayoutOrder = 1
+		local holder = Ui.frame(row, "Icon", UDim2.fromOffset(ts + 14, ts + 14))
+		holder.LayoutOrder = 1
+		holder.ZIndex = 2
+		Ui.art(holder, o.icon).ZIndex = 2
 	end
 	local label =
-		Ui.text(row, o.text, o.textSize or 24, { align = Enum.TextXAlignment.Center, autoX = true, name = "Label" })
+		Ui.text(row, o.text, ts, { align = Enum.TextXAlignment.Center, autoX = true, name = "Label", stroke = 3 })
 	label.LayoutOrder = 2
-	local current: Gradient = o.gradient
+	label.ZIndex = 2
+	local style = o.style
 	local isEnabled, isPending = true, false
 	local idleText = o.text
 	local function paint()
-		Ui.gradient(b, if isEnabled and not isPending then current else "disabled")
-		stroke.Color = C.stroke
-		label.TextTransparency = if isEnabled or isPending then 0 else 0.25
+		Ui.fill(b, Theme.Buttons[if isEnabled or isPending then style else "disabled"] or Theme.Buttons.grey)
+		label.TextTransparency = if isEnabled or isPending then 0 else 0.2
+		local muted = not (isEnabled or isPending) or style == "dark" or style == "grey"
+		hi.BackgroundTransparency = if muted then 0.93 else 0.78 -- bright highlight only on coloured buttons
 	end
+	paint()
 	Motion.interactive(b, function()
 		return isEnabled and not isPending
 	end)
@@ -258,8 +432,7 @@ function Ui.button(parent: Instance, o: ButtonOpts): Button
 		end
 	end)
 	b.Parent = parent
-	local self: Button
-	self = {
+	return {
 		gui = b,
 		label = label,
 		setText = function(text: string)
@@ -268,8 +441,8 @@ function Ui.button(parent: Instance, o: ButtonOpts): Button
 				label.Text = text
 			end
 		end,
-		setGradient = function(key: Gradient)
-			current = key
+		setStyle = function(s: string)
+			style = s
 			paint()
 		end,
 		setEnabled = function(on: boolean)
@@ -282,82 +455,128 @@ function Ui.button(parent: Instance, o: ButtonOpts): Button
 			label.Text = if on then text or "..." else idleText
 			paint()
 		end,
+		setTextColor = function(color: Color3)
+			label.TextColor3 = color
+		end,
 		enabled = function()
 			return isEnabled and not isPending
 		end,
 	}
-	return self
 end
 
--- Non-interactive status pill (EQUIPPED / OWNED / LOCKED / MAXED): same footprint as a button, no motion.
-function Ui.pill(parent: Instance, text: string, key: Gradient, size: UDim2, textSize: number?): (Frame, TextLabel)
-	local f = Instance.new("Frame")
-	f.Name = "Pill"
-	f.Size = size
-	f.BorderSizePixel = 0
-	Ui.corner(f)
-	Ui.gradient(f, key)
-	Ui.stroke(f)
-	Ui.innerEdge(f, 0.5)
-	local t = Ui.text(f, text, textSize or 24, { align = Enum.TextXAlignment.Center, name = "Label" })
-	t.Size = UDim2.fromScale(1, 1)
-	f.Parent = parent
-	return f, t
-end
-
--- Round red close button (close/remove only, per the style rules).
-function Ui.closeButton(parent: Instance, onClick: () -> ()): TextButton
+-- Red square close button (70 x 70 by default) with a white X.
+function Ui.closeButton(parent: Instance, onClick: () -> (), size: number?, glyph: string?): TextButton
+	local s = size or L.close
 	local b = Instance.new("TextButton")
 	b.Name = "Close"
 	b.Text = ""
 	b.AutoButtonColor = false
-	b.Size = UDim2.fromOffset(64, 64)
+	b.Size = UDim2.fromOffset(s, s)
 	b.Selectable = true
-	Ui.corner(b, 14)
-	Ui.gradient(b, "red")
-	Ui.stroke(b)
-	Ui.innerEdge(b, 0.5)
-	local icon = Ui.icon(b, "icon/close", 40, "X")
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.Position = UDim2.fromScale(0.5, 0.5)
+	Ui.corner(b, 6)
+	Ui.fill(b, Theme.Buttons.red)
+	Ui.stroke(b, 4)
+	Ui.innerEdge(b, 0.6, 4)
+	local x =
+		Ui.text(b, glyph or "X", math.floor(s * 0.62), { align = Enum.TextXAlignment.Center, stroke = 4, name = "X" })
+	x.Size = UDim2.fromScale(1, 1)
+	x.ZIndex = 2
 	Motion.interactive(b)
 	b.Activated:Connect(onClick)
 	b.Parent = parent
 	return b
 end
 
--- Tabs -----------------------------------------------------------------------------------------------------
+-- Non-interactive status block with a button's footprint (EQUIPPED / OWNED / LOCKED / MAXED).
+function Ui.pill(
+	parent: Instance,
+	text: string,
+	style: string,
+	size: UDim2,
+	textSize: number?,
+	icon: string?
+): (Frame, TextLabel)
+	local f = Instance.new("Frame")
+	f.Name = "Pill"
+	f.Size = size
+	f.BorderSizePixel = 0
+	Ui.corner(f)
+	Ui.fill(f, Theme.Buttons[style] or Theme.Buttons.dark)
+	Ui.stroke(f, 4)
+	Ui.studs(f, Theme.Studs.header, 20)
+	local row = Ui.frame(f, "Content")
+	local list = Ui.list(row, 10, true, Enum.HorizontalAlignment.Center)
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	if icon then
+		local ts = textSize or 28
+		local holder = Ui.frame(row, "Icon", UDim2.fromOffset(ts + 10, ts + 10))
+		holder.LayoutOrder = 1
+		Ui.art(holder, icon)
+	end
+	local t = Ui.text(
+		row,
+		text,
+		textSize or 28,
+		{ align = Enum.TextXAlignment.Center, autoX = true, name = "Label", stroke = 3 }
+	)
+	t.LayoutOrder = 2
+	f.Parent = parent
+	return f, t
+end
 
+-- Tabs: equal-width bars across the row; active = section colour, idle = dark studs.
 export type Tabs = { gui: Frame, select: (index: number) -> (), selected: () -> number }
 
-function Ui.tabs(parent: Instance, names: { string }, onSelect: (index: number) -> ()): Tabs
-	local bar = Ui.frame(parent, "Tabs", UDim2.new(1, 0, 0, 56))
-	Ui.list(bar, 12, true)
-	local buttons: { Button } = {}
+function Ui.tabs(
+	parent: Instance,
+	names: { string },
+	icons: { string? },
+	active: Pair,
+	onSelect: (index: number) -> ()
+): Tabs
+	local bar = Ui.frame(parent, "Tabs", UDim2.new(1, 0, 0, 58))
+	local buttons: { TextButton } = {}
 	local current = 0
+	local n = #names
 	local function choose(i: number)
 		current = i
-		for j, btn in buttons do
-			btn.setGradient(if j == i then "cyan" else "grey")
-			btn.label.TextTransparency = if j == i then 0 else 0.15
+		for j, b in buttons do
+			Ui.fill(b, if j == i then active else { C.tabIdle, C.tabIdle })
 		end
 		onSelect(i)
 	end
 	for i, name in names do
-		local btn = Ui.button(bar, {
-			text = name,
-			gradient = "grey",
-			size = UDim2.fromOffset(220, 56),
-			textSize = 24,
-			name = "Tab" .. i,
-			onClick = function()
-				if current ~= i then
-					choose(i)
-				end
-			end,
-		})
-		btn.gui.LayoutOrder = i
-		table.insert(buttons, btn)
+		local b = Instance.new("TextButton")
+		b.Name = "Tab" .. i
+		b.Text = ""
+		b.AutoButtonColor = false
+		b.Selectable = true
+		b.Size = UDim2.new(1 / n, -math.floor(14 * (n - 1) / n), 1, 0)
+		b.Position = UDim2.new((i - 1) / n, math.floor(14 * (i - 1) / n), 0, 0)
+		Ui.corner(b)
+		Ui.stroke(b, 4)
+		Ui.studs(b, Theme.Studs.header, 20)
+		local row = Ui.frame(b, "Content")
+		row.ZIndex = 2
+		local list = Ui.list(row, 14, true, Enum.HorizontalAlignment.Center)
+		list.VerticalAlignment = Enum.VerticalAlignment.Center
+		local icon = icons[i]
+		if icon then
+			local holder = Ui.frame(row, "Icon", UDim2.fromOffset(46, 46))
+			holder.LayoutOrder = 1
+			Ui.art(holder, icon).ZIndex = 2
+		end
+		local label = Ui.text(row, string.upper(name), 32, { autoX = true, stroke = 3, name = "Label" })
+		label.LayoutOrder = 2
+		label.ZIndex = 2
+		Motion.interactive(b)
+		b.Activated:Connect(function()
+			if current ~= i then
+				choose(i)
+			end
+		end)
+		b.Parent = bar
+		table.insert(buttons, b)
 	end
 	return {
 		gui = bar,
@@ -368,27 +587,36 @@ function Ui.tabs(parent: Instance, names: { string }, onSelect: (index: number) 
 	}
 end
 
--- Progress bar ---------------------------------------------------------------------------------------------
-
+-- Progress bar: dark track, gradient fill with a top highlight, centred outlined value.
 export type Progress = { gui: Frame, set: (fraction: number, text: string?) -> () }
 
-function Ui.progress(parent: Instance, key: Gradient, height: number?): Progress
-	local h = height or 30
+function Ui.progress(parent: Instance, fill: Pair, height: number?, textSize: number?): Progress
+	local h = height or 34
 	local track = Instance.new("Frame")
 	track.Name = "Progress"
 	track.Size = UDim2.new(1, 0, 0, h)
-	track.BackgroundColor3 = C.panelDeep
+	track.BackgroundColor3 = C.card
 	track.BorderSizePixel = 0
-	Ui.corner(track, h // 2)
+	Ui.corner(track, 6)
 	Ui.stroke(track, 3)
-	local fill = Instance.new("Frame")
-	fill.Name = "Fill"
-	fill.BorderSizePixel = 0
-	fill.Size = UDim2.fromScale(0, 1)
-	Ui.corner(fill, h // 2)
-	Ui.gradient(fill, key)
-	fill.Parent = track
-	local label = Ui.text(track, "", math.max(16, h - 12), { align = Enum.TextXAlignment.Center })
+	local bar = Instance.new("Frame")
+	bar.Name = "Fill"
+	bar.BorderSizePixel = 0
+	bar.Size = UDim2.fromScale(0, 1)
+	Ui.corner(bar, 6)
+	Ui.fill(bar, fill)
+	bar.Parent = track
+	local hi = Instance.new("Frame")
+	hi.Name = "Highlight"
+	hi.BackgroundColor3 = Color3.new(1, 1, 1)
+	hi.BackgroundTransparency = 0.75
+	hi.BorderSizePixel = 0
+	hi.Size = UDim2.new(1, -6, 0.35, 0)
+	hi.Position = UDim2.fromOffset(3, 2)
+	Ui.corner(hi, 4)
+	hi.Parent = bar
+	local label =
+		Ui.text(track, "", textSize or math.max(L.minText, h - 10), { align = Enum.TextXAlignment.Center, stroke = 3 })
 	label.Size = UDim2.fromScale(1, 1)
 	label.ZIndex = 3
 	track.Parent = parent
@@ -396,63 +624,34 @@ function Ui.progress(parent: Instance, key: Gradient, height: number?): Progress
 		gui = track,
 		set = function(fraction: number, text: string?)
 			local f = math.clamp(fraction, 0, 1)
-			fill.Visible = f > 0
+			bar.Visible = f > 0
 			if Motion.reduced() then
-				fill.Size = UDim2.fromScale(f, 1)
+				bar.Size = UDim2.fromScale(f, 1)
 			else
-				Motion.tween(fill, 0.25, { Size = UDim2.fromScale(f, 1) })
+				Motion.tween(bar, 0.25, { Size = UDim2.fromScale(f, 1) })
 			end
 			label.Text = text or ""
 		end,
 	}
 end
 
--- Rarity chip (rarity palette only).
-function Ui.chip(parent: Instance, rarity: string): Frame
-	local color = (Theme.Rarity :: any)[rarity] or Theme.Rarity.Common
-	local f = Instance.new("Frame")
-	f.Name = "Rarity"
-	f.AutomaticSize = Enum.AutomaticSize.X
-	f.Size = UDim2.fromOffset(0, 28)
-	f.BackgroundColor3 = color
-	Ui.corner(f, 14)
-	Ui.stroke(f, 3)
-	local p = Instance.new("UIPadding")
-	p.PaddingLeft, p.PaddingRight = UDim.new(0, 10), UDim.new(0, 10)
-	p.Parent = f
-	local t = Ui.text(f, rarity, 16, { autoX = true, align = Enum.TextXAlignment.Center })
-	t.Size = UDim2.fromOffset(0, 28)
-	if rarity == "Secret" then
-		local g = Instance.new("UIGradient")
-		g.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromHex("FF5A5A")),
-			ColorSequenceKeypoint.new(0.33, Color3.fromHex("FFE15A")),
-			ColorSequenceKeypoint.new(0.66, Color3.fromHex("5AE1FF")),
-			ColorSequenceKeypoint.new(1, Color3.fromHex("C35AFF")),
-		})
-		g.Parent = f
-	end
-	f.Parent = parent
-	return f
-end
-
--- Small count badge for HUD buttons (shown only when it means something).
+-- Count badge for HUD buttons (only shown when it means something).
 function Ui.badge(parent: Instance): (Frame, TextLabel)
 	local f = Instance.new("Frame")
 	f.Name = "Badge"
 	f.AnchorPoint = Vector2.new(1, 0)
-	f.Position = UDim2.new(1, 8, 0, -8)
+	f.Position = UDim2.new(1, 10, 0, -10)
 	f.AutomaticSize = Enum.AutomaticSize.X
-	f.Size = UDim2.fromOffset(34, 34)
+	f.Size = UDim2.fromOffset(38, 38)
 	f.ZIndex = 6
-	Ui.corner(f, 17)
-	Ui.gradient(f, "red")
-	Ui.stroke(f, 3)
+	Ui.corner(f, 19)
+	Ui.fill(f, Theme.Buttons.red)
+	Ui.stroke(f, 3, Color3.new(1, 1, 1))
 	local p = Instance.new("UIPadding")
-	p.PaddingLeft, p.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
+	p.PaddingLeft, p.PaddingRight = UDim.new(0, 9), UDim.new(0, 9)
 	p.Parent = f
-	local t = Ui.text(f, "", 18, { autoX = true, align = Enum.TextXAlignment.Center })
-	t.Size = UDim2.fromOffset(0, 34)
+	local t = Ui.text(f, "", 22, { autoX = true, align = Enum.TextXAlignment.Center })
+	t.Size = UDim2.fromOffset(0, 38)
 	t.ZIndex = 7
 	f.Visible = false
 	f.Parent = parent
@@ -471,8 +670,9 @@ function Ui.scroll(parent: Instance, name: string?): ScrollingFrame
 	s.CanvasSize = UDim2.new()
 	s.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	s.ScrollingDirection = Enum.ScrollingDirection.Y
-	s.ScrollBarThickness = 10
-	s.ScrollBarImageColor3 = C.innerEdge
+	s.ScrollBarThickness = 12
+	s.ScrollBarImageColor3 = Color3.fromHex("8A4DFF")
+	s.ScrollBarImageTransparency = 0
 	s.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
 	s.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
 	s.Selectable = false
@@ -486,8 +686,8 @@ export type Grid = {
 	columns: () -> number,
 }
 
--- Grid whose column count follows the container's width (3 desktop / 2 tablet / 1-2 phone; screens change
--- the shape on short screens). `ratio` = cell height / width. Re-lays out only when width or shape change.
+-- Grid whose column count follows the container's width. `ratio` = cell height / width. Re-lays out only
+-- when the width or shape changes.
 function Ui.grid(parent: GuiObject, minCell: number, ratio: number, gap: number?, maxCols: number?): Grid
 	local g = Instance.new("UIGridLayout")
 	local spacing = gap or L.gap
@@ -542,7 +742,7 @@ function Ui.screenScale(gui: Instance): number
 	return s
 end
 
--- Lazy 3D art ----------------------------------------------------------------------------------------------
+-- Lazy 3D previews for pets and eggs (no supplied PNGs for them) ------------------------------------------
 
 type Lazy = { holder: GuiObject, build: () -> () }
 local lazy: { Lazy } = {}
@@ -569,14 +769,16 @@ end)
 
 local function viewport(holder: GuiObject, model: Model, yaw: number, pitch: number, zoom: number, silhouette: boolean)
 	local vp = Instance.new("ViewportFrame")
-	vp.Name = "Art"
+	vp.Name = "Model"
 	vp.BackgroundTransparency = 1
 	vp.Size = UDim2.fromScale(1, 1)
-	vp.Ambient = Color3.fromRGB(190, 190, 200)
+	vp.Ambient = Color3.fromRGB(200, 200, 210)
 	vp.LightColor = Color3.new(1, 1, 1)
 	vp.LightDirection = Vector3.new(-0.5, -1, -0.8)
+	vp.ZIndex = holder.ZIndex
 	if silhouette then
-		vp.ImageColor3 = Color3.fromRGB(12, 14, 20)
+		vp.ImageColor3 = Color3.fromRGB(14, 10, 30)
+		vp.ImageTransparency = 0.15
 	end
 	model:PivotTo(CFrame.new())
 	model.Parent = vp
@@ -594,33 +796,7 @@ end
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
--- Sack art: the uploaded handoff PNG for that tier if it exists, else a 3D render of the in-game sack.
-function Ui.sackArt(holder: GuiObject, tier: number)
-	local key = "sack/" .. tier
-	if AssetIds.hasHandoff(key) then
-		local img = Instance.new("ImageLabel")
-		img.Name = "Art"
-		img.BackgroundTransparency = 1
-		img.Size = UDim2.fromScale(1, 1)
-		img.ScaleType = Enum.ScaleType.Fit
-		img.Image = AssetIds.get(key) :: string
-		img.Parent = holder
-		return
-	end
-	table.insert(lazy, {
-		holder = holder,
-		build = function()
-			local Builder = require(Shared.Builders.BlockBuilder) :: any
-			local Sacks = require((Shared :: any).Builders.Models.Sacks) :: any
-			local ok, model = pcall(Builder.build, Sacks.spec(tier), "Sack")
-			if ok and model then
-				viewport(holder, model, 200, 8, 1.0, false)
-			end
-		end,
-	})
-end
-
--- Pet art (3D). `silhouette` = undiscovered (black shape, name hidden by the caller).
+-- Pet preview (3D). `silhouette` = undiscovered (dark shape; the caller hides the name).
 function Ui.petArt(holder: GuiObject, modelKey: string, silhouette: boolean?)
 	table.insert(lazy, {
 		holder = holder,
@@ -628,7 +804,7 @@ function Ui.petArt(holder: GuiObject, modelKey: string, silhouette: boolean?)
 			local Models = require(Shared.Builders.Models) :: any
 			local ok, model = pcall(Models.pet, modelKey)
 			if ok and model then
-				viewport(holder, model, 200, 12, 1.05, silhouette == true)
+				viewport(holder, model, 200, 12, 0.92, silhouette == true)
 			end
 		end,
 	})
@@ -641,49 +817,14 @@ function Ui.eggArt(holder: GuiObject, modelKey: string)
 			local Models = require(Shared.Builders.Models) :: any
 			local ok, model = pcall(Models.egg, modelKey)
 			if ok and model then
-				viewport(holder, model, 200, 10, 1.0, false)
+				viewport(holder, model, 200, 10, 0.95, false)
 			end
 		end,
 	})
 end
 
--- Soft glow + rays behind featured art (pooled images from AssetIds; nothing if not uploaded).
-function Ui.glow(holder: GuiObject, color: Color3, rays: boolean?): ImageLabel?
-	local image = AssetIds.get("fx/glow")
-	if rays then
-		local r = AssetIds.get("fx/rays")
-		if r then
-			local img = Instance.new("ImageLabel")
-			img.Name = "Rays"
-			img.BackgroundTransparency = 1
-			img.AnchorPoint = Vector2.new(0.5, 0.5)
-			img.Position = UDim2.fromScale(0.5, 0.5)
-			img.Size = UDim2.fromScale(1.25, 1.25)
-			img.Image = r
-			img.ImageColor3 = color
-			img.ImageTransparency = 0.7
-			img.ZIndex = 0
-			img.Parent = holder
-		end
-	end
-	if not image then
-		return nil
-	end
-	local img = Instance.new("ImageLabel")
-	img.Name = "Glow"
-	img.BackgroundTransparency = 1
-	img.AnchorPoint = Vector2.new(0.5, 0.5)
-	img.Position = UDim2.fromScale(0.5, 0.5)
-	img.Size = UDim2.fromScale(1.1, 1.1)
-	img.Image = image
-	img.ImageColor3 = color
-	img.ImageTransparency = 0.35
-	img.ZIndex = 0
-	img.Parent = holder
-	return img
-end
+-- Numbers --------------------------------------------------------------------------------------------------
 
--- "$1.2K" / "1.5M" (A's Kit formatter, one rule everywhere).
 local Kit = require(script.Parent.Parent.Kit)
 function Ui.money(n: number): string
 	return "$" .. Kit.formatNumber(n)

@@ -95,6 +95,20 @@ check("data views", function()
 	assert(#Data.products() == 3 and not Data.products()[1].configured, "products")
 end)
 
+check("asset registry binds every sack and zone", function()
+	local Upgrades = require(ReplicatedStorage.Shared.Config.Upgrades)
+	local Zones = require(ReplicatedStorage.Shared.Config.Zones)
+	for _, tier in Upgrades.Sack.tiers do
+		local key = AssetIds.sack(tier.name)
+		assert(key and AssetIds.source(key), "no sack art for " .. tier.name)
+	end
+	for _, zone in Zones do
+		local key = AssetIds.zone(zone.id)
+		assert(key and AssetIds.source(key), "no zone art for " .. zone.name)
+	end
+	assert(#AssetIds.keys() == 59, "59 supplied PNGs, got " .. #AssetIds.keys())
+end)
+
 for _, name in { "Training", "Shop", "Index", "Inventory", "Rebirth" } do
 	check("open " .. name, function()
 		Modal.open(name)
@@ -122,7 +136,7 @@ check("rapid swaps", function()
 	Modal.close()
 end)
 task.wait(0.5)
-assert(Modal.current() == nil)
+assert(Modal.current() == nil, "a modal is still open after rapid swaps")
 
 check("drawers", function()
 	drawers.open("Eggs")
@@ -169,12 +183,14 @@ check("lazy 3D art built", function()
 	assert(viewports > 0, "no 3D art was built")
 end)
 
-print(("UI smoke: %d passed, %d failed, %d runtime errors, %d handoff images missing"):format(
-	passed,
-	failed,
-	#errors,
-	#AssetIds.missing()
-))
+print(
+	("UI smoke: %d passed, %d failed, %d runtime errors, %d handoff images missing"):format(
+		passed,
+		failed,
+		#errors,
+		#AssetIds.missing()
+	)
+)
 for i, e in errors do
 	if i <= 8 then
 		print("ERROR " .. e)

@@ -21,13 +21,18 @@ local GOLD = Color3.fromRGB(255, 216, 74)
 
 -- `tiles = false` hides the 2x2 tile grid (the new left rail, UI/Hud/Rail, opens the screens instead).
 function Menus.new(parent: Instance, opts: { tiles: boolean? }?): Menus
+	local legacy = not opts or opts.tiles ~= false
+	-- With the new UI (tiles = false) only Trade and Settings stay A's windows: the old Index / Store / Rebirth
+	-- windows are not built at all, so nothing can bring the superseded screens back (UI/Screens owns them).
 	local menus: { [string]: any } = {
-		Index = IndexMenu.new(parent),
-		Store = StoreMenu.new(parent),
-		Rebirth = RebirthMenu.new(parent),
 		Trade = TradeMenu.new(parent),
 		Settings = SettingsMenu.new(parent),
 	}
+	if legacy then
+		menus.Index = IndexMenu.new(parent)
+		menus.Store = StoreMenu.new(parent)
+		menus.Rebirth = RebirthMenu.new(parent)
+	end
 	local function toggle(name: string)
 		local m = menus[name]
 		if m.window.isOpen() then
@@ -50,7 +55,6 @@ function Menus.new(parent: Instance, opts: { tiles: boolean? }?): Menus
 		parent = parent,
 	})
 	Kit.autoScale(grid)
-	grid.Visible = not opts or opts.tiles ~= false
 	Kit.onLayout(function(compact: boolean)
 		grid.Position = if compact then UDim2.fromOffset(10, 8) else UDim2.new(0, 30, 0.333, 0)
 	end)
@@ -130,6 +134,10 @@ function Menus.new(parent: Instance, opts: { tiles: boolean? }?): Menus
 			Kit.pulse(badge, 1.12)
 		end
 		tile.Parent = grid
+	end
+
+	if not legacy then
+		grid:Destroy() -- the new left rail (UI/Hud/Rail) replaces the tiles
 	end
 
 	-- Settings: round dark button (top right on desktop, right edge above the jump button on phones).

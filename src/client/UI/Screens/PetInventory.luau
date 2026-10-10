@@ -1,10 +1,13 @@
 --!strict
--- Pet inventory + selling (UI handoff SCREEN-SPEC "Pets and selling"). Every pet you own, searchable and
--- sortable (Sell value / Income / Rarity / Name; no Weight: the game has no pet weight). Tap cards to select.
--- Pets on a pedestal are PROTECTED: they earn money, so "Select all" skips them (you can still pick one by
--- hand; selling it also pays out its stored cash, exactly as the server does). Sell -> confirmation with the
--- exact count and total -> Remotes.SellPets -> the server's PetsSold reply. Nothing is removed until the
--- server says so (DataChanged); on failure the selection stays and an inline error shows.
+-- Sell Pets / inventory (UI handoff v2 01-Mockups/04-Sell-Pets.png). Green header, left sidebar (Sort By:
+-- Value / Income / Rarity / Name, SELECT ALL, "Hide on pedestal"), a 4-column grid of pet cards (name, live 3D
+-- pet, sale value bar, check badge when selected), footer "N SELECTED | TOTAL $x | SELL SELECTED" and a
+-- CONFIRMATION panel. No Weight sort: the game has no pet weight.
+-- Pets on a pedestal are PROTECTED (they earn money): marked ON PEDESTAL, skipped by SELECT ALL and hideable;
+-- you can still pick one by hand, and selling it pays out its stored cash exactly as the server does. Values
+-- use the server's rule (Data.PetRow.sellValue). Sell -> confirmation with the exact count and total ->
+-- Remotes.SellPets -> the server's PetsSold reply. Nothing is removed until the server says so
+-- (DataChanged); on failure the selection stays and an inline error shows.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local System = script.Parent.Parent.System
@@ -18,7 +21,8 @@ local C = Theme.Colors
 local PetInventory = {}
 
 local MAX_BATCH = 100 -- TradeService MAX_SELL_BATCH
-local SORTS = { "Sell value", "Income", "Rarity", "Name" }
+local SIDEBAR = 250
+local SORTS = { "Value", "Income", "Rarity", "Name" }
 
 local function remote(name: string): RemoteEvent
 	local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes")) :: any
@@ -28,95 +32,179 @@ end
 type Card = {
 	row: Data.PetRow,
 	gui: TextButton,
-	check: Frame,
 	stroke: UIStroke,
+	check: Frame,
+	tag: Frame,
 	value: TextLabel,
-	income: TextLabel,
-	lock: Frame,
 }
-
-local function tags(row: Data.PetRow): string
-	local parts = {}
-	if row.size then
-		table.insert(parts, row.size)
-	end
-	if row.weather then
-		table.insert(parts, row.weather)
-	end
-	return table.concat(parts, " · ")
-end
 
 function PetInventory.define()
 	Modal.define(
 		"Inventory",
-		{ title = "Pets", gradient = "lime", icon = "icon/pets", footer = true },
+		{ title = "Sell Pets", header = Theme.Headers.sell, icon = "premium_icons_nav_pets", footer = true },
 		function(shell: Modal.Shell): Modal.Screen
 			local body = shell.body
 			local footer = shell.footer :: Frame
 			local cards: { [string]: Card } = {}
 			local selected: { [string]: boolean } = {}
 			local sortIndex = 1
-			local query = ""
+			local hideProtected = false
 			local sending = false
 			local errorText = ""
+			local refresh: () -> ()
+			local paintFooter: () -> ()
 
-			-- Toolbar: search + sort.
-			local bar = Ui.frame(body, "Toolbar", UDim2.new(1, 0, 0, 56))
-			local search = Instance.new("TextBox")
-			search.Name = "Search"
-			search.PlaceholderText = "Search pets..."
-			search.Text = ""
-			search.ClearTextOnFocus = false
-			search.Font = Theme.Font
-			search.TextSize = 22
-			search.TextColor3 = C.text
-			search.PlaceholderColor3 = C.muted
-			search.TextXAlignment = Enum.TextXAlignment.Left
-			search.BackgroundColor3 = C.panelDeep
-			search.Size = UDim2.new(0.5, -10, 1, 0)
-			Ui.corner(search)
-			Ui.stroke(search, 3)
-			Ui.padding(search, 14, 0)
-			search.Parent = bar
-			local sortButton = Ui.button(bar, {
-				text = "Sort: " .. SORTS[1],
-				gradient = "grey",
-				size = UDim2.fromOffset(280, 56),
-				textSize = 22,
-				name = "Sort",
-				onClick = function() end,
+			-- Sidebar ---------------------------------------------------------------------------------------
+			local side = Ui.surface(body, "Sidebar", C.card, Theme.Studs.body, 4)
+			side.Size = UDim2.new(0, SIDEBAR, 1, 0)
+			local sideList = Ui.frame(side, "Items", UDim2.new(1, -24, 1, -24), UDim2.fromOffset(12, 12))
+			Ui.list(sideList, 12)
+			local sortTitle = Ui.text(sideList, "Sort By:", 30, { stroke = 3, name = "SortTitle" })
+			sortTitle.LayoutOrder = 0
+			local sortButtons: { Ui.Button } = {}
+			local function paintSort()
+				for i, b in sortButtons do
+					b.setStyle(if i == sortIndex then "lime" else "dark")
+				end
+			end
+			for i, name in SORTS do
+				local b = Ui.button(sideList, {
+					text = string.upper(name) .. (if i == 1 or i == 2 or i == 3 then "  ↓" else "  A-Z"),
+					style = "dark",
+					size = UDim2.new(1, 0, 0, 58),
+					textSize = 24,
+					name = "Sort" .. name,
+					onClick = function()
+						sortIndex = i
+						paintSort()
+						refresh()
+					end,
+				})
+				b.gui.LayoutOrder = i
+				table.insert(sortButtons, b)
+			end
+			paintSort()
+			local selectAll = Ui.button(sideList, {
+				text = "SELECT ALL",
+				style = "lime",
+				size = UDim2.new(1, 0, 0, 62),
+				textSize = 26,
+				icon = "icon_check",
+				name = "SelectAll",
+				onClick = function()
+					if sending then
+						return
+					end
+					local n = 0
+					for _ in selected do
+						n += 1
+					end
+					for uid, card in cards do
+						if n >= MAX_BATCH then
+							break
+						end
+						-- every shown, unprotected pet (pets on pedestals are skipped by default)
+						if card.gui.Visible and card.row.slot == nil and not selected[uid] then
+							selected[uid] = true
+							n += 1
+						end
+					end
+					refresh()
+				end,
 			})
-			sortButton.gui.AnchorPoint = Vector2.new(1, 0)
-			sortButton.gui.Position = UDim2.fromScale(1, 0)
-			local count = Ui.text(bar, "", 20, { color = C.muted, name = "Count", align = Enum.TextXAlignment.Center })
-			count.Position = UDim2.new(0.5, 0, 0, 0)
-			count.Size = UDim2.new(0.5, -290, 1, 0)
+			selectAll.gui.LayoutOrder = 10
+			local divider = Instance.new("Frame")
+			divider.Name = "Divider"
+			divider.BackgroundColor3 = C.cardEdge
+			divider.BorderSizePixel = 0
+			divider.Size = UDim2.new(1, 0, 0, 4)
+			divider.LayoutOrder = 11
+			divider.Parent = sideList
+			local hideRow = Instance.new("TextButton")
+			hideRow.Name = "HideProtected"
+			hideRow.Text = ""
+			hideRow.BackgroundTransparency = 1
+			hideRow.Size = UDim2.new(1, 0, 0, 52)
+			hideRow.LayoutOrder = 12
+			hideRow.Parent = sideList
+			local box = Instance.new("Frame")
+			box.Name = "Box"
+			box.Size = UDim2.fromOffset(42, 42)
+			box.Position = UDim2.fromOffset(0, 5)
+			box.BackgroundColor3 = C.tabIdle
+			Ui.corner(box, 6)
+			Ui.stroke(box, 4)
+			box.Parent = hideRow
+			local boxCheck = Ui.frame(box, "Check", UDim2.fromScale(0.9, 0.9), UDim2.fromScale(0.05, 0.05))
+			Ui.art(boxCheck, "icon_check")
+			boxCheck.Visible = false
+			local hideLabel = Ui.text(hideRow, "Hide on pedestal", 22, { stroke = 3, name = "Label" })
+			hideLabel.Position = UDim2.fromOffset(54, 9)
+			hideLabel.Size = UDim2.new(1, -54, 0, 34)
+			hideRow.Activated:Connect(function()
+				hideProtected = not hideProtected
+				boxCheck.Visible = hideProtected
+				Motion.popIn(boxCheck)
+				refresh()
+			end)
+			local count = Ui.text(sideList, "", 20, { color = C.muted, wrap = true, name = "Count" })
+			count.LayoutOrder = 13
 
+			-- Grid ------------------------------------------------------------------------------------------
 			local scroll = Ui.scroll(body, "Pets")
-			scroll.Position = UDim2.fromOffset(0, 70)
-			scroll.Size = UDim2.new(1, 0, 1, -70)
+			scroll.Position = UDim2.fromOffset(SIDEBAR + 20, 0)
+			scroll.Size = UDim2.new(1, -(SIDEBAR + 20), 1, 0)
 			Ui.padding(scroll, 6)
-			local grid = Ui.grid(scroll, 180, 1.32, 16, 6)
-			local empty = Ui.text(body, "No pets yet. Secure eggs and let them hatch!", 26, {
+			local grid = Ui.grid(scroll, 240, 1.0, 16, 4)
+			local empty = Ui.text(body, "No pets yet. Secure eggs and let them hatch!", 28, {
 				color = C.muted,
 				align = Enum.TextXAlignment.Center,
 				name = "Empty",
+				stroke = 3,
 			})
-			empty.Position = UDim2.fromScale(0, 0.45)
+			empty.Position = UDim2.new(0, SIDEBAR + 20, 0.45, 0)
+			empty.Size = UDim2.new(1, -(SIDEBAR + 20), 0, 40)
 			empty.Visible = false
 
-			-- Footer: selection summary + actions.
-			local summary = Ui.text(footer, "", 24, { name = "Summary" })
-			summary.Size = UDim2.new(0.4, 0, 0, 34)
-			summary.Position = UDim2.fromOffset(0, 6)
-			local errorLabel = Ui.text(footer, "", 18, { color = Theme.Gradients.red[1], name = "Error" })
-			errorLabel.Position = UDim2.fromOffset(0, 42)
-			errorLabel.Size = UDim2.new(0.4, 0, 0, 26)
-			local actions = Ui.frame(footer, "Actions", UDim2.new(0.6, 0, 1, -12), UDim2.fromScale(0.4, 0))
-			local actionList = Ui.list(actions, 12, true, Enum.HorizontalAlignment.Right)
-			actionList.VerticalAlignment = Enum.VerticalAlignment.Center
+			-- Footer: N SELECTED | TOTAL $x | SELL SELECTED --------------------------------------------------
+			local selRow = Ui.frame(footer, "SelectedRow", UDim2.fromOffset(320, 66), UDim2.fromOffset(4, 0))
+			Ui.list(selRow, 12, true)
+			local nSel = Ui.text(selRow, "0", 54, { autoX = true, stroke = 5, color = C.cash, name = "Count" })
+			nSel.LayoutOrder = 1
+			Ui.text(selRow, "SELECTED", 40, { autoX = true, stroke = 4, name = "Selected" }).LayoutOrder = 2
+			local sep = Instance.new("Frame")
+			sep.Name = "Separator"
+			sep.BackgroundColor3 = C.cardEdge
+			sep.BorderSizePixel = 0
+			sep.Size = UDim2.fromOffset(3, 50)
+			sep.Position = UDim2.fromOffset(330, 9)
+			sep.Parent = footer
+			local totalLabel = Ui.text(footer, "TOTAL:", 36, { autoX = true, stroke = 4, name = "TotalLabel" })
+			totalLabel.Position = UDim2.fromOffset(356, 10)
+			local totalIcon = Ui.frame(footer, "CashIcon", UDim2.fromOffset(64, 64), UDim2.fromOffset(500, 1))
+			Ui.art(totalIcon, "premium_icons_currency_cash")
+			local total = Ui.text(footer, "$0", 50, { autoX = true, stroke = 5, color = C.cash, name = "Total" })
+			total.Position = UDim2.fromOffset(572, 2)
+			local errorLabel = Ui.text(footer, "", 19, { color = C.danger, name = "Error", stroke = 2 })
+			errorLabel.AnchorPoint = Vector2.new(1, 0)
+			errorLabel.Position = UDim2.new(1, -440, 0, 20)
+			errorLabel.Size = UDim2.fromOffset(300, 28)
+			errorLabel.TextXAlignment = Enum.TextXAlignment.Right
+			local openConfirm: () -> ()
+			local sell = Ui.button(footer, {
+				text = "SELL SELECTED",
+				style = "lime",
+				size = UDim2.fromOffset(420, 66),
+				textSize = 36,
+				name = "Sell",
+				onClick = function()
+					openConfirm()
+				end,
+			})
+			sell.gui.AnchorPoint = Vector2.new(1, 0.5)
+			sell.gui.Position = UDim2.new(1, 0, 0.5, 0)
 
-			-- Confirmation dialog (inside the modal; Cancel as visible as Sell).
+			-- Confirmation panel ----------------------------------------------------------------------------
 			local confirm = Ui.frame(shell.panel, "Confirm")
 			confirm.ZIndex = 40
 			confirm.Visible = false
@@ -126,30 +214,72 @@ function PetInventory.define()
 			dim.AutoButtonColor = false
 			dim.Selectable = false
 			dim.BackgroundColor3 = C.scrim
-			dim.BackgroundTransparency = 0.4
+			dim.BackgroundTransparency = 0.45
 			dim.Size = UDim2.fromScale(1, 1)
-			dim.ZIndex = 40
-			Ui.corner(dim, 16)
+			Ui.corner(dim)
 			dim.Parent = confirm
-			local box = Ui.panel(confirm, "Box", C.panel)
-			box.AnchorPoint = Vector2.new(0.5, 0.5)
-			box.Position = UDim2.fromScale(0.5, 0.5)
-			box.Size = UDim2.fromOffset(620, 300)
-			box.ZIndex = 41
-			local boxText = Ui.text(box, "", 30, { wrap = true, align = Enum.TextXAlignment.Center, name = "Question" })
-			boxText.Position = UDim2.fromOffset(30, 28)
-			boxText.Size = UDim2.new(1, -60, 0, 0)
-			local boxNote = Ui.text(
-				box,
+			local cbox = Ui.surface(confirm, "Box", C.body, Theme.Studs.body, 5)
+			cbox.AnchorPoint = Vector2.new(0.5, 0.5)
+			cbox.Position = UDim2.fromScale(0.5, 0.5)
+			cbox.Size = UDim2.fromOffset(520, 470)
+			local ch = Ui.header(cbox, Theme.Headers.confirm, "Confirmation", nil, 70, 38)
+			ch.gui.ZIndex = 2
+			local cbX: TextButton
+			cbX = Ui.closeButton(cbox, function()
+				if not sending then
+					confirm.Visible = false
+				end
+			end, 54)
+			cbX.AnchorPoint = Vector2.new(1, 0)
+			cbX.Position = UDim2.new(1, -8, 0, 8)
+			cbX.ZIndex = 5
+			local q = Ui.text(cbox, "", 40, { align = Enum.TextXAlignment.Center, stroke = 4, name = "Question" })
+			q.Position = UDim2.fromOffset(10, 86)
+			q.Size = UDim2.new(1, -20, 0, 50)
+			local cIcon = Ui.frame(cbox, "CashIcon", UDim2.fromOffset(120, 120), UDim2.new(0.5, -60, 0, 136))
+			Ui.art(cIcon, "premium_icons_currency_cash")
+			local cTotal = Ui.text(
+				cbox,
 				"",
-				20,
-				{ wrap = true, align = Enum.TextXAlignment.Center, color = C.muted, name = "Note" }
+				64,
+				{ align = Enum.TextXAlignment.Center, stroke = 6, color = C.cash, name = "Total" }
 			)
-			boxNote.Position = UDim2.fromOffset(30, 130)
-			boxNote.Size = UDim2.new(1, -60, 0, 0)
-			local confirmRow = Ui.frame(box, "Buttons", UDim2.new(1, -60, 0, 64), UDim2.new(0, 30, 1, -88))
-			Ui.list(confirmRow, 20, true, Enum.HorizontalAlignment.Center)
+			cTotal.Position = UDim2.fromOffset(10, 254)
+			cTotal.Size = UDim2.new(1, -20, 0, 72)
+			local cNote = Ui.text(
+				cbox,
+				"",
+				19,
+				{ align = Enum.TextXAlignment.Center, color = C.muted, wrap = true, name = "Note" }
+			)
+			cNote.Position = UDim2.fromOffset(20, 326)
+			cNote.Size = UDim2.new(1, -40, 0, 0)
+			local cRow = Ui.frame(cbox, "Buttons", UDim2.new(1, -40, 0, 66), UDim2.new(0, 20, 1, -84))
+			local cancel: Ui.Button
+			local yes: Ui.Button
+			cancel = Ui.button(cRow, {
+				text = "CANCEL",
+				style = "grey",
+				size = UDim2.new(0.5, -8, 1, 0),
+				textSize = 32,
+				name = "Cancel",
+				onClick = function()
+					if not sending then
+						confirm.Visible = false
+					end
+				end,
+			})
+			yes = Ui.button(cRow, {
+				text = "CONFIRM",
+				style = "lime",
+				size = UDim2.new(0.5, -8, 1, 0),
+				textSize = 32,
+				name = "ConfirmSell",
+				onClick = function() end,
+			})
+			yes.gui.Position = UDim2.new(0.5, 8, 0, 0)
 
+			-- Cards -----------------------------------------------------------------------------------------
 			local function selectedRows(): { Data.PetRow }
 				local out = {}
 				for uid in selected do
@@ -161,16 +291,17 @@ function PetInventory.define()
 				return out
 			end
 
-			local paintFooter: () -> ()
-
 			local function paintCard(card: Card)
 				local on = selected[card.row.uid] == true
 				card.check.Visible = on
-				card.stroke.Color = if on then Theme.Gradients.lime[1] else C.stroke
-				card.stroke.Thickness = if on then 5 else 3
-				card.lock.Visible = card.row.slot ~= nil
+				card.stroke.Color = if on then Theme.Buttons.lime[1] else C.border
+				card.stroke.Thickness = if on then 5 else 4
+				Ui.fill(
+					card.gui,
+					if on then { Color3.fromHex("2F7A1C"), Color3.fromHex("123010") } else { C.card, C.card }
+				)
+				card.tag.Visible = card.row.slot ~= nil
 				card.value.Text = Ui.money(card.row.sellValue)
-				card.income.Text = `{Ui.money(card.row.income)}/s`
 			end
 
 			local function toggle(uid: string)
@@ -206,64 +337,73 @@ function PetInventory.define()
 				b.Name = row.uid
 				b.Text = ""
 				b.AutoButtonColor = false
-				b.BackgroundColor3 = C.panel
 				b.Selectable = true
 				Ui.corner(b)
-				local stroke = Ui.stroke(b, 3)
-				Ui.studs(b)
-				local glowColor = (Theme.Rarity :: any)[row.rarity] or C.text
-				local artHolder = Ui.frame(b, "ArtHolder", UDim2.new(1, -16, 0.55, 0), UDim2.fromOffset(8, 8))
-				Ui.glow(artHolder, glowColor, false)
-				local art = Ui.frame(artHolder, "ArtFrame")
+				Ui.fill(b, { C.card, C.card })
+				local stroke = Ui.stroke(b, 4)
+				Ui.studs(b, Theme.Studs.body, 20)
+				local name = Ui.text(b, row.name, 24, { stroke = 3, name = "Name" })
+				name.Position = UDim2.fromOffset(12, 6)
+				name.Size = UDim2.new(1, -70, 0, 32)
+				name.TextColor3 = Theme.RarityText[row.rarity] or C.text
+				name.ZIndex = 3
+				local artBox = Ui.frame(b, "ArtBox", UDim2.new(1, -16, 1, -98), UDim2.fromOffset(8, 40))
+				artBox.ZIndex = 2
+				Ui.glow(artBox, (Theme.Rarity[row.rarity] or Theme.Rarity.Common)[1], false, 0.9)
+				local art = Ui.frame(artBox, "ArtFrame")
+				art.ZIndex = 2
 				Ui.petArt(art, row.model)
-				local name = Ui.text(b, row.name, 20, { name = "Name", align = Enum.TextXAlignment.Center })
-				name.TextColor3 = glowColor
-				name.Position = UDim2.new(0, 6, 0.55, 10)
-				name.Size = UDim2.new(1, -12, 0, 26)
-				local tag =
-					Ui.text(b, tags(row), 16, { name = "Tags", align = Enum.TextXAlignment.Center, color = C.power })
-				tag.Position = UDim2.new(0, 6, 0.55, 36)
-				tag.Size = UDim2.new(1, -12, 0, 22)
-				local value = Ui.text(b, "", 22, { name = "Value", align = Enum.TextXAlignment.Center, color = C.cash })
-				value.AnchorPoint = Vector2.new(0, 1)
-				value.Position = UDim2.new(0, 6, 1, -30)
-				value.Size = UDim2.new(1, -12, 0, 28)
-				local income =
-					Ui.text(b, "", 16, { name = "Income", align = Enum.TextXAlignment.Center, color = C.muted })
-				income.AnchorPoint = Vector2.new(0, 1)
-				income.Position = UDim2.new(0, 6, 1, -6)
-				income.Size = UDim2.new(1, -12, 0, 22)
-				-- selected check (top right) and protected marker (top left)
+				local bar = Instance.new("Frame")
+				bar.Name = "ValueBar"
+				bar.AnchorPoint = Vector2.new(0.5, 1)
+				bar.Position = UDim2.new(0.5, 0, 1, -8)
+				bar.Size = UDim2.new(1, -16, 0, 50)
+				bar.BackgroundColor3 = Color3.fromHex("0E1119")
+				bar.ZIndex = 3
+				Ui.corner(bar, 6)
+				Ui.stroke(bar, 3)
+				bar.Parent = b
+				local vIcon = Ui.frame(bar, "CashIcon", UDim2.fromOffset(44, 44), UDim2.fromOffset(10, 3))
+				vIcon.ZIndex = 4
+				Ui.art(vIcon, "premium_icons_currency_cash").ZIndex = 4
+				local value = Ui.text(
+					bar,
+					"",
+					32,
+					{ align = Enum.TextXAlignment.Center, stroke = 3, color = C.cash, name = "Value" }
+				)
+				value.Position = UDim2.fromOffset(48, 0)
+				value.Size = UDim2.new(1, -56, 1, 0)
+				value.ZIndex = 4
 				local check = Instance.new("Frame")
 				check.Name = "Check"
-				check.Size = UDim2.fromOffset(40, 40)
 				check.AnchorPoint = Vector2.new(1, 0)
-				check.Position = UDim2.new(1, -6, 0, 6)
+				check.Position = UDim2.new(1, -8, 0, 8)
+				check.Size = UDim2.fromOffset(46, 46)
 				check.ZIndex = 5
-				Ui.corner(check, 20)
-				Ui.gradient(check, "lime")
+				Ui.corner(check, 6)
+				Ui.fill(check, Theme.Buttons.lime)
 				Ui.stroke(check, 3)
-				local ci = Ui.icon(check, "icon/check", 28, "✓")
-				ci.AnchorPoint = Vector2.new(0.5, 0.5)
-				ci.Position = UDim2.fromScale(0.5, 0.5)
+				local ci = Ui.frame(check, "Icon", UDim2.fromScale(0.86, 0.86), UDim2.fromScale(0.07, 0.07))
 				ci.ZIndex = 6
+				Ui.art(ci, "icon_check").ZIndex = 6
 				check.Parent = b
-				local lock, _ = Ui.pill(b, "ON PEDESTAL", "cyan", UDim2.fromOffset(132, 26), 16)
-				lock.Position = UDim2.fromOffset(6, 6)
-				lock.ZIndex = 5
+				local tag = Ui.pill(b, "ON PEDESTAL", "purple", UDim2.fromOffset(170, 32), 18, "icon_lock")
+				tag.AnchorPoint = Vector2.new(0.5, 1)
+				tag.Position = UDim2.new(0.5, 0, 1, -64)
+				tag.ZIndex = 5
 				Motion.interactive(b)
 				local uid = row.uid
 				b.Activated:Connect(function()
 					toggle(uid)
 				end)
 				b.Parent = scroll
-				local card: Card =
-					{ row = row, gui = b, check = check, stroke = stroke, value = value, income = income, lock = lock }
+				local card: Card = { row = row, gui = b, stroke = stroke, check = check, tag = tag, value = value }
 				paintCard(card)
 				return card
 			end
 
-			local function sortKey(a: Data.PetRow, b: Data.PetRow): boolean
+			local function before(a: Data.PetRow, b: Data.PetRow): boolean
 				local s = SORTS[sortIndex]
 				if s == "Income" and a.income ~= b.income then
 					return a.income > b.income
@@ -277,7 +417,7 @@ function PetInventory.define()
 				return a.uid < b.uid
 			end
 
-			local function refresh()
+			refresh = function()
 				local rows = Data.pets()
 				local seen: { [string]: boolean } = {}
 				for _, row in rows do
@@ -297,207 +437,116 @@ function PetInventory.define()
 						selected[uid] = nil
 					end
 				end
-				table.sort(rows, sortKey)
-				local q = string.lower(query)
-				local shown = 0
+				table.sort(rows, before)
+				local shown, protected = 0, 0
 				for i, row in rows do
 					local card = cards[row.uid]
 					card.gui.LayoutOrder = i
-					local match = q == ""
-						or string.find(string.lower(row.name), q, 1, true) ~= nil
-						or string.find(string.lower(row.rarity), q, 1, true) ~= nil
-					card.gui.Visible = match
-					if match then
+					local show = not (hideProtected and row.slot ~= nil)
+					card.gui.Visible = show
+					if show then
 						shown += 1
 					end
+					if row.slot then
+						protected += 1
+					end
 				end
-				count.Text = if #rows > 0 then `{shown} of {#rows} pets` else ""
+				count.Text = if #rows > 0 then `{shown} of {#rows} pets shown\n{protected} on pedestals` else ""
 				empty.Visible = #rows == 0
 				paintFooter()
 			end
 
-			local selectAll = Ui.button(actions, {
-				text = "SELECT ALL",
-				gradient = "cyan",
-				size = UDim2.fromOffset(220, 60),
-				textSize = 22,
-				name = "SelectAll",
-				onClick = function()
-					if sending then
-						return
-					end
-					-- every visible, unprotected pet (pets on pedestals are skipped by default)
-					local n = 0
-					for _ in selected do
-						n += 1
-					end
-					for uid, card in cards do
-						if n >= MAX_BATCH then
-							break
-						end
-						if card.gui.Visible and card.row.slot == nil and not selected[uid] then
-							selected[uid] = true
-							n += 1
-						end
-					end
-					for _, card in cards do
-						paintCard(card)
-					end
-					paintFooter()
-				end,
-			})
-			selectAll.gui.LayoutOrder = 1
-			local clear = Ui.button(actions, {
-				text = "CLEAR",
-				gradient = "grey",
-				size = UDim2.fromOffset(150, 60),
-				textSize = 22,
-				name = "Clear",
-				onClick = function()
-					if sending then
-						return
-					end
-					table.clear(selected)
-					for _, card in cards do
-						paintCard(card)
-					end
-					errorText = ""
-					paintFooter()
-				end,
-			})
-			clear.gui.LayoutOrder = 2
-			local sell = Ui.button(actions, {
-				text = "SELL",
-				gradient = "orange",
-				size = UDim2.fromOffset(220, 60),
-				textSize = 24,
-				icon = "icon/cash",
-				name = "Sell",
-				onClick = function()
-					local rows = selectedRows()
-					if #rows == 0 or sending then
-						return
-					end
-					local total, protected = 0, 0
-					for _, row in rows do
-						total += row.sellValue
-						if row.slot then
-							protected += 1
-						end
-					end
-					boxText.Text = `Sell {#rows} pet{if #rows == 1 then "" else "s"} for {Ui.money(total)}?`
-					boxNote.Text = (
-						if protected > 0
-							then `{protected} of them {if protected == 1 then "is" else "are"} on a pedestal and will stop earning. `
-							else ""
-					) .. "This can't be undone."
-					confirm.Visible = true
-				end,
-			})
-			sell.gui.LayoutOrder = 3
-
-			local cancel: Ui.Button
-			local yes: Ui.Button
-			cancel = Ui.button(confirmRow, {
-				text = "CANCEL",
-				gradient = "grey",
-				size = UDim2.fromOffset(250, 64),
-				textSize = 26,
-				name = "Cancel",
-				onClick = function()
-					if not sending then
-						confirm.Visible = false
-					end
-				end,
-			})
-			yes = Ui.button(confirmRow, {
-				text = "SELL",
-				gradient = "orange",
-				size = UDim2.fromOffset(250, 64),
-				textSize = 26,
-				name = "ConfirmSell",
-				onClick = function()
-					local rows = selectedRows()
-					if sending or #rows == 0 then
-						return
-					end
-					sending = true
-					yes.setPending(true, "SELLING...")
-					cancel.setEnabled(false)
-					local uids = {}
-					for _, row in rows do
-						table.insert(uids, row.uid)
-					end
-					remote("SellPets"):FireServer(uids)
-					local token = {}
-					local current: {}? = token
-					local function finish(ok: boolean, reply: { [string]: any }?)
-						if current ~= token then
-							return
-						end
-						current = nil
-						sending = false
-						yes.setPending(false)
-						cancel.setEnabled(true)
-						confirm.Visible = false
-						if ok and reply then
-							local sold = tonumber(reply.count) or 0
-							for _, uid in (reply.petUids or {}) :: { string } do
-								selected[uid] = nil
-							end
-							if sold > 0 then
-								Modal.toast(
-									`Sold {sold} pet{if sold == 1 then "" else "s"} for {Ui.money(
-										tonumber(reply.total) or 0
-									)}!`,
-									"good"
-								)
-								local at = sell.gui.AbsolutePosition + sell.gui.AbsoluteSize / 2
-								Motion.burst(Modal.layer(), at, "cash")
-							end
-							local skipped = #uids - sold
-							errorText = if skipped > 0
-								then `{skipped} pet{if skipped == 1 then "" else "s"} couldn't be sold (in a trade?).`
-								else ""
-						else
-							errorText = "Selling failed. Nothing was sold. Try again."
-						end
-						refresh()
-					end
-					local conn: RBXScriptConnection
-					conn = remote("PetsSold").OnClientEvent:Connect(function(reply: { [string]: any })
-						conn:Disconnect()
-						finish(true, reply)
-					end)
-					task.delay(6, function()
-						if conn.Connected then
-							conn:Disconnect()
-						end
-						finish(false, nil)
-					end)
-				end,
-			})
-
 			paintFooter = function()
 				local rows = selectedRows()
-				local total = 0
+				local sum = 0
 				for _, row in rows do
-					total += row.sellValue
+					sum += row.sellValue
 				end
-				summary.Text = if #rows > 0 then `Selected {#rows}: {Ui.money(total)}` else "Tap pets to select"
+				nSel.Text = tostring(#rows)
+				total.Text = Ui.money(sum)
 				sell.setEnabled(#rows > 0)
-				clear.setEnabled(#rows > 0)
 				errorLabel.Text = errorText
 			end
 
-			sortButton.gui.Activated:Connect(function()
-				sortIndex = sortIndex % #SORTS + 1
-				sortButton.setText("Sort: " .. SORTS[sortIndex])
-				refresh()
-			end)
-			search:GetPropertyChangedSignal("Text"):Connect(function()
-				query = search.Text
-				refresh()
+			openConfirm = function()
+				local rows = selectedRows()
+				if #rows == 0 or sending then
+					return
+				end
+				local sum, protected = 0, 0
+				for _, row in rows do
+					sum += row.sellValue
+					if row.slot then
+						protected += 1
+					end
+				end
+				q.Text = `Sell {#rows} pet{if #rows == 1 then "" else "s"}?`
+				cTotal.Text = Ui.money(sum)
+				cNote.Text = (
+					if protected > 0
+						then `{protected} {if protected == 1 then "is" else "are"} on a pedestal and will stop earning. `
+						else ""
+				) .. "This can't be undone."
+				confirm.Visible = true
+				Motion.popIn(cbox)
+			end
+
+			yes.gui.Activated:Connect(function()
+				local rows = selectedRows()
+				if sending or #rows == 0 or not confirm.Visible then
+					return
+				end
+				sending = true
+				yes.setPending(true, "SELLING...")
+				cancel.setEnabled(false)
+				local uids = {}
+				for _, row in rows do
+					table.insert(uids, row.uid)
+				end
+				remote("SellPets"):FireServer(uids)
+				local token = {}
+				local current: {}? = token
+				local function finish(ok: boolean, reply: { [string]: any }?)
+					if current ~= token then
+						return
+					end
+					current = nil
+					sending = false
+					yes.setPending(false)
+					cancel.setEnabled(true)
+					confirm.Visible = false
+					if ok and reply then
+						local sold = tonumber(reply.count) or 0
+						for _, uid in (reply.petUids or {}) :: { string } do
+							selected[uid] = nil
+						end
+						if sold > 0 then
+							Modal.toast(
+								`Sold {sold} pet{if sold == 1 then "" else "s"} for {Ui.money(
+									tonumber(reply.total) or 0
+								)}!`,
+								"good"
+							)
+							Motion.burst(Modal.layer(), sell.gui.AbsolutePosition + sell.gui.AbsoluteSize / 2, "cash")
+						end
+						local skipped = #uids - sold
+						errorText = if skipped > 0 then `{skipped} couldn't be sold (in a trade?)` else ""
+					else
+						errorText = "Selling failed. Nothing was sold."
+					end
+					refresh()
+				end
+				local conn: RBXScriptConnection
+				conn = remote("PetsSold").OnClientEvent:Connect(function(reply: { [string]: any })
+					conn:Disconnect()
+					finish(true, reply)
+				end)
+				task.delay(6, function()
+					if conn.Connected then
+						conn:Disconnect()
+					end
+					finish(false, nil)
+				end)
 			end)
 
 			return {
@@ -511,7 +560,7 @@ function PetInventory.define()
 							table.insert(visible, card.gui :: GuiObject)
 						end
 					end
-					Motion.reveal(visible, C.panel)
+					Motion.reveal(visible, C.body)
 				end,
 				close = function()
 					if not sending then
@@ -520,7 +569,14 @@ function PetInventory.define()
 				end,
 				update = refresh,
 				resize = function(_size: Vector2, compact: boolean)
-					grid.shape(if compact then 200 else 180, if compact then 1.2 else 1.32, 6)
+					grid.shape(if compact then 220 else 240, 1.0, 4)
+					-- short screens: tighter sidebar so every control fits without scrolling
+					sortTitle.Visible = not compact
+					count.Visible = not compact
+					for _, b in sortButtons do
+						b.gui.Size = UDim2.new(1, 0, 0, if compact then 48 else 58)
+					end
+					selectAll.gui.Size = UDim2.new(1, 0, 0, if compact then 54 else 62)
 				end,
 			}
 		end

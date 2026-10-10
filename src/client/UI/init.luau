@@ -102,6 +102,7 @@ function UI:Init()
 	Drawers.openTrade = function()
 		menus.open("Trade")
 	end
+	Modal.setToastAnchor(root:FindFirstChild("Quest") :: GuiObject?) -- toasts stay below the "Eggs secured" bar
 	Kit.watchViewport()
 	quest.update(data)
 	menus.update(data)

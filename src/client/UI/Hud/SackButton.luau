@@ -2,12 +2,16 @@
 -- SACK box next to the KICK button (Partner B, Kick Sack gear). It replaces the Roblox backpack
 -- hotbar: clicking it (or pressing 1) takes your Kick Sack out or puts it away by equipping the sack
 -- Tool that SackService gives every character. With the sack out, every left click (a tap on
--- mobile) kicks it: SackController listens to the Tool's Activated. Shows your current sack in 3D.
+-- mobile) kicks it: SackController listens to the Tool's Activated. Shows your current sack's supplied PNG
+-- (UI handoff v2: the sack art is mandatory for the hotbar; no 3D model preview).
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 local Kit = require(script.Parent.Parent.Kit)
-local Icons = require(script.Parent.Parent.Icons)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AssetIds = require(script.Parent.Parent.System.AssetIds)
+local Ui = require(script.Parent.Parent.System.Ui)
+local Upgrades = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Upgrades"))
 
 export type SackButton = { update: (data: { [string]: any }) -> () }
 
@@ -142,7 +146,8 @@ function SackButton.new(parent: Instance): SackButton
 		if tier ~= shown then
 			shown = tier
 			preview:ClearAllChildren()
-			Icons.sack(preview, tier).ZIndex = 2
+			local t = Upgrades.Sack.tiers[tier]
+			Ui.art(preview, (t and AssetIds.sack(t.name)) or `sack:{tier}`).ZIndex = 2
 		end
 	end
 	update({})

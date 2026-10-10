@@ -7,3 +7,6 @@ sourcemap.json
 Thumbs.db
 .vscode/
 node_modules/
+
+# UI handoff PNGs staged for upload to Roblox (66 MB; the uploaded ids live in UI/System/AssetIds.luau)
+assets/ui-upload/

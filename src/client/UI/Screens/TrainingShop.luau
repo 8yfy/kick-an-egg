@@ -1,16 +1,20 @@
 --!strict
--- Training shop (UI handoff SCREEN-SPEC "Training shop"; Figma "Training / Boxing Sacks"), paid with in-game
--- cash only. Two tabs:
---   Boxing Sacks: all 20 sacks of Config/Upgrades.Sack in ladder order. One main action per card:
---     Equipped (the sack you train with), Owned (an earlier sack, superseded), Buy (the next sack, affordable),
---     Insufficient (the next sack, price + how much is missing), Locked (buy the one before first),
---     Pending (request sent, waiting for the server) and Failed (inline error, card stays).
---     Buying the next sack is what the game does on UpgradeTraining: it becomes your sack right away.
---   Speed: Run Speed (= how fast your egg runs home), next value, level/cap, exact cost, Upgrade or Maxed.
---     One step per purchase (BuyUpgrade "RunSpeed"); no bulk buying because the server sells +1 at a time.
+-- Training Shop (UI handoff v2 01-Mockups/06-Training-Shop.png + VISUAL-CONTRACT "Training card construction"),
+-- paid with in-game cash. Purple/pink header, BOXING SACKS / SPEED tabs, cash footer.
+--   Boxing Sacks: the 20 sacks of Config/Upgrades.Sack in catalog order, 3 art-led cards per row on desktop
+--     (4 smaller ones on phones). Each card: name, tier, the supplied sack PNG large on a stud gradient in the
+--     sack's own material colour (sampled from its PNG, not a rarity), the real kick-power gain and ONE action:
+--     EQUIPPED (the sack you train with) / OWNED (an earlier sack, superseded) / BUY $x (the next sack) /
+--     the same price disabled when you can't afford it / LOCKED (buy the one before first) / BUYING... while
+--     the request is pending / an inline error if it fails. Buying makes the new sack yours right away
+--     (that is what UpgradeTraining does).
+--   Speed: Run Speed (= how fast your egg runs home), next value, level/cap, exact price, UPGRADE or MAXED.
+--     One step per purchase (BuyUpgrade "RunSpeed"); no bulk buying: the server sells +1 at a time.
+-- Cards are authored at the contract's reference size (444 x 566) and scaled as a whole to the grid cell.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local System = script.Parent.Parent.System
+local AssetIds = require(System.AssetIds)
 local Data = require(System.Data)
 local Modal = require(System.Modal)
 local Motion = require(System.Motion)
@@ -20,238 +24,336 @@ local Ui = require(System.Ui)
 local C = Theme.Colors
 local TrainingShop = {}
 
+local CARD = Vector2.new(444, 566)
+local CARD_WIDE = Vector2.new(640, 300) -- phones
+
 local function remote(name: string): RemoteEvent
 	local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes")) :: any
 	return Remotes.get(name)
 end
 
--- Glow behind the art by VFX step (Config/Upgrades.Sack.tiers[].fx), not by rarity.
-local FX_GLOW: { [string]: Color3 } = {
-	Basics = Color3.fromHex("C9CED8"),
-	Comic = Color3.fromHex("FF8A3D"),
-	Champion = Color3.fromHex("FFD84A"),
-	Elemental = Color3.fromHex("53F0FF"),
-	Mythic = Color3.fromHex("D95AFF"),
-	God = Color3.fromHex("FFF16A"),
-}
-
 type Card = {
 	tier: number,
 	gui: Frame,
+	content: Frame,
+	scale: UIScale,
 	stroke: UIStroke,
 	art: Frame,
-	info: Frame,
-	button: Ui.Button,
+	sub: TextLabel,
+	buy: Ui.Button,
+	price: TextLabel,
+	priceIcon: Frame,
 	pill: Frame,
 	pillLabel: TextLabel,
-	note: TextLabel,
+	pillIcon: Frame,
 	failedUntil: number,
+	layout: (compact: boolean) -> (),
 }
 
 local function buildCard(parent: Instance, row: Data.SackRow, onBuy: (card: Card) -> ()): Card
-	local card = Ui.panel(parent, "Sack" .. row.tier)
+	local accent = Theme.SackAccent[row.name] or Theme.Buttons.grey
+	local card = Instance.new("Frame")
+	card.Name = "Sack" .. row.tier
 	card.LayoutOrder = row.tier
-	local stroke = card:FindFirstChildOfClass("UIStroke") :: UIStroke
-	local content = Ui.frame(card, "Content")
+	card.BackgroundTransparency = 1
+	card.Parent = parent
 
-	local art = Instance.new("Frame")
-	art.Name = "ArtHolder"
-	art.BackgroundColor3 = C.panelDeep
-	art.BorderSizePixel = 0
-	Ui.corner(art)
-	Ui.stroke(art, 3)
-	art.ClipsDescendants = true
-	art.Parent = content
-	local glow = FX_GLOW[row.fx] or FX_GLOW.Basics
-	Ui.glow(art, glow, true)
-	local artFrame = Ui.frame(art, "ArtFrame", UDim2.fromScale(0.86, 0.86), UDim2.fromScale(0.5, 0.5))
+	-- The whole card is authored at CARD size inside `content` and scaled to the cell.
+	local content = Ui.frame(card, "Content", UDim2.fromOffset(CARD.X, CARD.Y))
+	local scale = Instance.new("UIScale")
+	scale.Parent = content
+	local bg = Instance.new("Frame")
+	bg.Name = "Background"
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BorderSizePixel = 0
+	bg.ClipsDescendants = true
+	Ui.corner(bg)
+	if row.name == "Rainbow God" then
+		Ui.fill(bg, {
+			Color3.fromHex("FF6A8A"),
+			Color3.fromHex("FFD34A"),
+			Color3.fromHex("5BE07A"),
+			Color3.fromHex("4FA8FF"),
+			Color3.fromHex("B65CFF"),
+		}, 120)
+	else
+		Ui.fill(bg, accent)
+	end
+	local stroke = Ui.stroke(bg, 5)
+	Ui.studs(bg, Theme.Studs.card)
+	bg.Parent = content
+	local shade = Instance.new("Frame") -- darker foot so the action reads on every accent
+	shade.Name = "Shade"
+	shade.BackgroundColor3 = Color3.new(0, 0, 0)
+	shade.BorderSizePixel = 0
+	shade.AnchorPoint = Vector2.new(0, 1)
+	shade.Position = UDim2.fromScale(0, 1)
+	shade.Size = UDim2.new(1, 0, 0, 170)
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Transparency = NumberSequence.new(1, 0.45)
+	g.Parent = shade
+	shade.Parent = bg
+
+	-- Art well: rays + glow behind the supplied PNG (Fit, white tint), big.
+	local art = Ui.frame(bg, "ArtWell", UDim2.new(1, -16, 0, 326), UDim2.fromOffset(8, 84))
+	Ui.glow(art, accent[1]:Lerp(Color3.new(1, 1, 1), 0.45), true, 0.95)
+	local key = AssetIds.sack(row.name)
+	local artFrame = Ui.frame(art, "ArtFrame", UDim2.fromScale(0.95, 0.95), UDim2.fromScale(0.5, 0.5))
 	artFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	Ui.sackArt(artFrame, row.tier)
-	local chip = Ui.pill(art, "#" .. row.tier, "grey", UDim2.fromOffset(58, 32), 18)
-	chip.Position = UDim2.fromOffset(8, 8)
-	chip.ZIndex = 3
+	artFrame.ZIndex = 2
+	Ui.art(artFrame, key or ("sack:" .. row.name)).ZIndex = 2
 
-	local info = Ui.frame(content, "Info")
-	local name = Ui.text(info, row.name, 28, { name = "Name" })
-	name.Position = UDim2.new()
-	local benefit =
-		Ui.text(info, `+{Ui.number(row.gain)} Kick Power per kick`, 20, { color = C.power, name = "Benefit" })
-	benefit.Position = UDim2.fromOffset(0, 38)
-	local note = Ui.text(info, "", 18, { color = C.muted, name = "Note" })
-	note.AnchorPoint = Vector2.new(0, 1)
-	note.Position = UDim2.new(0, 0, 1, -64)
+	local name = Ui.text(bg, row.name, 38, { align = Enum.TextXAlignment.Center, stroke = 4, name = "Name" })
+	name.Position = UDim2.fromOffset(10, 8)
+	name.Size = UDim2.new(1, -20, 0, 46)
+	name.ZIndex = 3
+	local sub = Ui.text(bg, "", 22, { align = Enum.TextXAlignment.Center, stroke = 3, name = "Sub" })
+	sub.Position = UDim2.fromOffset(10, 52)
+	sub.Size = UDim2.new(1, -20, 0, 28)
+	sub.ZIndex = 3
+	local benefit = Ui.text(bg, `+{Ui.number(row.gain)} Kick Power per kick`, 26, {
+		align = Enum.TextXAlignment.Center,
+		stroke = 3,
+		name = "Benefit",
+	})
+	benefit.Position = UDim2.fromOffset(10, 412)
+	benefit.Size = UDim2.new(1, -20, 0, 36)
+	benefit.ZIndex = 3
 
 	local self: Card
-	local button = Ui.button(info, {
+	local buy = Ui.button(bg, {
 		text = "BUY",
-		gradient = "lime",
-		size = UDim2.new(1, 0, 0, 56),
-		textSize = 26,
-		icon = "icon/cash",
-		name = "Action",
+		style = "lime",
+		size = UDim2.new(1, -28, 0, 64),
+		textSize = 34,
+		name = "Buy",
 		onClick = function()
 			onBuy(self)
 		end,
 	})
-	button.gui.AnchorPoint = Vector2.new(0, 1)
-	button.gui.Position = UDim2.fromScale(0, 1)
-	local pill, pillLabel = Ui.pill(info, "", "grey", UDim2.new(1, 0, 0, 56), 26)
-	pill.AnchorPoint = Vector2.new(0, 1)
-	pill.Position = UDim2.fromScale(0, 1)
+	buy.gui.AnchorPoint = Vector2.new(0.5, 1)
+	buy.gui.Position = UDim2.new(0.5, 0, 1, -16)
+	buy.gui.ZIndex = 3
+	local row2 = buy.gui:FindFirstChild("Content") :: Frame
+	local priceIcon = Ui.frame(row2, "CashIcon", UDim2.fromOffset(52, 52))
+	priceIcon.LayoutOrder = 3
+	Ui.art(priceIcon, "premium_icons_currency_cash").ZIndex = 2
+	local price = Ui.text(row2, "", 34, { autoX = true, stroke = 3, name = "Price" })
+	price.LayoutOrder = 4
+	price.ZIndex = 2
+
+	local pill, pillLabel = Ui.pill(bg, "", "dark", UDim2.new(1, -28, 0, 64), 34)
+	pill.AnchorPoint = Vector2.new(0.5, 1)
+	pill.Position = UDim2.new(0.5, 0, 1, -16)
+	pill.ZIndex = 3
+	local pillRow = pill:FindFirstChild("Content") :: Frame
+	local pillIcon = Ui.frame(pillRow, "Lock", UDim2.fromOffset(44, 44))
+	pillIcon.LayoutOrder = 0
+	Ui.art(pillIcon, "icon_lock")
 
 	self = {
 		tier = row.tier,
 		gui = card,
+		content = content,
+		scale = scale,
 		stroke = stroke,
 		art = art,
-		info = info,
-		button = button,
+		sub = sub,
+		buy = buy,
+		price = price,
+		priceIcon = priceIcon,
 		pill = pill,
 		pillLabel = pillLabel,
-		note = note,
+		pillIcon = pillIcon,
 		failedUntil = 0,
+		layout = function(compact: boolean)
+			-- desktop: tall art-led card; phones: wide card (art left, text + action right) so the action
+			-- is always on screen without scrolling inside a card
+			local size = if compact then CARD_WIDE else CARD
+			content.Size = UDim2.fromOffset(size.X, size.Y)
+			local center = if compact then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center
+			name.TextXAlignment, sub.TextXAlignment, benefit.TextXAlignment = center, center, center
+			if compact then
+				art.Size = UDim2.new(0.44, -8, 1, -16)
+				art.Position = UDim2.fromOffset(8, 8)
+				name.Position = UDim2.new(0.46, 4, 0, 14)
+				name.Size = UDim2.new(0.54, -16, 0, 46)
+				sub.Position = UDim2.new(0.46, 4, 0, 60)
+				sub.Size = UDim2.new(0.54, -16, 0, 28)
+				benefit.Position = UDim2.new(0.46, 4, 0, 98)
+				benefit.Size = UDim2.new(0.54, -16, 0, 36)
+				for _, gui in { buy.gui :: GuiObject, pill } do
+					gui.AnchorPoint = Vector2.new(1, 1)
+					gui.Position = UDim2.new(1, -14, 1, -16)
+					gui.Size = UDim2.new(0.54, -22, 0, 64)
+				end
+			else
+				art.Size = UDim2.new(1, -16, 0, 326)
+				art.Position = UDim2.fromOffset(8, 84)
+				name.Position = UDim2.fromOffset(10, 8)
+				name.Size = UDim2.new(1, -20, 0, 46)
+				sub.Position = UDim2.fromOffset(10, 52)
+				sub.Size = UDim2.new(1, -20, 0, 28)
+				benefit.Position = UDim2.fromOffset(10, 412)
+				benefit.Size = UDim2.new(1, -20, 0, 36)
+				for _, gui in { buy.gui :: GuiObject, pill } do
+					gui.AnchorPoint = Vector2.new(0.5, 1)
+					gui.Position = UDim2.new(0.5, 0, 1, -16)
+					gui.Size = UDim2.new(1, -28, 0, 64)
+				end
+			end
+		end,
 	}
 	return self
 end
 
--- Vertical card on wide screens, art-left card on short (phone) screens.
-local function layoutCard(card: Card, compact: boolean)
-	if compact then
-		card.art.Position = UDim2.fromOffset(12, 12)
-		card.art.Size = UDim2.new(0.42, -12, 1, -24)
-		card.info.Position = UDim2.new(0.42, 14, 0, 14)
-		card.info.Size = UDim2.new(0.58, -28, 1, -28)
-	else
-		card.art.Position = UDim2.fromOffset(12, 12)
-		card.art.Size = UDim2.new(1, -24, 0.54, -12)
-		card.info.Position = UDim2.new(0, 14, 0.54, 12)
-		card.info.Size = UDim2.new(1, -28, 0.46, -26)
-	end
-end
-
 local function paint(card: Card, row: Data.SackRow, pendingTier: number?, rows: { Data.SackRow })
-	local button, pill = card.button, card.pill
 	local failed = os.clock() < card.failedUntil
-	card.stroke.Color = if row.state == "Equipped" then Theme.Gradients.lime[2] else C.stroke
-	card.stroke.Thickness = if row.state == "Equipped" then 6 else Theme.Layout.stroke
-	local showButton = row.state == "Buy" or row.state == "Insufficient"
-	button.gui.Visible = showButton
-	pill.Visible = not showButton
-	card.note.TextColor3 = C.muted
+	local showBuy = row.state == "Buy" or row.state == "Insufficient"
+	card.buy.gui.Visible = showBuy
+	card.pill.Visible = not showBuy
+	card.pillIcon.Visible = row.state == "Locked"
+	card.sub.Text = `TIER {row.tier}`
+	card.sub.TextColor3 = C.text
 	if row.state == "Equipped" then
 		card.pillLabel.Text = "EQUIPPED"
-		Ui.gradient(pill, "lime")
-		card.note.Text = "Training with this sack"
+		card.pillLabel.TextColor3 = Theme.Buttons.lime[1]
+		Ui.fill(card.pill, Theme.Buttons.grey)
 	elseif row.state == "Owned" then
 		card.pillLabel.Text = "OWNED"
-		Ui.gradient(pill, "grey")
-		card.note.Text = "Replaced by a stronger sack"
+		card.pillLabel.TextColor3 = C.text
+		Ui.fill(card.pill, Theme.Buttons.dark)
 	elseif row.state == "Locked" then
 		card.pillLabel.Text = "LOCKED"
-		Ui.gradient(pill, "disabled")
+		card.pillLabel.TextColor3 = C.muted
+		Ui.fill(card.pill, Theme.Buttons.dark)
 		local prev = rows[row.tier - 1]
-		card.note.Text = if prev then `Buy {prev.name} first` else ""
+		card.sub.Text = if prev then `TIER {row.tier} · after {prev.name}` else `TIER {row.tier}`
 	else
-		button.setText(Ui.money(row.cost))
-		button.setEnabled(row.state == "Buy")
-		button.setPending(pendingTier == row.tier, "BUYING...")
+		local pending = pendingTier == row.tier
+		card.price.Text = Ui.money(row.cost)
+		card.buy.setEnabled(row.state == "Buy")
+		card.buy.setPending(pending, "BUYING...")
+		card.priceIcon.Visible = not pending
+		card.price.Visible = not pending
 		if row.state == "Insufficient" then
-			card.note.Text = `Need {Ui.money(row.cost - Data.money())} more`
-			card.note.TextColor3 = C.power
-		else
-			card.note.Text = "Next sack"
+			card.sub.Text = `NEED {Ui.money(row.cost - Data.money())} MORE`
+			card.sub.TextColor3 = C.power
 		end
 	end
 	if failed then
-		card.note.Text = "Purchase failed. Try again."
-		card.note.TextColor3 = Theme.Gradients.red[1]
+		card.sub.Text = "PURCHASE FAILED · TRY AGAIN"
+		card.sub.TextColor3 = C.danger
 	end
 end
 
-local function buildSpeed(page: Frame, onUpgrade: () -> ()): (info: Data.SpeedInfo, pending: boolean) -> ()
-	local panel = Ui.panel(page, "SpeedPanel")
-	panel.AnchorPoint = Vector2.new(0.5, 0)
-	panel.Position = UDim2.fromScale(0.5, 0)
-	panel.Size = UDim2.new(1, 0, 1, -8)
-	local inner = Ui.frame(panel, "Inner", UDim2.new(1, -48, 1, -40), UDim2.fromOffset(24, 20))
+-- Speed tab ------------------------------------------------------------------------------------------------
 
-	local head = Ui.frame(inner, "Head", UDim2.new(1, 0, 0, 96))
-	local icon = Ui.icon(head, "icon/speed", 96, ">>")
-	icon.Position = UDim2.new()
-	local title = Ui.text(head, "Run Speed", 40, { name = "Title" })
-	title.Position = UDim2.fromOffset(112, 6)
-	title.Size = UDim2.new(1, -112, 0, 48)
-	local sub = Ui.text(
-		head,
-		"How fast your egg runs home. Faster eggs survive farther zones.",
-		20,
-		{ color = C.muted, name = "Sub" }
-	)
-	sub.Position = UDim2.fromOffset(112, 56)
-	sub.Size = UDim2.new(1, -112, 0, 28)
+local function buildSpeed(
+	page: Frame,
+	onUpgrade: () -> ()
+): ((info: Data.SpeedInfo, pending: boolean) -> (), (compact: boolean) -> ())
+	local panel = Instance.new("Frame")
+	panel.Name = "SpeedCard"
+	panel.Size = UDim2.new(1, 0, 1, -6)
+	panel.BorderSizePixel = 0
+	panel.ClipsDescendants = true
+	Ui.corner(panel)
+	Ui.fill(panel, { Color3.fromHex("49C9FF"), Color3.fromHex("1A3FA8") })
+	Ui.stroke(panel, 5)
+	Ui.studs(panel, Theme.Studs.card)
+	panel.Parent = page
 
-	local values = Ui.frame(inner, "Values", UDim2.new(1, 0, 0, 90), UDim2.fromOffset(0, 120))
-	Ui.list(values, 22, true, Enum.HorizontalAlignment.Center)
-	local now = Ui.text(values, "", 72, { autoX = true, stroke = 5, color = Theme.Gradients.cyan[1], name = "Now" })
+	local hero = Ui.frame(panel, "Hero", UDim2.new(0.4, 0, 1, -40), UDim2.fromOffset(20, 20))
+	Ui.glow(hero, Color3.fromHex("BFF4FF"), true, 0.9)
+	local heroArt = Ui.frame(hero, "ArtFrame", UDim2.fromScale(0.82, 0.82), UDim2.fromScale(0.5, 0.5))
+	heroArt.AnchorPoint = Vector2.new(0.5, 0.5)
+	heroArt.ZIndex = 2
+	Ui.art(heroArt, "premium_icons_nav_eggs").ZIndex = 2
+
+	local info = Ui.frame(panel, "Info", UDim2.new(0.6, -50, 1, -40), UDim2.new(0.4, 30, 0, 20))
+	local title = Ui.text(info, "RUN SPEED", 56, { stroke = 5, name = "Title" })
+	title.Size = UDim2.new(1, 0, 0, 66)
+	local sub = Ui.text(info, "How fast your egg runs home. Faster eggs survive farther zones.", 24, {
+		wrap = true,
+		name = "Sub",
+	})
+	sub.Position = UDim2.fromOffset(0, 70)
+	local values = Ui.frame(info, "Values", UDim2.new(1, 0, 0, 110), UDim2.fromOffset(0, 140))
+	Ui.list(values, 22, true)
+	local now = Ui.text(values, "", 96, { autoX = true, stroke = 6, name = "Now" })
 	now.LayoutOrder = 1
-	local arrow = Ui.text(values, ">", 56, { autoX = true, name = "Arrow" })
+	local arrow = Ui.text(values, "→", 72, { autoX = true, stroke = 5, name = "Arrow" })
 	arrow.LayoutOrder = 2
 	local nextValue =
-		Ui.text(values, "", 72, { autoX = true, stroke = 5, color = Theme.Gradients.lime[1], name = "Next" })
+		Ui.text(values, "", 96, { autoX = true, stroke = 6, color = Theme.Buttons.lime[1], name = "Next" })
 	nextValue.LayoutOrder = 3
+	local barHolder = Ui.frame(info, "Bar", UDim2.new(1, 0, 0, 44), UDim2.fromOffset(0, 270))
+	local bar = Ui.progress(barHolder, Theme.Buttons.lime, 44, 26)
+	local note = Ui.text(info, "", 24, { name = "Note" })
+	note.Position = UDim2.fromOffset(0, 326)
 
-	local bar = Ui.progress(inner, "cyan", 34)
-	bar.gui.Position = UDim2.fromOffset(0, 230)
-
-	local note = Ui.text(inner, "", 20, { color = C.muted, align = Enum.TextXAlignment.Center, name = "Note" })
-	note.AnchorPoint = Vector2.new(0, 1)
-	note.Position = UDim2.new(0, 0, 1, -80)
-
-	local button = Ui.button(inner, {
+	local button = Ui.button(info, {
 		text = "UPGRADE",
-		gradient = "lime",
-		size = UDim2.fromOffset(420, 64),
-		textSize = 28,
-		icon = "icon/cash",
+		style = "lime",
+		size = UDim2.new(1, 0, 0, 72),
+		textSize = 38,
 		name = "Upgrade",
 		onClick = onUpgrade,
 	})
-	button.gui.AnchorPoint = Vector2.new(0.5, 1)
-	button.gui.Position = UDim2.fromScale(0.5, 1)
-	local maxPill = Ui.pill(inner, "MAXED", "grey", UDim2.fromOffset(420, 64), 28)
-	maxPill.AnchorPoint = Vector2.new(0.5, 1)
-	maxPill.Position = UDim2.fromScale(0.5, 1)
+	button.gui.AnchorPoint = Vector2.new(0, 1)
+	button.gui.Position = UDim2.fromScale(0, 1)
+	local bRow = button.gui:FindFirstChild("Content") :: Frame
+	local bIcon = Ui.frame(bRow, "CashIcon", UDim2.fromOffset(56, 56))
+	bIcon.LayoutOrder = 3
+	Ui.art(bIcon, "premium_icons_currency_cash").ZIndex = 2
+	local bPrice = Ui.text(bRow, "", 38, { autoX = true, stroke = 3, name = "Price" })
+	bPrice.LayoutOrder = 4
+	bPrice.ZIndex = 2
+	local maxPill = Ui.pill(info, "MAXED", "grey", UDim2.new(1, 0, 0, 72), 38)
+	maxPill.AnchorPoint = Vector2.new(0, 1)
+	maxPill.Position = UDim2.fromScale(0, 1)
 
-	return function(info: Data.SpeedInfo, pending: boolean)
-		now.Text = tostring(info.current)
-		arrow.Visible = not info.maxed
-		nextValue.Visible = not info.maxed
-		nextValue.Text = tostring(info.current + 1)
-		local levels = info.max - info.base
-		local level = info.current - info.base
-		bar.set(level / math.max(1, levels), `Level {level} / {levels}`)
-		button.gui.Visible = not info.maxed
-		maxPill.Visible = info.maxed
-		if info.maxed then
+	local function update(info2: Data.SpeedInfo, pending: boolean)
+		now.Text = tostring(info2.current)
+		arrow.Visible = not info2.maxed
+		nextValue.Visible = not info2.maxed
+		nextValue.Text = tostring(info2.current + 1)
+		local levels = info2.max - info2.base
+		local level = info2.current - info2.base
+		bar.set(level / math.max(1, levels), `LEVEL {level} / {levels}`)
+		button.gui.Visible = not info2.maxed
+		maxPill.Visible = info2.maxed
+		if info2.maxed then
 			note.Text = "Run Speed is maxed."
-			note.TextColor3 = C.muted
-		elseif info.cost then
-			local short = info.cost - Data.money()
-			button.setText("UPGRADE  " .. Ui.money(info.cost))
+			note.TextColor3 = C.text
+		elseif info2.cost then
+			local short = info2.cost - Data.money()
+			bPrice.Text = Ui.money(info2.cost)
 			button.setEnabled(short <= 0)
 			button.setPending(pending, "UPGRADING...")
-			note.Text = if short > 0 then `Need {Ui.money(short)} more` else "+1 Run Speed"
-			note.TextColor3 = if short > 0 then C.power else C.muted
+			bIcon.Visible = not pending
+			bPrice.Visible = not pending
+			note.Text = if short > 0 then `Need {Ui.money(short)} more` else "+1 Run Speed per upgrade"
+			note.TextColor3 = if short > 0 then C.power else C.text
 		end
 	end
+	local function layout(compact: boolean)
+		hero.Visible = not compact
+		info.Size = if compact then UDim2.new(1, -40, 1, -40) else UDim2.new(0.6, -50, 1, -40)
+		info.Position = if compact then UDim2.fromOffset(20, 20) else UDim2.new(0.4, 30, 0, 20)
+	end
+	return update, layout
 end
 
 function TrainingShop.define()
 	Modal.define(
 		"Training",
-		{ title = "Training", gradient = "orange", icon = "icon/training" },
+		{ title = "Training Shop", header = Theme.Headers.training, footer = true },
 		function(shell: Modal.Shell): Modal.Screen
 			local body = shell.body
+			local footer = shell.footer :: Frame
 			local sacksPage: ScrollingFrame
 			local speedPage: Frame
 			local cards: { Card } = {}
@@ -260,23 +362,46 @@ function TrainingShop.define()
 			local speedPending = false
 			local stopFloat: (() -> ())? = nil
 			local focalTier = 0
-			local compact = false
 			local scrolledOnce = false
+			local wide = false
+
+			-- Footer: your cash + what you are training with.
+			local cashIcon = Ui.frame(footer, "CashIcon", UDim2.fromOffset(70, 70), UDim2.fromOffset(0, -1))
+			Ui.art(cashIcon, "premium_icons_currency_cash")
+			local cash = Ui.text(footer, "", 46, { autoX = true, stroke = 4, color = C.cash, name = "Cash" })
+			cash.Position = UDim2.fromOffset(80, 6)
+			local sep = Instance.new("Frame")
+			sep.Name = "Separator"
+			sep.BackgroundColor3 = C.cardEdge
+			sep.BorderSizePixel = 0
+			sep.Size = UDim2.fromOffset(3, 46)
+			sep.Position = UDim2.fromOffset(330, 12)
+			sep.Parent = footer
+			local trainingNote = Ui.text(footer, "", 24, { color = C.muted, name = "Note", stroke = 2 })
+			trainingNote.Position = UDim2.fromOffset(356, 15)
+			trainingNote.Size = UDim2.new(1, -356, 0, 34)
 
 			local function refresh()
 				rows = Data.sacks()
 				local focal = 0
+				local equipped: Data.SackRow? = nil
 				for _, row in rows do
 					if row.state == "Buy" or row.state == "Insufficient" then
 						focal = row.tier
+					elseif row.state == "Equipped" then
+						equipped = row
 					end
 				end
 				if focal == 0 then
-					focal = Data.state.rackLevel or 1
+					focal = if equipped then equipped.tier else 1
 				end
 				for i, card in cards do
 					paint(card, rows[i], pendingTier, rows)
 				end
+				cash.Text = Ui.money(Data.money())
+				trainingNote.Text = if equipped
+					then `Training with {equipped.name}: +{Ui.number(equipped.gain)} Kick Power per kick`
+					else "Train with your equipped sack"
 				if focal ~= focalTier then
 					focalTier = focal
 					if stopFloat then
@@ -291,6 +416,7 @@ function TrainingShop.define()
 			end
 
 			local updateSpeed: (info: Data.SpeedInfo, pending: boolean) -> ()
+			local layoutSpeed: (compact: boolean) -> ()
 
 			local function buy(card: Card)
 				local row = rows[card.tier]
@@ -313,7 +439,7 @@ function TrainingShop.define()
 							Motion.burst(Modal.layer(), abs, "sparkle")
 						else
 							card.failedUntil = os.clock() + 3
-							Motion.flagError(card.stroke, C.stroke)
+							Motion.flagError(card.stroke, C.border)
 							task.delay(3.1, refresh)
 						end
 						refresh()
@@ -347,32 +473,42 @@ function TrainingShop.define()
 				)
 			end
 
-			local tabs = Ui.tabs(body, { "Boxing Sacks", "Speed" }, function(i: number)
-				sacksPage.Visible = i == 1
-				speedPage.Visible = i == 2
-				if i == 1 then
-					local visible = {}
-					for n = 1, math.min(#cards, 6) do
-						table.insert(visible, cards[n].gui :: GuiObject)
+			local tabs = Ui.tabs(
+				body,
+				{ "Boxing Sacks", "Speed" },
+				{ "premium_icons_nav_training", "premium_icons_nav_eggs" },
+				Theme.Headers.training,
+				function(i: number)
+					sacksPage.Visible = i == 1
+					speedPage.Visible = i == 2
+					if i == 1 then
+						local visible = {}
+						for n = 1, math.min(#cards, 6) do
+							table.insert(visible, cards[n].gui :: GuiObject)
+						end
+						Motion.reveal(visible, C.body)
 					end
-					Motion.reveal(visible, C.panel)
 				end
-			end)
-			tabs.gui.Position = UDim2.new()
+			)
 
 			local pages = Ui.frame(body, "Pages", UDim2.new(1, 0, 1, -72), UDim2.fromOffset(0, 72))
 			sacksPage = Ui.scroll(pages, "Sacks")
 			Ui.padding(sacksPage, 6)
-			local grid = Ui.grid(sacksPage, 340, 1.3, Theme.Layout.gap, 3)
+			local grid = Ui.grid(sacksPage, 400, CARD.Y / CARD.X, Theme.Layout.gap, 3)
 			for _, row in rows do
-				local card = buildCard(sacksPage, row, buy)
-				layoutCard(card, false)
-				table.insert(cards, card)
+				table.insert(cards, buildCard(sacksPage, row, buy))
 			end
+			local function rescale()
+				local w = grid.layout.CellSize.X.Offset
+				for _, card in cards do
+					card.scale.Scale = w / (if wide then CARD_WIDE.X else CARD.X)
+				end
+			end
+			grid.layout:GetPropertyChangedSignal("CellSize"):Connect(rescale)
 
 			speedPage = Ui.frame(pages, "Speed")
 			speedPage.Visible = false
-			updateSpeed = buildSpeed(speedPage, upgradeSpeed)
+			updateSpeed, layoutSpeed = buildSpeed(speedPage, upgradeSpeed)
 
 			tabs.select(1)
 
@@ -383,11 +519,13 @@ function TrainingShop.define()
 					if not scrolledOnce then
 						scrolledOnce = true
 						task.defer(function()
-							local card = cards[focalTier]
-							if card then -- first open: bring the next sack into view
-								local delta = card.gui.AbsolutePosition.Y - sacksPage.AbsolutePosition.Y
-								local y = delta / Ui.screenScale(sacksPage) + sacksPage.CanvasPosition.Y
-								sacksPage.CanvasPosition = Vector2.new(0, math.max(0, y - 12))
+							-- first open: scroll so the next sack's row is the top row (computed from the grid, not from
+							-- AbsolutePosition, which is stale while the modal animates in)
+							local cols = math.max(1, grid.columns())
+							local rowIndex = (focalTier - 1) // cols
+							if rowIndex > 0 then
+								local cellH = grid.layout.CellSize.Y.Offset + Theme.Layout.gap
+								sacksPage.CanvasPosition = Vector2.new(0, rowIndex * cellH)
 							end
 						end)
 					end
@@ -396,21 +534,23 @@ function TrainingShop.define()
 					refresh()
 					updateSpeed(Data.speed(), speedPending)
 				end,
-				resize = function(_size: Vector2, isCompact: boolean)
-					compact = isCompact
-					if compact then
-						grid.shape(460, 0.5, 2)
-					else
-						grid.shape(340, 1.3, 3)
-					end
+				resize = function(_size: Vector2, compact: boolean)
+					wide = compact
 					for _, card in cards do
-						layoutCard(card, compact)
+						card.layout(compact)
 					end
+					if compact then
+						grid.shape(560, CARD_WIDE.Y / CARD_WIDE.X, 2)
+					else
+						grid.shape(400, CARD.Y / CARD.X, 3)
+					end
+					rescale()
+					layoutSpeed(compact)
 				end,
 				focus = function()
 					local card = cards[focalTier]
-					return if card and card.button.gui.Visible
-						then card.button.gui
+					return if card and card.buy.gui.Visible
+						then card.buy.gui
 						else tabs.gui:FindFirstChild("Tab1") :: GuiObject?
 				end,
 			}

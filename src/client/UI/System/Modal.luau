@@ -1,18 +1,22 @@
 --!strict
--- The single modal manager (UI handoff SCREEN-SPEC "Shared shell", MOTION-SPEC modal open/close):
---   * at most one large modal; opening another swaps instantly under the same scrim,
---   * dark scrim (tap to close), red close button, gamepad ButtonB closes,
---   * open 280 ms (scale .90 -> 1.025 -> 1, Y +14 -> 0, content fades in), close 160 ms (-> .96, Y +8, fade),
---     a generation counter drops stale completions so rapid open/close always settles on the latest request,
---   * focus: gamepad selection moves into the modal and returns to the launcher on close,
---   * screens are built lazily on first open; header/close/footer are fixed and only the body scrolls,
---   * size: 1200x760 design pixels under one device UIScale; narrow/short screens get a smaller logical
---     size (screens reflow via Ui.grid) instead of tiny text.
--- Also owns the transient reward layer (Motion bursts) and the toast queue (max 3).
+-- The single modal manager (UI handoff v2 VISUAL-CONTRACT "Desktop foundation", MOTION-SPEC modal motion):
+--   * one large modal at a time; opening another swaps instantly under the same scrim,
+--   * layout in a 1440 x 960 design space, scaled to fit 92% of the safe viewport; short (phone) screens get
+--     a smaller logical height instead of unreadable text (screens reflow on `compact`),
+--   * shell: 5 px near-black border, 8 px corners, 6 px drop shadow, full-width 92 px header (section
+--     gradient, studs, two strips, shine, 52 px uppercase title, optional 64 px icon), 70 x 70 red close,
+--     optional fixed 78 px footer; only the body scrolls,
+--   * open 280 ms (scale .90 -> 1.025 -> 1, Y +14 -> 0, content fades in), close 160 ms (-> .96, Y +8, fade);
+--     a generation counter drops stale completions so rapid open/close settles on the latest request,
+--   * scrim tap / ButtonB / close button close it; gamepad focus moves in and returns to the launcher.
+-- Also owns the transient reward layer, the toast lane (max 3, kept below the "Eggs secured" bar) and, in
+-- Studio, the LOCAL ART banner while supplied PNGs have no uploaded ids.
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local AssetIds = require(script.Parent.AssetIds)
 local Motion = require(script.Parent.Motion)
 local Theme = require(script.Parent.Theme)
 local Ui = require(script.Parent.Ui)
@@ -24,9 +28,8 @@ export type Shell = {
 	name: string,
 	container: Frame, -- shadow + panel; animated
 	panel: Frame,
-	header: Frame,
-	title: TextLabel,
-	body: Frame, -- content area (padded); screens put their scroll surface here
+	header: Ui.Header,
+	body: Frame, -- content area (inset 20); screens put their scroll surface here
 	footer: Frame?,
 	size: () -> Vector2, -- logical (design-pixel) size of the panel
 }
@@ -41,29 +44,35 @@ export type Screen = {
 
 export type Options = {
 	title: string,
-	gradient: Ui.Gradient,
-	icon: string?, -- AssetIds key
+	header: Theme.Pair,
+	icon: string?, -- AssetIds key (64 x 64 header icon)
 	footer: boolean?,
 }
 
 type Entry = { options: Options, build: (shell: Shell) -> Screen, shell: Shell?, screen: Screen? }
 
 local entries: { [string]: Entry } = {}
-local gui: ScreenGui
+local root: GuiObject | LayerCollector
 local scrim: TextButton
 local host: Frame
 local hostScale: UIScale
 local fxLayer: Frame
 local toastLayer: Frame
+local toastScale: UIScale
 local current: string? = nil
 local launcher: GuiObject? = nil
 local gen = 0
-local logical = Vector2.new(L.modalW, L.modalH)
+local logical = Vector2.new(L.designW, L.designH)
 local listeners: { (name: string?) -> () } = {}
+local toastAnchor: GuiObject? = nil
+local preview: { size: Vector2, touch: boolean }? = nil
 
 local SCRIM_ALPHA = 0.45
 
 local function topInset(): number
+	if preview then
+		return 0
+	end
 	local ok, rect = pcall(function()
 		return GuiService.TopbarInset
 	end)
@@ -73,21 +82,29 @@ local function topInset(): number
 	return 58
 end
 
+local function viewport(): (Vector2, boolean)
+	if preview then
+		return preview.size, preview.touch
+	end
+	local cam = workspace.CurrentCamera
+	local vp = if cam then cam.ViewportSize else Vector2.new(1920, 1080)
+	return vp, UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+
 local function compact(): boolean
-	return logical.Y < 600
+	return logical.Y < 700
 end
 
 local function relayout()
-	local cam = workspace.CurrentCamera
-	local vp = if cam then cam.ViewportSize else Vector2.new(1920, 1080)
-	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local s = math.min(vp.X / 1920, vp.Y / 1080) * (if touch then 1.35 else 1)
-	s = math.clamp(s, 0.6, 1.4)
+	local vp, touch = viewport()
 	local inset = topInset()
-	local availW, availH = (vp.X - 32) / s, (vp.Y - inset - 20) / s
-	logical = Vector2.new(math.floor(math.min(L.modalW, availW)), math.floor(math.min(L.modalH, availH)))
+	local availW, availH = vp.X * 0.92, (vp.Y - inset) * 0.92
+	local s = math.min(availW / L.designW, availH / L.designH)
+	s = math.clamp(s, if touch then 0.55 else 0.5, 1.5)
+	logical = Vector2.new(math.floor(math.min(L.designW, availW / s)), math.floor(math.min(L.designH, availH / s)))
 	hostScale.Scale = s
 	host.Position = UDim2.new(0.5, 0, 0, inset + (vp.Y - inset) / 2)
+	toastScale.Scale = math.clamp(s, 0.6, 1.2)
 	for _, entry in entries do
 		local shell = entry.shell
 		if shell then
@@ -109,77 +126,80 @@ local function buildShell(name: string, o: Options): Shell
 	container.Visible = false
 	container.Active = true -- swallow clicks so they don't reach the scrim
 
-	local shadow = Instance.new("Frame")
-	shadow.Name = "Shadow"
-	shadow.BackgroundColor3 = C.stroke
-	shadow.BackgroundTransparency = 0.35
-	shadow.BorderSizePixel = 0
-	shadow.Size = UDim2.fromScale(1, 1)
-	shadow.Position = UDim2.fromOffset(0, 10)
-	Ui.corner(shadow, 16)
-	shadow.Parent = container
+	for i, spec in { { 6, 0.35 }, { 14, 0.75 } } do -- 6 px shadow + a broad low-opacity one
+		local shadow = Instance.new("Frame")
+		shadow.Name = "Shadow" .. i
+		shadow.BackgroundColor3 = C.border
+		shadow.BackgroundTransparency = spec[2]
+		shadow.BorderSizePixel = 0
+		shadow.Size = UDim2.new(1, 0, 1, 0)
+		shadow.Position = UDim2.fromOffset(0, spec[1])
+		Ui.corner(shadow, L.radius + 2)
+		shadow.Parent = container
+	end
 
 	local panel = Instance.new("Frame")
 	panel.Name = "Panel"
-	panel.BackgroundColor3 = C.panel
+	panel.BackgroundColor3 = C.body
 	panel.BorderSizePixel = 0
 	panel.Size = UDim2.fromScale(1, 1)
-	Ui.corner(panel, 16)
-	Ui.stroke(panel)
-	Ui.studs(panel)
-	Ui.innerEdge(panel, 0.6)
+	panel.ClipsDescendants = false
+	Ui.corner(panel)
+	Ui.stroke(panel, L.border)
+	Ui.studs(panel, Theme.Studs.body)
 	panel.Parent = container
 
-	local header = Instance.new("Frame")
-	header.Name = "Header"
-	header.Position = UDim2.fromOffset(10, 10)
-	header.Size = UDim2.new(1, -20, 0, L.header)
-	header.ClipsDescendants = true
-	Ui.corner(header, 12)
-	Ui.gradient(header, o.gradient)
-	Ui.stroke(header)
-	Ui.studs(header, Theme.Studs.header)
-	header.Parent = panel
-	Motion.shine(header)
-
-	local titleRow = Ui.frame(header, "TitleRow", UDim2.new(1, -110, 1, 0), UDim2.fromOffset(20, 0))
-	Ui.list(titleRow, 12, true)
-	if o.icon then
-		Ui.icon(titleRow, o.icon, 60).LayoutOrder = 1
-	end
-	local title = Ui.text(titleRow, o.title, 46, { autoX = true, stroke = 4, name = "Title" })
-	title.LayoutOrder = 2
+	local header = Ui.header(panel, o.header, o.title, o.icon, L.header, L.title)
+	local divider = Instance.new("Frame") -- squares off the header's lower corners against the body
+	divider.Name = "HeaderEdge"
+	divider.BackgroundColor3 = C.border
+	divider.BorderSizePixel = 0
+	divider.Position = UDim2.fromOffset(0, L.header - 2)
+	divider.Size = UDim2.new(1, 0, 0, 5)
+	divider.ZIndex = 4
+	divider.Parent = panel
 
 	local close = Ui.closeButton(panel, function()
 		Modal.close()
 	end)
 	close.AnchorPoint = Vector2.new(1, 0.5)
-	close.Position = UDim2.new(1, -24, 0, 10 + L.header / 2)
+	close.Position = UDim2.new(1, -12, 0, L.header / 2)
 	close.ZIndex = 5
 
 	local footerH = if o.footer then L.footer else 0
-	local body = Ui.frame(
-		panel,
-		"Body",
-		UDim2.new(1, -2 * L.pad, 1, -(10 + L.header + 16 + footerH + L.pad)),
-		UDim2.fromOffset(L.pad, 10 + L.header + 16)
-	)
+	local top = L.header + 3 + L.pad
+	local body =
+		Ui.frame(panel, "Body", UDim2.new(1, -2 * L.pad, 1, -(top + footerH + L.pad)), UDim2.fromOffset(L.pad, top))
 	local footer: Frame? = nil
 	if o.footer then
-		local f = Ui.frame(panel, "Footer", UDim2.new(1, -2 * L.pad, 0, footerH), UDim2.new(0, L.pad, 1, -footerH - 12))
-		footer = f
+		local f = Instance.new("Frame")
+		f.Name = "Footer"
+		f.BackgroundColor3 = C.footer
+		f.BorderSizePixel = 0
+		f.AnchorPoint = Vector2.new(0, 1)
+		f.Position = UDim2.new(0, 0, 1, 0)
+		f.Size = UDim2.new(1, 0, 0, footerH)
+		Ui.corner(f)
+		Ui.studs(f, Theme.Studs.body)
+		f.Parent = panel
+		local edge = Instance.new("Frame")
+		edge.Name = "FooterEdge"
+		edge.BackgroundColor3 = C.border
+		edge.BorderSizePixel = 0
+		edge.Size = UDim2.new(1, 0, 0, 4)
+		edge.Parent = f
+		footer = Ui.frame(f, "Content", UDim2.new(1, -2 * L.pad, 1, -8), UDim2.fromOffset(L.pad, 6))
 	end
 
 	local veil = Instance.new("Frame")
 	veil.Name = "Veil"
-	veil.BackgroundColor3 = C.panelDeep
+	veil.BackgroundColor3 = C.card
 	veil.BackgroundTransparency = 1
 	veil.BorderSizePixel = 0
-	veil.Size = UDim2.new(1, 8, 1, 18)
-	veil.Position = UDim2.fromOffset(-4, -4)
+	veil.Size = UDim2.new(1, 10, 1, 20)
+	veil.Position = UDim2.fromOffset(-5, -5)
 	veil.ZIndex = 100
-	veil.Active = false
-	Ui.corner(veil, 16)
+	Ui.corner(veil, L.radius + 2)
 	veil.Parent = container
 
 	return {
@@ -187,7 +207,6 @@ local function buildShell(name: string, o: Options): Shell
 		container = container,
 		panel = panel,
 		header = header,
-		title = title,
 		body = body,
 		footer = footer,
 		size = function()
@@ -231,8 +250,8 @@ local function usingGamepad(): boolean
 	return t.Name:sub(1, 7) == "Gamepad"
 end
 
-local function firstSelectable(root: Instance): GuiObject?
-	for _, d in root:GetDescendants() do
+local function firstSelectable(node: Instance): GuiObject?
+	for _, d in node:GetDescendants() do
 		if d:IsA("GuiButton") and d.Selectable and d.Visible and d.Name ~= "Close" then
 			return d
 		end
@@ -367,7 +386,6 @@ function Modal.close()
 			end
 		end)
 	end
-	-- Focus returns to the launcher.
 	local selected = GuiService.SelectedObject
 	if selected and shell and selected:IsDescendantOf(shell.container) then
 		GuiService.SelectedObject = nil
@@ -413,10 +431,30 @@ function Modal.layer(): Frame
 	return fxLayer
 end
 
--- Toasts: slide +12 -> 0 and fade in (180 ms), dwell 2.2 s, exit 140 ms; at most 3 at once.
+-- Toasts ---------------------------------------------------------------------------------------------------
+
+-- Toasts sit in their own lane at least 20 px below this HUD element (the "Eggs secured" bar).
+function Modal.setToastAnchor(gui: GuiObject?)
+	toastAnchor = gui
+end
+
+local function placeToasts()
+	local y = topInset() + 16
+	local anchor = toastAnchor
+	if anchor and anchor.Parent and anchor.Visible then
+		local rootY = if root:IsA("GuiObject") then root.AbsolutePosition.Y else 0
+		local anchorTop = anchor.AbsolutePosition.Y - rootY
+		local insetFix = if root:IsA("ScreenGui") and root.IgnoreGuiInset then GuiService:GetGuiInset().Y else 0
+		y = math.max(y, anchorTop + insetFix + anchor.AbsoluteSize.Y + 20)
+	end
+	toastLayer.Position = UDim2.new(0.5, 0, 0, y)
+end
+
+-- Slide +12 -> 0 and fade in (180 ms), dwell 2.2 s, exit 140 ms; at most 3 at once.
 local toasts: { Frame } = {}
 local toastCount = 0
 function Modal.toast(text: string, kind: ("info" | "good" | "error")?)
+	placeToasts()
 	while #toasts >= 3 do
 		local oldest = table.remove(toasts, 1)
 		if oldest then
@@ -427,29 +465,28 @@ function Modal.toast(text: string, kind: ("info" | "good" | "error")?)
 	t.Name = "Toast"
 	t.AutomaticSize = Enum.AutomaticSize.XY
 	t.Size = UDim2.fromOffset(0, 0)
-	t.BackgroundColor3 = C.panelDeep
-	t.BackgroundTransparency = 0.05
+	t.BackgroundColor3 = C.card
 	toastCount += 1
 	t.LayoutOrder = toastCount
-	Ui.corner(t, 12)
-	local stroke = Ui.stroke(t)
+	Ui.corner(t)
+	local stroke = Ui.stroke(t, 4)
 	stroke.Color = if kind == "error"
-		then Theme.Gradients.red[2]
-		elseif kind == "good" then Theme.Gradients.lime[2]
-		else C.stroke
-	Ui.padding(t, 18, 10)
-	local label = Ui.text(t, text, 24, { autoX = true })
+		then Theme.Buttons.red[2]
+		elseif kind == "good" then Theme.Buttons.lime[2]
+		else C.border
+	Ui.padding(t, 20, 10)
+	local label = Ui.text(t, text, 26, { autoX = true, stroke = 3 })
 	t.Parent = toastLayer
 	table.insert(toasts, t)
-	local scale = Motion.scaleOf(t)
+	local inner = Motion.scaleOf(t)
 	if not Motion.reduced() then
-		scale.Scale = 0.94
-		Motion.tween(scale, 0.18, { Scale = 1 })
+		inner.Scale = 0.94
+		Motion.tween(inner, 0.18, { Scale = 1 })
 	end
 	label.TextTransparency = 1
 	t.BackgroundTransparency = 1
 	Motion.tween(label, 0.18, { TextTransparency = 0 })
-	Motion.tween(t, 0.18, { BackgroundTransparency = 0.05 })
+	Motion.tween(t, 0.18, { BackgroundTransparency = 0.04 })
 	task.delay(0.18 + 2.2, function()
 		if not t.Parent then
 			return
@@ -465,13 +502,27 @@ function Modal.toast(text: string, kind: ("info" | "good" | "error")?)
 	end)
 end
 
-function Modal.init(playerGui: Instance)
-	gui = Instance.new("ScreenGui")
-	gui.Name = "Modals"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 10
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Init -----------------------------------------------------------------------------------------------------
+
+-- `parent`: PlayerGui (game) or a preview frame (tools/preview). `opts.viewport` pins the layout size.
+function Modal.init(parent: Instance, opts: { viewport: Vector2?, touch: boolean? }?)
+	if opts and opts.viewport then
+		preview = { size = opts.viewport, touch = opts.touch == true }
+	end
+	if parent:IsA("GuiObject") then
+		local f = Ui.frame(parent, "Modals")
+		f.ZIndex = 50
+		root = f
+	else
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "Modals"
+		gui.ResetOnSpawn = false
+		gui.IgnoreGuiInset = true
+		gui.DisplayOrder = 10
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		gui.Parent = parent
+		root = gui
+	end
 
 	scrim = Instance.new("TextButton")
 	scrim.Name = "Scrim"
@@ -486,7 +537,7 @@ function Modal.init(playerGui: Instance)
 	scrim.Activated:Connect(function()
 		Modal.close()
 	end)
-	scrim.Parent = gui
+	scrim.Parent = root
 
 	host = Instance.new("Frame")
 	host.Name = "Host"
@@ -495,28 +546,49 @@ function Modal.init(playerGui: Instance)
 	host.Size = UDim2.fromOffset(0, 0)
 	hostScale = Instance.new("UIScale")
 	hostScale.Parent = host
-	host.Parent = gui
+	host.Parent = root
 
-	fxLayer = Ui.frame(gui, "Transient")
+	fxLayer = Ui.frame(root, "Transient")
 	fxLayer.ZIndex = 50
 
-	toastLayer = Ui.frame(gui, "Toasts", UDim2.new(1, 0, 0, 300), UDim2.new(0, 0, 0, topInset() + 12))
+	toastLayer = Ui.frame(root, "Toasts", UDim2.fromOffset(0, 0))
+	toastLayer.AnchorPoint = Vector2.new(0.5, 0)
+	toastLayer.AutomaticSize = Enum.AutomaticSize.XY
 	toastLayer.ZIndex = 60
-	local list = Ui.list(toastLayer, 10, false, Enum.HorizontalAlignment.Center)
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	local toastScale = Instance.new("UIScale")
+	Ui.list(toastLayer, 10, false, Enum.HorizontalAlignment.Center)
+	toastScale = Instance.new("UIScale")
 	toastScale.Parent = toastLayer
 
-	gui.Parent = playerGui
-	relayout()
-	local cam = workspace.CurrentCamera
-	if cam then
-		cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			relayout()
-			toastScale.Scale = hostScale.Scale
-		end)
+	-- Studio: say loudly that supplied art is shown from local copies until its ids are uploaded.
+	local missing = #AssetIds.missing()
+	if RunService:IsStudio() and missing > 0 then
+		local banner = Instance.new("Frame")
+		banner.Name = "LocalArtBanner"
+		banner.AnchorPoint = Vector2.new(1, 1)
+		banner.Position = UDim2.new(1, -8, 1, -8)
+		banner.AutomaticSize = Enum.AutomaticSize.XY
+		banner.BackgroundColor3 = Color3.fromHex("2A0A24")
+		banner.BackgroundTransparency = 0.15
+		banner.ZIndex = 70
+		Ui.corner(banner, 6)
+		Ui.stroke(banner, 2, C.missing)
+		Ui.padding(banner, 10, 4)
+		Ui.text(
+			banner,
+			`LOCAL ART (Studio only): {missing} images not uploaded`,
+			17,
+			{ autoX = true, color = C.missing }
+		).ZIndex =
+			71
+		banner.Parent = root
 	end
-	toastScale.Scale = hostScale.Scale
+
+	relayout()
+	placeToasts()
+	local cam = workspace.CurrentCamera
+	if cam and not preview then
+		cam:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
+	end
 end
 
 return Modal

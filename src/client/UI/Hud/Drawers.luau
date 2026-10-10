@@ -1,16 +1,17 @@
 --!strict
--- Right HUD rail: Eggs and Pets toggles, each opening a drawer that slides in from the right edge (200 ms,
--- cubic out, chevron turns). One drawer at a time; opening a modal closes it. (UI handoff SCREEN-SPEC
--- "Egg drawer" / "Active pets drawer".)
+-- Right HUD rail + drawers (UI handoff v2 01-Mockups/05-Eggs-and-Active-Pets.png, 01-Gameplay-HUD.png). EGGS (gold)
+-- and PETS (orange) square tiles on the right edge; each opens a compact drawer that slides in from the edge
+-- (200 ms cubic out). Drawers size to their rows (1-4 visible, then scroll) instead of a tall empty box.
+-- One drawer at a time; opening a modal closes it.
 --
--- Eggs: eggs hatching on pedestals (soonest first) with a countdown + bar from the server's placedAt/hatchAt
---   and synced server time, then eggs waiting for a free pedestal. Eggs hatch by themselves on the server at
---   hatchAt, so there is no Hatch button: a finished timer reads "Hatching..." until the server swaps the egg
---   for its pet. Queue-full shows how to make room (Bigger Pen / sell pets). Badge = eggs waiting for room.
--- Pets: pedestal capacity header, the pets earning on pedestals ($/s and cash waiting to be collected),
---   Bigger Pen (Remotes.UpgradePen, the game's real capacity unlock) and Inventory / Sell + Trade shortcuts.
---   No unequip / Equip Best: the game places pets on free pedestals automatically, so neither exists.
---   Badge = pets hatched since you last opened the drawer.
+-- HATCHING EGGS: eggs on pedestals (soonest first): 3D egg, name, countdown + bar from the server's
+--   placedAt/hatchAt and synced server time. Eggs hatch BY THEMSELVES at hatchAt (no Hatch action exists), so a
+--   finished timer reads HATCHING... until the server swaps the egg for its pet. Then eggs waiting for a free
+--   pedestal, then one compact "free pedestals" row. Footer: BIGGER PEN (Remotes.UpgradePen, the real capacity
+--   unlock). Badge = eggs waiting for room.
+-- ACTIVE PETS: pets earning on pedestals: 3D pet, name, $/s and cash waiting on the pedestal. The game places
+--   pets on free pedestals automatically, so there is no Unequip / Equip Best. Footer: SELL PETS (inventory)
+--   and TRADE (A's trade window). Badge = pets hatched since you last opened the drawer.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -26,7 +27,12 @@ local Ui = require(System.Ui)
 local C = Theme.Colors
 local Drawers = {}
 
-local DRAWER_W, DRAWER_H = 470, 620
+local W = 440
+local HEAD = 68
+local ROW = 100
+local ROW_GAP = 10
+local FOOT = 90
+local MAX_H = 620 -- ~58% of the 1080 reference height
 
 local function remote(name: string): RemoteEvent
 	local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes")) :: any
@@ -38,94 +44,104 @@ local function clock(seconds: number): string
 	if s >= 3600 then
 		return string.format("%d:%02d:%02d", s // 3600, (s % 3600) // 60, s % 60)
 	end
-	return string.format("%d:%02d", s // 60, s % 60)
+	return string.format("%02d:%02d", s // 60, s % 60)
 end
 
 export type Drawers = { update: () -> (), hatched: (petName: string) -> (), open: (name: string?) -> () }
 
-type Drawer = { root: Frame, header: TextLabel, sub: TextLabel, list: ScrollingFrame, footer: Frame }
+type Drawer = { root: Frame, title: TextLabel, count: TextLabel, list: ScrollingFrame, footer: Frame, rows: () -> number }
 
-local function drawer(parent: Instance, name: string, title: string, key: Ui.Gradient): Drawer
-	local root = Ui.panel(parent, name)
-	root.Size = UDim2.fromOffset(DRAWER_W, DRAWER_H)
-	root.AnchorPoint = Vector2.new(1, 0.5)
+local function drawer(parent: Instance, name: string, title: string, fill: Theme.Pair, onClose: () -> ()): Drawer
+	local root = Ui.surface(parent, name, C.body, Theme.Studs.body, 5)
+	root.AnchorPoint = Vector2.new(1, 0)
 	root.Visible = false
-	local head = Instance.new("Frame")
-	head.Name = "Header"
-	head.Position = UDim2.fromOffset(8, 8)
-	head.Size = UDim2.new(1, -16, 0, 64)
-	head.ClipsDescendants = true
-	Ui.corner(head, 12)
-	Ui.gradient(head, key)
-	Ui.stroke(head)
-	Ui.studs(head, Theme.Studs.header)
-	head.Parent = root
-	local header = Ui.text(head, title, 34, { stroke = 4, name = "Title" })
-	header.Position = UDim2.fromOffset(16, 0)
-	header.Size = UDim2.new(0.5, 0, 1, 0)
-	local sub = Ui.text(head, "", 22, { align = Enum.TextXAlignment.Right, name = "Capacity" })
-	sub.AnchorPoint = Vector2.new(1, 0)
-	sub.Position = UDim2.new(1, -16, 0, 0)
-	sub.Size = UDim2.new(0.5, -16, 1, 0)
+	root.ClipsDescendants = false
+	local head = Ui.header(root, fill, title, nil, HEAD, 34)
+	head.gui.ZIndex = 2
+	local count = Ui.text(head.gui, "", 34, { align = Enum.TextXAlignment.Right, stroke = 4, name = "Count" })
+	count.AnchorPoint = Vector2.new(1, 0)
+	count.Position = UDim2.new(1, -78, 0, 0)
+	count.Size = UDim2.new(0, 120, 1, 0)
+	count.ZIndex = 4
+	local close = Ui.closeButton(root, onClose, 52, ">")
+	close.AnchorPoint = Vector2.new(1, 0.5)
+	close.Position = UDim2.new(1, -8, 0, HEAD / 2)
+	close.ZIndex = 5
 	local list = Ui.scroll(root, "List")
-	list.Position = UDim2.fromOffset(12, 84)
-	list.Size = UDim2.new(1, -24, 1, -84 - 150)
-	Ui.padding(list, 4)
-	Ui.list(list, 10)
-	local footer = Ui.frame(root, "Footer", UDim2.new(1, -24, 0, 138), UDim2.new(0, 12, 1, -146))
-	return { root = root, header = header, sub = sub, list = list, footer = footer }
+	list.Position = UDim2.fromOffset(10, HEAD + 10)
+	list.Size = UDim2.new(1, -20, 1, -(HEAD + 20 + FOOT))
+	Ui.padding(list, 3)
+	Ui.list(list, ROW_GAP)
+	local footer = Ui.frame(root, "Footer", UDim2.new(1, -20, 0, FOOT - 14), UDim2.new(0, 10, 1, -(FOOT - 4)))
+	return {
+		root = root,
+		title = head.title,
+		count = count,
+		list = list,
+		footer = footer,
+		rows = function()
+			local n = 0
+			for _, c in list:GetChildren() do
+				if c:IsA("GuiObject") and c.Visible then
+					n += 1
+				end
+			end
+			return n
+		end,
+	}
 end
 
-local function rowFrame(list: ScrollingFrame, name: string, order: number): Frame
+-- Auto height: header + rows (scroll after 4 or MAX_H) + footer.
+local function fit(d: Drawer, rowHeights: number)
+	local h = math.min(MAX_H, HEAD + 20 + rowHeights + FOOT)
+	d.root.Size = UDim2.fromOffset(W, h)
+end
+
+local function rowFrame(list: ScrollingFrame, name: string, order: number, height: number?): Frame
 	local row = Instance.new("Frame")
 	row.Name = name
 	row.LayoutOrder = order
-	row.Size = UDim2.new(1, 0, 0, 96)
-	row.BackgroundColor3 = C.panelDeep
+	row.Size = UDim2.new(1, -6, 0, height or ROW)
+	row.BackgroundColor3 = C.card
 	Ui.corner(row)
-	Ui.stroke(row, 3)
+	Ui.stroke(row, 4)
+	Ui.studs(row, Theme.Studs.body, 20)
 	row.Parent = list
 	return row
 end
 
 function Drawers.new(parent: Instance): Drawers
-	local rail = Ui.frame(parent, "RightRail", UDim2.fromOffset(104, 2 * 104 + 12))
+	local rail = Ui.frame(parent, "RightRail", UDim2.fromOffset(120, 2 * 120 + 14))
 	Kit.autoScale(rail)
-	Ui.list(rail, 12)
-	local host = Ui.frame(parent, "DrawerHost", UDim2.fromOffset(DRAWER_W, DRAWER_H))
+	Ui.list(rail, 14)
+	local host = Ui.frame(parent, "DrawerHost", UDim2.fromOffset(W, MAX_H))
 	host.AnchorPoint = Vector2.new(1, 0.5)
 	Kit.autoScale(host)
 
-	local eggs = drawer(host, "EggsDrawer", "Eggs", "orange")
-	local pets = drawer(host, "PetsDrawer", "Pets", "lime")
 	local open: string? = nil
 	local newPets = 0
+	local show: (name: string?) -> ()
+	local eggs = drawer(host, "EggsDrawer", "Hatching Eggs", Theme.Headers.eggs, function()
+		show(nil)
+	end)
+	local pets = drawer(host, "PetsDrawer", "Active Pets", Theme.Headers.pets, function()
+		show(nil)
+	end)
 
 	local eggButton: Rail.RailButton
 	local petButton: Rail.RailButton
 	local refreshEggs: () -> ()
 	local refreshPets: () -> ()
 
-	local function chevron(b: Rail.RailButton, on: boolean)
-		local c = b.gui:FindFirstChild("Chevron")
-		if c and c:IsA("TextLabel") then
-			if Motion.reduced() then
-				c.Rotation = if on then 180 else 0
-			else
-				Motion.tween(c, Theme.Motion.drawer, { Rotation = if on then 180 else 0 }, Enum.EasingStyle.Cubic)
-			end
-		end
-	end
-
-	local function show(name: string?)
+	show = function(name: string?)
 		local previous = open
 		open = name
 		local both: { [string]: Drawer } = { Eggs = eggs, Pets = pets }
 		for n, d in both do
 			local shown = n == name
 			local root = d.root
-			local home = UDim2.new(1, 0, 0.5, 0)
-			local away = UDim2.new(1, DRAWER_W + 40, 0.5, 0)
+			local home = UDim2.new(1, 0, 0, 0)
+			local away = UDim2.new(1, W + 60, 0, 0)
 			if shown then
 				root.Visible = true
 				if n ~= previous then
@@ -151,8 +167,6 @@ function Drawers.new(parent: Instance): Drawers
 				end
 			end
 		end
-		chevron(eggButton, name == "Eggs")
-		chevron(petButton, name == "Pets")
 		eggButton.setActive(name == "Eggs")
 		petButton.setActive(name == "Pets")
 		if name == "Pets" then
@@ -164,21 +178,14 @@ function Drawers.new(parent: Instance): Drawers
 		end
 	end
 
-	eggButton = Rail.button(rail, "Eggs", "Eggs", "orange", "icon/egg", "E", function()
+	eggButton = Rail.tile(rail, "Eggs", Theme.Nav.Eggs, "premium_icons_nav_eggs", function()
 		show(if open == "Eggs" then nil else "Eggs")
 	end)
 	eggButton.gui.LayoutOrder = 1
-	petButton = Rail.button(rail, "Pets", "Pets", "lime", "icon/pets", "P", function()
+	petButton = Rail.tile(rail, "Pets", Theme.Nav.Pets, "premium_icons_nav_pets", function()
 		show(if open == "Pets" then nil else "Pets")
 	end)
 	petButton.gui.LayoutOrder = 2
-	for _, b in { eggButton, petButton } do
-		local c = Ui.text(b.gui, "<", 26, { align = Enum.TextXAlignment.Center, name = "Chevron" })
-		c.AnchorPoint = Vector2.new(0.5, 0.5)
-		c.Position = UDim2.new(0, 2, 0.5, 0)
-		c.Size = UDim2.fromOffset(26, 34)
-		c.ZIndex = 5
-	end
 
 	Modal.onChanged(function(name: string?)
 		if name and open then
@@ -186,92 +193,87 @@ function Drawers.new(parent: Instance): Drawers
 		end
 	end)
 
-	-- Eggs drawer ----------------------------------------------------------------------------------------------
+	-- Pen upgrade (shared by both footers) ---------------------------------------------------------------------
+	local penPending = false
+	local penButtons: { Ui.Button } = {}
+	local function paintPen()
+		local pen = Data.pen()
+		for _, b in penButtons do
+			if pen.cost then
+				b.setText(`BIGGER PEN +{(pen.nextSlots or pen.slots) - pen.slots}  {Ui.money(pen.cost)}`)
+				b.setEnabled(Data.money() >= pen.cost)
+			else
+				b.setText("PEN MAXED")
+				b.setEnabled(false)
+			end
+			b.setPending(penPending, "UPGRADING...")
+		end
+	end
+	local function upgradePen()
+		local pen = Data.pen()
+		if penPending or not pen.cost or Data.money() < pen.cost then
+			return
+		end
+		penPending = true
+		paintPen()
+		local before = pen.level
+		remote("UpgradePen"):FireServer()
+		Data.expect(
+			function()
+				return (Data.state.penLevel or 1) > before
+			end,
+			5,
+			function(ok: boolean)
+				penPending = false
+				if ok then
+					Modal.toast(`Pen upgraded: {Data.pen().slots} pedestals!`, "good")
+				else
+					Modal.toast("Pen upgrade failed. Try again.", "error")
+				end
+				paintPen()
+				refreshEggs()
+			end
+		)
+	end
 
-	type EggRow = {
+	-- Eggs drawer ----------------------------------------------------------------------------------------------
+	type EggUi = {
 		frame: Frame,
-		name: TextLabel,
 		time: TextLabel,
 		bar: Ui.Progress,
+		ready: Frame,
 		state: TextLabel,
 		data: Data.EggRow,
 		stopPulse: (() -> ())?,
 	}
-	local eggRows: { [string]: EggRow } = {}
-	local eggEmpty = Ui.text(eggs.list, "No eggs. Kick one and race it home!", 22, {
-		color = C.muted,
-		wrap = true,
-		align = Enum.TextXAlignment.Center,
-		name = "Empty",
+	local eggRows: { [string]: EggUi } = {}
+	local eggEmpty = rowFrame(eggs.list, "Empty", 9000, 84)
+	local eggEmptyText = Ui.text(
+		eggEmpty,
+		"No eggs yet. Kick one and race it home!",
+		22,
+		{ align = Enum.TextXAlignment.Center, stroke = 3, wrap = true }
+	)
+	eggEmptyText.AnchorPoint = Vector2.new(0, 0.5)
+	eggEmptyText.Position = UDim2.fromScale(0, 0.5)
+	local freeRow = rowFrame(eggs.list, "FreePedestals", 9001, 64)
+	freeRow.BackgroundTransparency = 0.6
+	local freePlus =
+		Ui.text(freeRow, "+", 40, { align = Enum.TextXAlignment.Center, stroke = 3, color = C.muted, name = "Plus" })
+	freePlus.Size = UDim2.fromOffset(64, 64)
+	local freeText = Ui.text(freeRow, "", 24, { stroke = 3, color = C.muted, name = "Text" })
+	freeText.Position = UDim2.fromOffset(70, 14)
+	freeText.Size = UDim2.new(1, -80, 0, 36)
+	local eggPen = Ui.button(eggs.footer, {
+		text = "BIGGER PEN",
+		style = "gold",
+		size = UDim2.fromScale(1, 1),
+		textSize = 30,
+		icon = "premium_icons_currency_cash",
+		name = "BiggerPen",
+		onClick = upgradePen,
 	})
-	local fullNote = Ui.text(eggs.footer, "", 20, { color = C.power, wrap = true, name = "Full" })
-	local penPending = false
-	local function penButton(container: Instance, order: number): Ui.Button
-		local b: Ui.Button
-		b = Ui.button(container, {
-			text = "BIGGER PEN",
-			gradient = "cyan",
-			size = UDim2.new(0.5, -6, 0, 60),
-			textSize = 20,
-			icon = "icon/cash",
-			name = "BiggerPen",
-			onClick = function()
-				local pen = Data.pen()
-				if penPending or not pen.cost or Data.money() < pen.cost then
-					return
-				end
-				penPending = true
-				refreshEggs()
-				refreshPets()
-				local before = pen.level
-				remote("UpgradePen"):FireServer()
-				Data.expect(
-					function()
-						return (Data.state.penLevel or 1) > before
-					end,
-					5,
-					function(ok: boolean)
-						penPending = false
-						if ok then
-							Modal.toast(`Pen upgraded: {Data.pen().slots} pedestals!`, "good")
-						else
-							Modal.toast("Pen upgrade failed. Try again.", "error")
-						end
-						refreshEggs()
-						refreshPets()
-					end
-				)
-			end,
-		})
-		b.gui.LayoutOrder = order
-		return b
-	end
-	local eggActions = Ui.frame(eggs.footer, "Actions", UDim2.new(1, 0, 0, 60), UDim2.new(0, 0, 1, -60))
-	Ui.list(eggActions, 12, true)
-	local eggPen = penButton(eggActions, 1)
-	local eggSell = Ui.button(eggActions, {
-		text = "SELL PETS",
-		gradient = "orange",
-		size = UDim2.new(0.5, -6, 0, 60),
-		textSize = 20,
-		name = "SellPets",
-		onClick = function()
-			Modal.open("Inventory", eggButton.gui)
-		end,
-	})
-	eggSell.gui.LayoutOrder = 2
-
-	local function paintPen(b: Ui.Button)
-		local pen = Data.pen()
-		if pen.cost then
-			b.setText(`+{(pen.nextSlots or pen.slots) - pen.slots} SLOTS {Ui.money(pen.cost)}`)
-			b.setEnabled(Data.money() >= pen.cost)
-		else
-			b.setText("PEN MAXED")
-			b.setEnabled(false)
-		end
-		b.setPending(penPending, "UPGRADING...")
-	end
+	table.insert(penButtons, eggPen)
 
 	local function tickEggs()
 		local now = Data.now()
@@ -280,20 +282,16 @@ function Drawers.new(parent: Instance): Drawers
 			if d.hatchAt and d.placedAt then
 				local left = d.hatchAt - now
 				local span = math.max(1, d.hatchAt - d.placedAt)
+				local hatching = left <= 0
 				row.bar.set(1 - left / span, "")
-				if left > 0 then
-					row.time.Text = clock(left)
-					if row.stopPulse then
-						row.stopPulse()
-						row.stopPulse = nil
-					end
-				else
-					row.time.Text = "Ready"
-					row.state.Text = "Hatching..."
-					row.state.TextColor3 = Theme.Gradients.lime[1]
-					if not row.stopPulse then
-						row.stopPulse = Motion.pulse(row.frame, 0.03, 2.8)
-					end
+				row.time.Text = if hatching then "" else clock(left)
+				row.bar.gui.Visible = not hatching
+				row.ready.Visible = hatching
+				if hatching and not row.stopPulse then
+					row.stopPulse = Motion.pulse(row.ready, 0.05, 2.8)
+				elseif not hatching and row.stopPulse then
+					row.stopPulse()
+					row.stopPulse = nil
 				end
 			end
 		end
@@ -302,110 +300,123 @@ function Drawers.new(parent: Instance): Drawers
 	refreshEggs = function()
 		local rows = Data.eggs()
 		local cap = Data.capacity()
-		eggs.sub.Text = `{cap.eggs + cap.pets} / {cap.slots} pedestals`
+		eggs.count.Text = `{cap.eggs}/{cap.slots}`
 		local seen: { [string]: boolean } = {}
+		local height = 0
 		for i, d in rows do
 			seen[d.uid] = true
-			local row = eggRows[d.uid]
-			if not row then
+			local ui = eggRows[d.uid]
+			if not ui then
 				local f = rowFrame(eggs.list, d.uid, i)
-				local thumb = Ui.frame(f, "Thumb", UDim2.fromOffset(80, 80), UDim2.fromOffset(8, 8))
+				local thumb = Ui.frame(f, "Thumb", UDim2.fromOffset(84, 84), UDim2.fromOffset(8, 8))
+				thumb.ZIndex = 2
 				if d.model ~= "" then
 					Ui.eggArt(thumb, d.model)
 				end
-				local name = Ui.text(f, d.name, 22, { name = "Name" })
-				name.Position = UDim2.fromOffset(98, 6)
-				name.Size = UDim2.new(1, -200, 0, 30)
-				name.TextColor3 = (Theme.Rarity :: any)[d.rarity] or C.text
-				local time = Ui.text(f, "", 24, { align = Enum.TextXAlignment.Right, name = "Time" })
+				local nameLabel = Ui.text(f, d.name, 26, { stroke = 3, name = "Name" })
+				nameLabel.Position = UDim2.fromOffset(102, 8)
+				nameLabel.Size = UDim2.new(1, -210, 0, 34)
+				nameLabel.TextColor3 = Theme.RarityText[d.rarity] or C.text
+				local time = Ui.text(f, "", 30, { align = Enum.TextXAlignment.Right, stroke = 3, name = "Time" })
 				time.AnchorPoint = Vector2.new(1, 0)
 				time.Position = UDim2.new(1, -12, 0, 6)
-				time.Size = UDim2.fromOffset(96, 30)
-				local barHolder = Ui.frame(f, "Bar", UDim2.new(1, -112, 0, 20), UDim2.fromOffset(98, 40))
-				local bar = Ui.progress(barHolder, "orange", 20)
-				local state = Ui.text(f, "", 18, { color = C.muted, name = "State" })
-				state.Position = UDim2.fromOffset(98, 64)
-				state.Size = UDim2.new(1, -112, 0, 26)
-				row = { frame = f, name = name, time = time, bar = bar, state = state, data = d }
-				eggRows[d.uid] = row
+				time.Size = UDim2.fromOffset(110, 36)
+				local barHolder = Ui.frame(f, "Bar", UDim2.new(1, -118, 0, 30), UDim2.fromOffset(102, 54))
+				local bar = Ui.progress(barHolder, Theme.Buttons.lime, 30)
+				local ready = Ui.pill(f, "HATCHING...", "lime", UDim2.fromOffset(220, 46), 26)
+				ready.Position = UDim2.fromOffset(102, 46)
+				ready.Visible = false
+				local state = Ui.text(f, "", 22, { stroke = 3, color = C.power, name = "State" })
+				state.Position = UDim2.fromOffset(102, 52)
+				state.Size = UDim2.new(1, -118, 0, 32)
+				ui = { frame = f, time = time, bar = bar, ready = ready, state = state, data = d }
+				eggRows[d.uid] = ui
 			end
-			local r = row :: EggRow
-			r.data = d
-			r.frame.LayoutOrder = i
-			if d.slot then
-				r.state.Text = `On pedestal {d.slot}`
-				r.state.TextColor3 = C.muted
-				r.bar.gui.Visible = true
-			else
-				r.state.Text = "Waiting for a free pedestal"
-				r.state.TextColor3 = C.power
-				r.time.Text = ""
-				r.bar.gui.Visible = false
+			local u = ui :: EggUi
+			u.data = d
+			u.frame.LayoutOrder = i
+			local waiting = d.slot == nil
+			u.state.Visible = waiting
+			u.state.Text = if waiting then "WAITING FOR A PEDESTAL" else ""
+			if waiting then
+				u.bar.gui.Visible = false
+				u.ready.Visible = false
+				u.time.Text = ""
 			end
+			height += ROW + ROW_GAP
 		end
-		for uid, row in eggRows do
+		for uid, ui in eggRows do
 			if not seen[uid] then
-				if row.stopPulse then
-					row.stopPulse()
+				if ui.stopPulse then
+					ui.stopPulse()
 				end
-				row.frame:Destroy()
+				ui.frame:Destroy()
 				eggRows[uid] = nil
 			end
 		end
+		local free = math.max(0, cap.slots - cap.eggs - cap.pets)
 		eggEmpty.Visible = #rows == 0
-		local full = cap.waitingEggs > 0
-		fullNote.Text = if full
-			then `Pedestals full: {cap.waitingEggs} egg{if cap.waitingEggs == 1 then "" else "s"} waiting. Get a bigger pen or sell pets.`
-			else "Eggs hatch by themselves on their pedestal."
-		fullNote.TextColor3 = if full then C.power else C.muted
-		paintPen(eggPen)
+		freeRow.Visible = free > 0 and #rows > 0
+		freeText.Text = `{free} FREE PEDESTAL{if free == 1 then "" else "S"}`
+		if eggEmpty.Visible then
+			height += 84 + ROW_GAP
+		end
+		if freeRow.Visible then
+			height += 64 + ROW_GAP
+		end
+		fit(eggs, height)
+		paintPen()
 		tickEggs()
 	end
 
 	-- Pets drawer ----------------------------------------------------------------------------------------------
-
-	type PetRowUi = { frame: Frame, income: TextLabel, stored: TextLabel }
-	local petRows: { [string]: PetRowUi } = {}
-	local petEmpty = Ui.text(pets.list, "No pets on pedestals yet.", 22, {
-		color = C.muted,
-		wrap = true,
-		align = Enum.TextXAlignment.Center,
-		name = "Empty",
-	})
-	local petNote = Ui.text(pets.footer, "", 18, { color = C.muted, wrap = true, name = "Note" })
-	local petActions = Ui.frame(pets.footer, "Actions", UDim2.new(1, 0, 0, 60), UDim2.new(0, 0, 1, -60))
-	Ui.list(petActions, 12, true)
-	local petPen = penButton(petActions, 1)
-	petPen.gui.Size = UDim2.new(0.42, -8, 0, 60)
-	local inventory = Ui.button(petActions, {
-		text = "INVENTORY",
-		gradient = "lime",
-		size = UDim2.new(0.34, -8, 0, 60),
-		textSize = 20,
-		name = "Inventory",
+	type PetUi = { frame: Frame, income: TextLabel, stored: TextLabel }
+	local petRows: { [string]: PetUi } = {}
+	local petEmpty = rowFrame(pets.list, "Empty", 9000, 84)
+	local petEmptyText = Ui.text(
+		petEmpty,
+		"No pets on pedestals yet.",
+		22,
+		{ align = Enum.TextXAlignment.Center, stroke = 3, wrap = true }
+	)
+	petEmptyText.AnchorPoint = Vector2.new(0, 0.5)
+	petEmptyText.Position = UDim2.fromScale(0, 0.5)
+	local waitingRow = rowFrame(pets.list, "Waiting", 9001, 56)
+	waitingRow.BackgroundTransparency = 0.6
+	local waitingText =
+		Ui.text(waitingRow, "", 21, { stroke = 3, color = C.power, name = "Text", align = Enum.TextXAlignment.Center })
+	waitingText.Position = UDim2.fromOffset(8, 10)
+	waitingText.Size = UDim2.new(1, -16, 0, 36)
+	local sellButton = Ui.button(pets.footer, {
+		text = "SELL PETS",
+		style = "lime",
+		size = UDim2.new(0.62, -6, 1, 0),
+		textSize = 30,
+		icon = "premium_icons_currency_cash",
+		name = "SellPets",
 		onClick = function()
 			Modal.open("Inventory", petButton.gui)
 		end,
 	})
-	inventory.gui.LayoutOrder = 2
-	local trade = Ui.button(petActions, {
+	sellButton.gui.Position = UDim2.new()
+	local trade = Ui.button(pets.footer, {
 		text = "TRADE",
-		gradient = "purple",
-		size = UDim2.new(0.24, 0, 0, 60),
-		textSize = 20,
+		style = "purple",
+		size = UDim2.new(0.38, -6, 1, 0),
+		textSize = 30,
 		name = "Trade",
 		onClick = function()
 			show(nil)
 			Drawers.openTrade()
 		end,
 	})
-	trade.gui.LayoutOrder = 3
+	trade.gui.AnchorPoint = Vector2.new(1, 0)
+	trade.gui.Position = UDim2.fromScale(1, 0)
 
 	refreshPets = function()
 		local rows = Data.pets()
 		local cap = Data.capacity()
-		pets.sub.Text = `{cap.eggs + cap.pets} / {cap.slots} pedestals`
-			.. (if cap.eggs + cap.pets >= cap.slots then "  FULL" else "")
+		pets.count.Text = `{cap.pets}/{cap.slots}`
 		local placed = {}
 		for _, row in rows do
 			if row.slot then
@@ -413,35 +424,43 @@ function Drawers.new(parent: Instance): Drawers
 			end
 		end
 		table.sort(placed, function(a, b)
-			return (a.slot or 0) < (b.slot or 0)
+			return a.income > b.income
 		end)
 		local seen: { [string]: boolean } = {}
+		local height = 0
 		for i, d in placed do
 			seen[d.uid] = true
 			local ui = petRows[d.uid]
 			if not ui then
 				local f = rowFrame(pets.list, d.uid, i)
-				local thumb = Ui.frame(f, "Thumb", UDim2.fromOffset(80, 80), UDim2.fromOffset(8, 8))
+				local thumb = Ui.frame(f, "Thumb", UDim2.fromOffset(84, 84), UDim2.fromOffset(8, 8))
+				thumb.ZIndex = 2
 				Ui.petArt(thumb, d.model)
-				local name = Ui.text(f, d.name, 22, { name = "Name" })
-				name.Position = UDim2.fromOffset(98, 6)
-				name.Size = UDim2.new(1, -110, 0, 30)
-				name.TextColor3 = (Theme.Rarity :: any)[d.rarity] or C.text
-				local income = Ui.text(f, "", 20, { color = C.cash, name = "Income" })
-				income.Position = UDim2.fromOffset(98, 36)
-				income.Size = UDim2.new(1, -110, 0, 26)
-				local stored = Ui.text(f, "", 18, { color = C.muted, name = "Stored" })
-				stored.Position = UDim2.fromOffset(98, 62)
-				stored.Size = UDim2.new(1, -110, 0, 26)
+				local nameLabel = Ui.text(f, d.name, 26, { stroke = 3, name = "Name" })
+				nameLabel.Position = UDim2.fromOffset(102, 8)
+				nameLabel.Size = UDim2.new(1, -112, 0, 34)
+				nameLabel.TextColor3 = Theme.RarityText[d.rarity] or C.text
+				local coin = Ui.frame(f, "Coin", UDim2.fromOffset(38, 38), UDim2.fromOffset(100, 50))
+				Ui.art(coin, "premium_icons_currency_cash")
+				local income = Ui.text(f, "", 28, { autoX = true, stroke = 3, color = C.cash, name = "Income" })
+				income.Position = UDim2.fromOffset(142, 50)
+				local stored = Ui.text(
+					f,
+					"",
+					20,
+					{ align = Enum.TextXAlignment.Right, stroke = 2, color = C.muted, name = "Stored" }
+				)
+				stored.AnchorPoint = Vector2.new(1, 0)
+				stored.Position = UDim2.new(1, -12, 0, 56)
+				stored.Size = UDim2.fromOffset(150, 28)
 				ui = { frame = f, income = income, stored = stored }
 				petRows[d.uid] = ui
 			end
-			local u = ui :: PetRowUi
+			local u = ui :: PetUi
 			u.frame.LayoutOrder = i
-			u.income.Text = `{Ui.money(d.income)}/s · pedestal {d.slot}`
-			u.stored.Text = if d.stored > 0
-				then `{Ui.money(d.stored)} waiting: step on its pedestal`
-				else "Collecting..."
+			u.income.Text = `+{Ui.money(d.income)}/s`
+			u.stored.Text = if d.stored > 0 then `{Ui.money(d.stored)} waiting` else ""
+			height += ROW + ROW_GAP
 		end
 		for uid, ui in petRows do
 			if not seen[uid] then
@@ -451,26 +470,29 @@ function Drawers.new(parent: Instance): Drawers
 		end
 		petEmpty.Visible = #placed == 0
 		local waiting = cap.unplacedPets
-		petNote.Text = if waiting > 0
-			then `{waiting} pet{if waiting == 1 then "" else "s"} waiting for a free pedestal.`
-			else "Pets fill free pedestals automatically."
-		paintPen(petPen)
+		waitingRow.Visible = waiting > 0
+		waitingText.Text = `{waiting} more pet{if waiting == 1 then "" else "s"} waiting for a free pedestal`
+		if petEmpty.Visible then
+			height += 84 + ROW_GAP
+		end
+		if waitingRow.Visible then
+			height += 56 + ROW_GAP
+		end
+		fit(pets, height)
 	end
 
 	-- Layout + timers ------------------------------------------------------------------------------------------
-
 	Kit.onLayout(function(compact: boolean)
-		local tile = if compact then 88 else 104
-		rail.Size = UDim2.fromOffset(tile, 2 * tile + 12)
+		local tile = if compact then 96 else 120
+		rail.Size = UDim2.fromOffset(tile, 2 * tile + 14)
 		rail.AnchorPoint = if compact then Vector2.new(1, 0) else Vector2.new(1, 0.5)
-		rail.Position = if compact then UDim2.new(1, -10, 0, 8) else UDim2.new(1, -30, 0.5, 0)
-		for _, b in { eggButton, petButton } do
-			b.setCompact(compact)
-		end
-		host.AnchorPoint = if compact then Vector2.new(1, 0) else Vector2.new(1, 0.5)
+		rail.Position = if compact then UDim2.new(1, -10, 0, 8) else UDim2.new(1, -24, 0.5, 0)
+		eggButton.setCompact(compact)
+		petButton.setCompact(compact)
+		host.AnchorPoint = Vector2.new(1, 0)
 		host.Position = if compact
 			then UDim2.new(1, -(10 + tile + 12), 0, 8)
-			else UDim2.new(1, -(30 + tile + 16), 0.5, 0)
+			else UDim2.new(1, -(24 + tile + 16), 0.5, -MAX_H / 2)
 	end)
 
 	local acc = 0
@@ -487,6 +509,8 @@ function Drawers.new(parent: Instance): Drawers
 		end
 	end)
 
+	refreshEggs()
+	refreshPets()
 	return {
 		open = function(name: string?)
 			show(name)
@@ -506,8 +530,7 @@ function Drawers.new(parent: Instance): Drawers
 				newPets += 1
 				petButton.setBadge(tostring(newPets))
 			end
-			local at = petButton.gui.AbsolutePosition + petButton.gui.AbsoluteSize / 2
-			Motion.burst(Modal.layer(), at, "sparkle", 10)
+			Motion.burst(Modal.layer(), petButton.gui.AbsolutePosition + petButton.gui.AbsoluteSize / 2, "sparkle", 10)
 		end,
 	}
 end

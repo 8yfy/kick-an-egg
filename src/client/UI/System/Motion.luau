@@ -218,8 +218,8 @@ end
 -- Error: border emphasis for 150 ms then back (never a shake).
 function Motion.flagError(stroke: UIStroke, rest: Color3)
 	stroke.Color = Color3.fromHex("FF5444")
-	Motion.tween(stroke, 0.15, { Thickness = Theme.Layout.stroke + 2 }).Completed:Once(function()
-		Motion.tween(stroke, 0.4, { Thickness = Theme.Layout.stroke, Color = rest })
+	Motion.tween(stroke, 0.15, { Thickness = 6 }).Completed:Once(function()
+		Motion.tween(stroke, 0.4, { Thickness = 4, Color = rest })
 	end)
 end
 
@@ -284,12 +284,12 @@ function Motion.shine(holder: GuiObject): () -> ()
 	streak.BackgroundTransparency = 0.72
 	streak.BorderSizePixel = 0
 	streak.AnchorPoint = Vector2.new(0.5, 0.5)
-	streak.Size = UDim2.new(0, 46, 3, 0)
+	streak.Size = UDim2.new(0, 110, 2.6, 0)
 	streak.Rotation = 22
 	streak.Position = UDim2.new(-0.2, 0, 0.5, 0)
 	streak.Visible = false
-	streak.ZIndex = 8
-	local shineImage = if AssetIds.hasHandoff("fx/shine") then AssetIds.get("fx/shine") else nil
+	streak.ZIndex = 2 -- under labels (MOTION-SPEC layering: shine sits below text)
+	local shineImage = AssetIds.get("fx_shine")
 	if shineImage then
 		local img = Instance.new("ImageLabel")
 		img.BackgroundTransparency = 1
@@ -436,7 +436,7 @@ function Motion.burst(layer: GuiObject, at: Vector2, kind: "sparkle" | "cash", c
 	if Motion.reduced() then
 		return
 	end
-	local image = AssetIds.get(if kind == "cash" then "icon/cash" else "fx/sparkle")
+	local image = AssetIds.get(if kind == "cash" then "premium_icons_currency_cash" else "fx_sparkle")
 	if not image then
 		return
 	end

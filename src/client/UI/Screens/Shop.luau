@@ -1,10 +1,15 @@
 --!strict
--- Shop (UI handoff SCREEN-SPEC "Developer-product shop"): Robux developer products ONLY, straight from
--- Economy.DevProducts -- no gamepasses, no sacks, no speed, no invented offers or scarcity. A featured banner
--- (the biggest pack) followed by the product cards, one scroll surface.
--- Card states: Loading (price fetch), Unavailable (id = 0 / product info failed), Buy (real Robux price),
--- Prompting (Roblox purchase dialog open), Pending (bought, waiting for the server to grant the cash),
--- Granted (cash arrived via DataChanged) and Cancelled.
+-- Shop (UI handoff v2 01-Mockups/02-Developer-Product-Shop.png + VISUAL-CONTRACT "Shop composition"): Robux
+-- developer products ONLY, from Economy.DevProducts (no gamepasses, sacks or speed, no invented offers or
+-- scarcity). Acid-green header, one large feature banner (the biggest pack), then two equal secondary
+-- offers, then any further products. Every banner is layered: supplied backdrop PNG (cropped) -> tinted
+-- rays/glow -> separate hero PNG (floats gently on the feature banner) -> editable title/benefit text ->
+-- price + CTA -> clipped shine.
+-- CTA states: LOADING (price fetch), NOT ON SALE (product id 0 / info failed; the card keeps full art),
+-- BUY R$ n, CHECK PROMPT (Roblox dialog open), DELIVERING (bought, waiting for the server to grant the cash),
+-- granted (+$x added) and cancelled.
+-- Shop.fixture(list) is for the dev preview only (tools/preview): it swaps in a clearly ribboned DESIGN
+-- FIXTURE catalog to review populated layouts; the game never calls it.
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 
@@ -18,19 +23,53 @@ local Ui = require(System.Ui)
 local C = Theme.Colors
 local Shop = {}
 
-type CardState = "Loading" | "Unavailable" | "Buy" | "Prompting" | "Pending" | "Granted" | "Cancelled"
-type Card = {
-	product: Data.Product,
-	gui: Frame,
-	title: TextLabel,
-	button: Ui.Button,
-	note: TextLabel,
-	state: CardState,
-	price: number?,
+export type Offer = {
+	key: string,
+	id: number, -- developer product id (0 = not created yet)
+	money: number?, -- cash granted (cash packs)
+	title1: string, -- big gradient line
+	title2: string, -- white line
+	benefit: string,
+	backdrop: string, -- AssetIds key
+	hero: string, -- AssetIds key
+	accent: Theme.Pair, -- title gradient
+	fixture: boolean?,
 }
 
-local infoCache: { [number]: { name: string, price: number }? } = {}
+type State = "Loading" | "Unavailable" | "Buy" | "Prompting" | "Pending" | "Granted" | "Cancelled"
+type Card = { offer: Offer, gui: Frame, button: Ui.Button, note: TextLabel, state: State, price: number? }
 
+local fixtureList: { Offer }? = nil
+function Shop.fixture(list: { Offer })
+	fixtureList = list
+end
+
+-- Real catalog: the cash packs of Economy.DevProducts, biggest first.
+local function catalog(): { Offer }
+	if fixtureList then
+		return fixtureList
+	end
+	local list: { Offer } = {}
+	for _, p in Data.products() do
+		table.insert(list, {
+			key = p.key,
+			id = p.id,
+			money = p.money,
+			title1 = Ui.money(p.money),
+			title2 = "CASH PACK",
+			benefit = `+{Ui.money(p.money)} cash, instantly`,
+			backdrop = "banners_cash_background",
+			hero = "premium_icons_currency_cash",
+			accent = { Color3.fromHex("C8FF4A"), Color3.fromHex("3FD81A") },
+		})
+	end
+	table.sort(list, function(a, b)
+		return (a.money or 0) > (b.money or 0)
+	end)
+	return list
+end
+
+local infoCache: { [number]: { name: string, price: number }? } = {}
 local function fetchInfo(id: number): { name: string, price: number }?
 	if infoCache[id] ~= nil then
 		return infoCache[id]
@@ -47,233 +86,290 @@ local function fetchInfo(id: number): { name: string, price: number }?
 	return result
 end
 
-local function title(p: Data.Product): string
-	return `{Ui.money(p.money)} Cash`
-end
-
 local function paint(card: Card)
 	local b = card.button
 	b.setPending(false)
 	if card.state == "Loading" then
 		b.setText("LOADING...")
 		b.setEnabled(false)
-		card.note.Text = ""
 	elseif card.state == "Unavailable" then
-		b.setText("UNAVAILABLE")
+		b.setText("NOT ON SALE")
 		b.setEnabled(false)
-		card.note.Text = if card.product.configured then "Couldn't load this product" else "Not on sale yet"
 	elseif card.state == "Prompting" then
-		b.setPending(true, "CHECK PROMPT...")
-		card.note.Text = ""
+		b.setPending(true, "CHECK PROMPT")
 	elseif card.state == "Pending" then
 		b.setPending(true, "DELIVERING...")
-		card.note.Text = "Your cash is on the way"
 	else
-		b.setText(`R$ {card.price or 0}`)
+		b.setText(`BUY  R$ {card.price or 0}`)
 		b.setEnabled(true)
-		card.note.Text = if card.state == "Granted"
-			then `+{Ui.money(card.product.money)} added!`
-			elseif card.state == "Cancelled" then "Purchase cancelled"
-			else `+{Ui.money(card.product.money)} cash`
 	end
+	card.note.Text = if card.state == "Granted" and card.offer.money
+		then `+{Ui.money(card.offer.money)} added!`
+		elseif card.state == "Cancelled" then "Purchase cancelled"
+		elseif card.state == "Pending" then "Your cash is on the way"
+		else ""
 end
 
-local function buildCard(parent: Instance, p: Data.Product, order: number, featured: boolean, onBuy: (Card) -> ()): Card
-	local card = Ui.panel(parent, p.key)
-	card.LayoutOrder = order
-	local content = Ui.frame(card, "Content")
-	local art = Instance.new("Frame")
-	art.Name = "ArtHolder"
-	art.BorderSizePixel = 0
-	art.ClipsDescendants = true
-	Ui.corner(art)
-	Ui.gradient(art, if featured then "gold" else "lime")
-	Ui.stroke(art, 3)
-	Ui.studs(art, Theme.Studs.header)
-	art.Parent = content
-	Ui.glow(art, Color3.new(1, 1, 1), true)
-	local icon = Ui.icon(art, "icon/cash", if featured then 200 else 120, "$")
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.Position = UDim2.fromScale(0.5, 0.5)
-	icon.ZIndex = 2
-	if featured then
-		Motion.shine(art)
-		Motion.float(icon)
+-- One layered banner. `feature` = the big top banner (title left, hero right, CTA bottom-right).
+local function banner(parent: Instance, offer: Offer, order: number, feature: boolean, onBuy: (Card) -> ()): Card
+	local f = Instance.new("Frame")
+	f.Name = offer.key
+	f.LayoutOrder = order
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = C.card
+	f.ClipsDescendants = true
+	Ui.corner(f)
+	Ui.stroke(f, 5)
+	f.Parent = parent
+
+	local backdrop = Ui.cover(f, offer.backdrop) -- 1: supplied backdrop
+	backdrop.ZIndex = 1
+	local heroBox = Ui.frame(f, "HeroBox") -- 2: rays/glow + 3: separate hero art
+	heroBox.ZIndex = 2
+	if feature then
+		heroBox.Size = UDim2.new(0.46, 0, 1.05, 0)
+		heroBox.Position = UDim2.new(0.38, 0, -0.03, 0)
+	else
+		heroBox.Size = UDim2.new(0.52, 0, 1.0, 0)
+		heroBox.Position = UDim2.new(0.46, 0, 0.02, 0)
+	end
+	local glow = Ui.glow(heroBox, Color3.fromHex("FFF6B0"), true, 0.95)
+	local hero = Ui.frame(heroBox, "Hero", UDim2.fromScale(0.9, 0.9), UDim2.fromScale(0.5, 0.5))
+	hero.AnchorPoint = Vector2.new(0.5, 0.5)
+	hero.ZIndex = 3
+	Ui.art(hero, offer.hero).ZIndex = 3
+	if feature then
+		Motion.float(hero, glow)
 	end
 
-	local info = Ui.frame(content, "Info")
-	local name = Ui.text(info, title(p), if featured then 44 else 30, { name = "Title", stroke = 4 })
-	local note = Ui.text(info, "", 20, { color = C.cash, name = "Note" })
-	note.Position = UDim2.fromOffset(0, if featured then 56 else 40)
+	-- 4: editable text layers (never baked into the art)
+	local textBox = Ui.frame(f, "Text", UDim2.new(if feature then 0.42 else 0.5, 0, 1, -24), UDim2.fromOffset(28, 12))
+	textBox.ZIndex = 4
+	local t1 = Ui.text(textBox, offer.title1, if feature then 104 else 72, { stroke = 7, name = "Title1" })
+	t1.Size = UDim2.new(1, 0, 0, if feature then 112 else 80)
+	t1.ZIndex = 4
+	local tg = Instance.new("UIGradient")
+	tg.Rotation = 90
+	tg.Color = ColorSequence.new(offer.accent[1], offer.accent[2])
+	tg.Parent = t1
+	local t2 = Ui.text(textBox, offer.title2, if feature then 64 else 48, { stroke = 6, name = "Title2" })
+	t2.Position = UDim2.fromOffset(0, if feature then 106 else 74)
+	t2.Size = UDim2.new(1, 0, 0, if feature then 72 else 56)
+	t2.ZIndex = 4
+	local benefit = Ui.text(textBox, offer.benefit, if feature then 30 else 24, { stroke = 3, name = "Benefit" })
+	benefit.Position = UDim2.fromOffset(4, if feature then 184 else 134)
+	benefit.Size = UDim2.new(1, 0, 0, 38)
+	benefit.ZIndex = 4
 
+	-- 5: price + CTA
 	local self: Card
-	local button = Ui.button(info, {
+	local button = Ui.button(f, {
 		text = "LOADING...",
-		gradient = "lime",
-		size = UDim2.new(1, 0, 0, 60),
-		textSize = 26,
+		style = "lime",
+		size = if feature then UDim2.fromOffset(380, 96) else UDim2.fromOffset(300, 78),
+		textSize = if feature then 46 else 38,
 		name = "Buy",
 		onClick = function()
 			onBuy(self)
 		end,
 	})
-	button.gui.AnchorPoint = Vector2.new(0, 1)
-	button.gui.Position = UDim2.fromScale(0, 1)
-
-	if featured then
-		art.Position = UDim2.fromOffset(12, 12)
-		art.Size = UDim2.new(0.55, -12, 1, -24)
-		info.Position = UDim2.new(0.55, 20, 0, 24)
-		info.Size = UDim2.new(0.45, -40, 1, -44)
-		button.gui.Size = UDim2.new(1, 0, 0, 72)
+	button.gui.ZIndex = 5
+	if feature then
+		button.gui.AnchorPoint = Vector2.new(1, 1)
+		button.gui.Position = UDim2.new(1, -28, 1, -28)
 	else
-		art.Position = UDim2.fromOffset(12, 12)
-		art.Size = UDim2.new(1, -24, 0.55, -12)
-		info.Position = UDim2.new(0, 14, 0.55, 12)
-		info.Size = UDim2.new(1, -28, 0.45, -26)
+		button.gui.AnchorPoint = Vector2.new(0, 1)
+		button.gui.Position = UDim2.new(0, 24, 1, -22)
 	end
-	self = { product = p, gui = card, title = name, button = button, note = note, state = "Loading", price = nil }
+	local note = Ui.text(f, "", 22, { stroke = 3, name = "Note", color = C.cash })
+	note.AnchorPoint = Vector2.new(0, 1)
+	note.Position = if feature then UDim2.new(0, 32, 1, -26) else UDim2.new(0, 28, 1, -104)
+	note.Size = UDim2.new(0.5, 0, 0, 30)
+	note.ZIndex = 5
+
+	if offer.fixture then
+		local rib = Ui.pill(f, "DESIGN FIXTURE · NOT FOR SALE", "red", UDim2.fromOffset(420, 40), 20)
+		rib.AnchorPoint = Vector2.new(1, 0)
+		rib.Position = UDim2.new(1, -16, 0, 14)
+		rib.ZIndex = 6
+	end
+	Motion.shine(f) -- 6: clipped shine
+	self = { offer = offer, gui = f, button = button, note = note, state = "Loading", price = nil }
 	return self
 end
 
 function Shop.define()
-	Modal.define(
-		"Shop",
-		{ title = "Shop", gradient = "gold", icon = "icon/shop" },
-		function(shell: Modal.Shell): Modal.Screen
-			local scroll = Ui.scroll(shell.body, "Products")
-			Ui.padding(scroll, 6)
-			local list = Ui.list(scroll, Theme.Layout.gap)
-			list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	Modal.define("Shop", { title = "Shop", header = Theme.Headers.shop }, function(shell: Modal.Shell): Modal.Screen
+		local body = shell.body
+		local label = Ui.text(body, "Developer products", 24, { color = C.muted, name = "Section", stroke = 3 })
+		label.Size = UDim2.new(1, 0, 0, 30)
+		local scroll = Ui.scroll(body, "Products")
+		scroll.Position = UDim2.fromOffset(0, 40)
+		scroll.Size = UDim2.new(1, 0, 1, -40)
+		Ui.padding(scroll, 6)
+		Ui.list(scroll, 20)
 
-			local products = Data.products()
-			local cards: { Card } = {}
-			local byId: { [number]: Card } = {}
-			local busy: Card? = nil
+		local cards: { Card } = {}
+		local byId: { [number]: Card } = {}
+		local busy: Card? = nil
+		local offers = catalog()
+		local compact = false
 
-			local function onBuy(card: Card)
-				if busy or card.state == "Loading" or card.state == "Unavailable" then
+		local function onBuy(card: Card)
+			if busy or card.state ~= "Buy" and card.state ~= "Granted" and card.state ~= "Cancelled" then
+				return
+			end
+			busy = card
+			card.state = "Prompting"
+			paint(card)
+			local ok = pcall(function()
+				MarketplaceService:PromptProductPurchase(Players.LocalPlayer, card.offer.id)
+			end)
+			if not ok then
+				busy = nil
+				card.state = "Unavailable"
+				paint(card)
+			end
+		end
+
+		MarketplaceService.PromptProductPurchaseFinished:Connect(
+			function(userId: number, productId: number, purchased: boolean)
+				local card = byId[productId]
+				if
+					not card
+					or card.state ~= "Prompting"
+					or userId ~= (Players.LocalPlayer and Players.LocalPlayer.UserId)
+				then
 					return
 				end
-				busy = card
-				card.state = "Prompting"
+				busy = nil
+				if not purchased then
+					card.state = "Cancelled"
+					paint(card)
+					return
+				end
+				card.state = "Pending"
 				paint(card)
-				local ok = pcall(function()
-					MarketplaceService:PromptProductPurchase(Players.LocalPlayer, card.product.id)
+				local before = Data.money()
+				local amount = card.offer.money or 0
+				Data.expect(
+					function()
+						return Data.money() >= before + amount
+					end,
+					30,
+					function(granted: boolean)
+						card.state = if granted then "Granted" else "Buy"
+						paint(card)
+						if granted then
+							Modal.toast(`+{Ui.money(amount)} cash!`, "good")
+							Motion.burst(Modal.layer(), card.gui.AbsolutePosition + card.gui.AbsoluteSize / 2, "cash")
+						else
+							card.note.Text = "Still processing. Your cash will arrive soon."
+						end
+					end
+				)
+			end
+		)
+
+		-- Feature banner, then rows of two equal secondary offers.
+		local rows: { Frame } = {}
+		local feature: Frame? = nil
+		for i, offer in offers do
+			if i == 1 then
+				local holder = Ui.frame(scroll, "Feature", UDim2.new(1, 0, 0, 360))
+				holder.LayoutOrder = 1
+				local card = banner(holder, offer, 1, true, onBuy)
+				card.gui.Size = UDim2.fromScale(1, 1)
+				table.insert(cards, card)
+				feature = holder
+			else
+				local rowIndex = (i - 2) // 2
+				if not rows[rowIndex + 1] then
+					local newRow = Ui.frame(scroll, "Row" .. (rowIndex + 1), UDim2.new(1, 0, 0, 300))
+					newRow.LayoutOrder = 2 + rowIndex
+					table.insert(rows, newRow)
+				end
+				local row = rows[rowIndex + 1]
+				local card = banner(row, offer, i, false, onBuy)
+				table.insert(cards, card)
+			end
+			if offer.id ~= 0 then
+				byId[offer.id] = cards[#cards]
+			end
+		end
+		if #offers == 0 then
+			Ui.text(scroll, "No products yet.", 28, { color = C.muted, align = Enum.TextXAlignment.Center }).LayoutOrder =
+				9
+		end
+
+		local function place()
+			if feature then
+				feature.Size = UDim2.new(1, 0, 0, if compact then 300 else 360)
+			end
+			for _, row in rows do
+				local kids = {}
+				for _, k in row:GetChildren() do
+					if k:IsA("Frame") then
+						table.insert(kids, k)
+					end
+				end
+				table.sort(kids, function(a, b)
+					return a.LayoutOrder < b.LayoutOrder
 				end)
-				if not ok then
-					busy = nil
+				row.Size = UDim2.new(1, 0, 0, 300)
+				for j, k in kids do
+					k.Size = UDim2.new(0.5, -10, 1, 0)
+					k.Position = UDim2.new((j - 1) * 0.5, (j - 1) * 10, 0, 0)
+				end
+			end
+		end
+
+		local loaded = false
+		local function load()
+			if loaded then
+				return
+			end
+			loaded = true
+			for _, card in cards do
+				if card.offer.fixture then
+					card.price = 99
+					card.state = "Buy"
+					paint(card)
+				elseif card.offer.id == 0 then
 					card.state = "Unavailable"
 					paint(card)
-				end
-			end
-
-			MarketplaceService.PromptProductPurchaseFinished:Connect(
-				function(userId: number, productId: number, purchased: boolean)
-					local card = byId[productId]
-					if userId ~= Players.LocalPlayer.UserId or not card or card.state ~= "Prompting" then
-						return
-					end
-					busy = nil
-					if not purchased then
-						card.state = "Cancelled"
-						paint(card)
-						return
-					end
-					card.state = "Pending"
+				else
 					paint(card)
-					local before = Data.money()
-					Data.expect(
-						function()
-							return Data.money() >= before + card.product.money
-						end,
-						30,
-						function(granted: boolean)
-							card.state = if granted then "Granted" else "Buy"
-							paint(card)
-							if granted then
-								Modal.toast(`+{Ui.money(card.product.money)} cash!`, "good")
-								local abs = card.gui.AbsolutePosition + card.gui.AbsoluteSize / 2
-								Motion.burst(Modal.layer(), abs, "cash")
-							else
-								card.note.Text = "Still processing. Your cash will arrive soon."
-							end
+					task.spawn(function()
+						local info = fetchInfo(card.offer.id)
+						if info then
+							card.price = info.price
+							card.state = "Buy"
+						else
+							card.state = "Unavailable"
+							loaded = false -- try again next open
 						end
-					)
-				end
-			)
-
-			-- Featured banner: the biggest pack, full width.
-			local banner = Ui.frame(scroll, "Featured", UDim2.new(1, 0, 0, 300))
-			banner.LayoutOrder = 1
-			local section = Ui.text(scroll, "Cash Packs", 32, { name = "SectionTitle" })
-			section.LayoutOrder = 2
-			local gridHolder = Ui.frame(scroll, "Grid", UDim2.new(1, 0, 0, 0))
-			gridHolder.AutomaticSize = Enum.AutomaticSize.Y
-			gridHolder.LayoutOrder = 3
-			local grid = Ui.grid(gridHolder, 320, 1.05, Theme.Layout.gap, 3)
-
-			for i, p in products do
-				local featured = i == #products
-				local card = buildCard(if featured then banner else gridHolder, p, i, featured, onBuy)
-				if featured then
-					card.gui.Size = UDim2.fromScale(1, 1)
-				end
-				table.insert(cards, card)
-				if p.configured then
-					byId[p.id] = card
-				end
-			end
-			local empty = #products == 0
-			if empty then
-				Ui.text(scroll, "No products yet.", 26, { color = C.muted, align = Enum.TextXAlignment.Center }).LayoutOrder =
-					4
-			end
-
-			local loaded = false
-			local function load()
-				if loaded then
-					return
-				end
-				loaded = true
-				for _, card in cards do
-					if not card.product.configured then
-						card.state = "Unavailable"
 						paint(card)
-					else
-						paint(card)
-						task.spawn(function()
-							local info = fetchInfo(card.product.id)
-							if info then
-								card.price = info.price
-								card.title.Text = if info.name ~= "" then info.name else title(card.product)
-								card.state = "Buy"
-							else
-								card.state = "Unavailable"
-								loaded = false -- try again next open
-							end
-							paint(card)
-						end)
-					end
+					end)
 				end
 			end
-
-			return {
-				open = function()
-					load()
-					local visible = {}
-					for _, card in cards do
-						table.insert(visible, card.gui :: GuiObject)
-					end
-					Motion.reveal(visible, C.panel)
-				end,
-				resize = function(_size: Vector2, compact: boolean)
-					banner.Size = UDim2.new(1, 0, 0, if compact then 220 else 300)
-					grid.shape(if compact then 260 else 320, if compact then 0.9 else 1.05, 3)
-				end,
-			}
 		end
-	)
+
+		return {
+			open = function()
+				load()
+				local visible = {}
+				for _, card in cards do
+					table.insert(visible, card.gui :: GuiObject)
+				end
+				Motion.reveal(visible, C.body)
+			end,
+			resize = function(_size: Vector2, isCompact: boolean)
+				compact = isCompact
+				place()
+			end,
+		}
+	end)
 end
 
 return Shop
