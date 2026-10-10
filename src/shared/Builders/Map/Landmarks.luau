@@ -543,6 +543,7 @@ local BUILDERS: { [number]: Builder } = {
 			end
 		end
 		P(m, "Lintel", Vector3.new(22, 4, 6), at(0, 26, 0), obsidian)
+		P(m, "Hearth", Vector3.new(11, 4, 5), at(0, 2, 1.5), obsidian) -- the furnace sits on it
 		local core = glow(m, "Furnace", Vector3.new(8, 8, 2), at(0, 8, 1), rgb(255, 150, 30))
 		Bricks.light(core, rgb(255, 140, 40), 30, 3)
 		Bricks.fire(core, rgb(255, 120, 30), 8)

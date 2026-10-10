@@ -430,8 +430,8 @@ local function buildKickPad(map: Instance)
 		block(
 			hub,
 			"Banner" .. i,
-			Vector3.new(2.4, 5, 0.3),
-			CFrame.new(x, 29.5, archZ - 2.4),
+			Vector3.new(2.4, 5.4, 0.3), -- hangs from the arch trim
+			CFrame.new(x, 29.7, archZ - 2.4),
 			zone.accent,
 			{ collide = false, studs = false }
 		)
@@ -674,7 +674,7 @@ local function stall(
 		block(m, "RoofBack", Vector3.new(2.05, 0.5, 9), at(lx, 14.3, 3.7) * CFrame.Angles(math.rad(22), 0, 0), c)
 	end
 	block(m, "Ridge", Vector3.new(21, 0.9, 0.9), at(0, 15.9, 0), wood)
-	local board = block(m, "Board", Vector3.new(14, 3.6, 0.6), at(0, 18.6, -0.4), colors[1], { sideStuds = true })
+	local board = block(m, "Board", Vector3.new(14, 3.6, 0.6), at(0, 18.15, -0.4), colors[1], { sideStuds = true }) -- sits on the ridge
 	surface(board, Enum.NormalId.Front, { { "Title", string.upper(title), 0.08, 0.84 } })
 	local counter = block(m, "Counter", Vector3.new(16, 3.4, 2.4), at(0, 2.3, -4.6), wood)
 	block(m, "CounterTop", Vector3.new(16.6, 0.4, 3), at(0, 4.2, -4.6), cream)
@@ -1053,8 +1053,19 @@ local function buildSafeZone(map: Instance)
 	end
 	block(zone, "Sand", Vector3.new(2 * (INNER + 8), 0.14, 16), CFrame.new(0, 0.07, -8), rgb(240, 215, 160))
 	-- Walls: back (canyon side, two segments around the mouth) and both sides; the far edge is an open cliff
-	wall(zone, Vector3.new(-W, 0, 0), Vector3.new(-INNER, 0, 0), Vector3.new(0, 0, -1), DIRT, GRASS, 101, WALL_T, 0)
-	wall(zone, Vector3.new(INNER, 0, 0), Vector3.new(W, 0, 0), Vector3.new(0, 0, -1), DIRT, GRASS, 102, 0, WALL_T)
+	-- the front walls stop 0.1 short of the canyon (x = +-INNER): the canyon wall below shares that plane
+	wall(
+		zone,
+		Vector3.new(-W, 0, 0),
+		Vector3.new(-INNER - 0.1, 0, 0),
+		Vector3.new(0, 0, -1),
+		DIRT,
+		GRASS,
+		101,
+		WALL_T,
+		0
+	)
+	wall(zone, Vector3.new(INNER + 0.1, 0, 0), Vector3.new(W, 0, 0), Vector3.new(0, 0, -1), DIRT, GRASS, 102, 0, WALL_T)
 	wall(zone, Vector3.new(-W, 0, -DEPTH), Vector3.new(-W, 0, 0), Vector3.new(1, 0, 0), DIRT, GRASS, 103)
 	wall(zone, Vector3.new(W, 0, -DEPTH), Vector3.new(W, 0, 0), Vector3.new(-1, 0, 0), DIRT, GRASS, 104)
 	-- Keep players from walking off the cliff
