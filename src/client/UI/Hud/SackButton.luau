@@ -50,27 +50,37 @@ function SackButton.new(parent: Instance): SackButton
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false) -- the SACK box is the only gear
 	end)
+	-- Just right of A's KICK button and as tall as it (read from the KickPanel layout, so it follows it).
+	local size, position, anchor = UDim2.fromOffset(96, 86), UDim2.new(1, -2, 1, 0), Vector2.new(1, 1)
+	local kick = parent:FindFirstChild("Kick")
+	if kick and kick:IsA("GuiObject") then
+		local h = kick.Size.Y.Offset
+		local right = kick.Position.X.Offset + kick.Size.X.Offset * (1 - kick.AnchorPoint.X)
+		size = UDim2.fromOffset(math.floor(h * 0.85), h)
+		position = UDim2.new(kick.Position.X.Scale, right + 14, kick.Position.Y.Scale, kick.Position.Y.Offset)
+		anchor = Vector2.new(0, kick.AnchorPoint.Y)
+	end
 	local button, gradient = Kit.button({
 		name = "Sack",
 		text = "SACK",
-		size = UDim2.fromOffset(96, 86),
-		position = UDim2.new(1, -2, 1, 0),
-		anchor = Vector2.new(1, 1),
+		size = size,
+		position = position,
+		anchor = anchor,
 		parent = parent,
 		colors = OFF,
-		radius = 18,
+		radius = 22,
 		onClick = toggle,
 	})
 	local label = button:FindFirstChild("Label") :: TextLabel
-	label.Size = UDim2.new(0.92, 0, 0, 22)
-	label.Position = UDim2.new(0.5, 0, 1, -4)
+	label.Size = UDim2.fromScale(0.86, 0.22)
+	label.Position = UDim2.new(0.5, 0, 1, -6)
 	label.AnchorPoint = Vector2.new(0.5, 1)
 	label.ZIndex = 3
 	local preview = Instance.new("Frame")
 	preview.Name = "Preview"
 	preview.BackgroundTransparency = 1
-	preview.Size = UDim2.new(1, -8, 1, -26)
-	preview.Position = UDim2.fromOffset(4, 2)
+	preview.Size = UDim2.new(1, -8, 0.74, 0)
+	preview.Position = UDim2.fromOffset(4, 4)
 	preview.ZIndex = 2
 	preview.Parent = button
 	if UserInputService.KeyboardEnabled then
