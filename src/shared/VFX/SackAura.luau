@@ -6,15 +6,23 @@
 --     placed from the sack's bag-bottom frame and scale (Sacks.vfxRoot / Sacks.SCALE), not a mesh's bounds;
 --   * Apply(..., driven = true) leaves the stepping to the caller (SackController moves the sack every
 --     frame, then calls ctx:step), otherwise the effect runs itself (the base stands);
---   * particle textures fall back to Roblox's built-in ones until the bundle's 8 PNGs (assets/sack-vfx/)
---     are uploaded: put their ids in UPLOADED below.
+--   * particle textures are the bundle's PNGs (assets/sack-vfx/), uploaded: ids in UPLOADED below.
 -- Part names (glowParts, rigs) are the remodel's mesh names, kept by the converter.
 local RunService = game:GetService("RunService")
 
 local SackVFX = {}
 
--- Uploaded ids for assets/sack-vfx/sackvfx_<name>.png (e.g. "rbxassetid://123"). Empty = built-in fallback.
-local UPLOADED: { [string]: string } = {}
+-- Uploaded image ids for assets/sack-vfx/sackvfx_<name>.png (Krono808, 2026-10-12). Missing = built-in fallback.
+local UPLOADED: { [string]: string } = {
+	glow = "rbxassetid://71769032644460",
+	spark = "rbxassetid://93549276919655",
+	star = "rbxassetid://101074548689105",
+	smoke = "rbxassetid://90864470326650",
+	square = "rbxassetid://113457082493281",
+	ring = "rbxassetid://98854133664400",
+	sunburst = "rbxassetid://100264183171540",
+	galaxy = "rbxassetid://126996644416188",
+}
 local BUILTIN: { [string]: string } = {
 	glow = "rbxasset://textures/particles/forcefield_glow_main.dds",
 	spark = "rbxasset://textures/particles/sparkles_main.dds",

@@ -5,19 +5,19 @@
 -- Paste the resulting Roblox decal/image IDs below. Non-uploaded images use built-in fallbacks.
 local TextureIds = {}
 TextureIds.IDs = {
-    galaxy = 0, -- sackvfx_galaxy.png
-    glow = 0, -- sackvfx_glow.png
-    ring = 0, -- sackvfx_ring.png
-    smoke = 0, -- sackvfx_smoke.png
-    spark = 0, -- sackvfx_spark.png
-    square = 0, -- sackvfx_square.png
-    star = 0, -- sackvfx_star.png
-    sunburst = 0, -- sackvfx_sunburst.png
-    comet = 0, -- sackvfx_comet.png
-    flame = 0, -- sackvfx_flame.png
-    bubble = 0, -- sackvfx_bubble.png
-    snowflake = 0, -- sackvfx_snowflake.png
-    electric = 0, -- sackvfx_electric.png
+    galaxy = 126996644416188, -- sackvfx_galaxy.png
+    glow = 71769032644460, -- sackvfx_glow.png
+    ring = 98854133664400, -- sackvfx_ring.png
+    smoke = 90864470326650, -- sackvfx_smoke.png
+    spark = 93549276919655, -- sackvfx_spark.png
+    square = 113457082493281, -- sackvfx_square.png
+    star = 101074548689105, -- sackvfx_star.png
+    sunburst = 100264183171540, -- sackvfx_sunburst.png
+    comet = 134687096930101, -- sackvfx_comet.png
+    flame = 140702759928651, -- sackvfx_flame.png
+    bubble = 120969967687049, -- sackvfx_bubble.png
+    snowflake = 96305288386322, -- sackvfx_snowflake.png
+    electric = 102335833593358, -- sackvfx_electric.png
 }
 TextureIds.Fallbacks = {
     galaxy = "rbxasset://textures/particles/sparkles_main.dds",

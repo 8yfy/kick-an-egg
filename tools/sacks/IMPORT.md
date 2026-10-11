@@ -52,10 +52,12 @@ restored). Redo them only for a fresh import, e.g. from a different account or g
 
 ## Sprites (VFX textures)
 
-Upload the 13 PNGs in `assets/sack-vfx/` (View > Asset Manager > Images > Bulk Import) and paste the ids into
+**Uploaded** (Krono808, 2026-10-12, Creator Hub > Development items > Images; all 13 load in Studio). The ids are in
 `src/shared/VFX/SackAura.luau` (`UPLOADED`, the effects the game and SackModules/SackVFX use) and
-`src/sackmodules/SackTextures.luau` (`IDs`, SackVFXBasic). Until then Studio shows them from a local copy
-(`tools/preview/stage-art.sh`) and live servers fall back to Roblox's built-in particles with a warning per sprite.
+`src/sackmodules/SackTextures.luau` (`IDs`, SackVFXBasic). Use the **Image** ids (asset type 1), not the Decal ids
+the upload panel shows. To re-upload (e.g. under a group that owns the game): upload the 13 PNGs in
+`assets/sack-vfx/` and replace the ids. Without ids, Studio shows a local copy (`tools/preview/stage-art.sh`) and
+live servers fall back to Roblox's built-in particles with a warning per sprite.
 
 ## Checks
 
