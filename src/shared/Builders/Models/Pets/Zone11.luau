@@ -46,19 +46,8 @@ local Pets: { [string]: Builder.Spec } = {
 		horns = "straight",
 		crystals = true,
 	}),
-	QuetzalPhoenix = C.build({
-		kind = "Flyer",
-		rarity = "Mythic",
-		palette = {
-			main = rgb(40, 170, 120),
-			accent = rgb(255, 80, 60),
-			belly = rgb(250, 220, 120),
-			eye = rgb(255, 230, 80),
-			glow = rgb(255, 120, 50),
-		},
-		tail = "flame",
-		mane = true,
-	}),
+	-- Premium hero spec (Models/Premium/QuetzalPhoenix.luau, docs/EggPetPlan.md).
+	QuetzalPhoenix = require(script.Parent.Parent.Premium.QuetzalPhoenix).pet,
 }
 
 return Pets

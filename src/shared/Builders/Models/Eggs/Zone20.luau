@@ -27,13 +27,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		glow = rgb(255, 240, 180),
 		metal = rgb(255, 210, 90),
 	}),
-	PrismSeraph = E.build({
-		rarity = "Secret",
-		colors = { rgb(255, 249, 253), rgb(255, 255, 255), rgb(200, 160, 255) },
-		pattern = "rainbow",
-		top = "halo",
-		glow = rgb(255, 255, 255),
-	}),
+	-- Premium hero spec (Models/Premium/PrismSeraph.luau, docs/EggPetPlan.md).
+	PrismSeraph = require(script.Parent.Parent.Premium.PrismSeraph).egg,
 }
 
 return Eggs

@@ -15,6 +15,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Chase = require(Shared.Config.Chase)
 local Economy = require(Shared.Config.Economy)
 local Models = require(Shared.Builders.Models)
+local Sculpt = require(Shared.Builders.Models.Sculpt)
 local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
@@ -145,7 +146,7 @@ local function buildEgg(chase: ChaseState, eggModel: string): (Model, BasePart)
 	-- run animation drives those joints (both look for motors under PrimaryPart).
 	local root = egg.PrimaryPart :: BasePart
 	root.Size = Vector3.new(0.2, 0.2, 0.2)
-	local cf, size = egg:GetBoundingBox()
+	local cf, size = Sculpt.shellBounds(egg) -- the shell, not floating decorations
 	local hitbox = Instance.new("Part")
 	hitbox.Name = "Hitbox"
 	hitbox.Size = size

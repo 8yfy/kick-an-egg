@@ -224,6 +224,56 @@ section("SackService + pens + collecting", function()
 	if SackAssets then
 		SackAssets.Parent = game:GetService("ReplicatedStorage")
 	end
+	-- premium hero pairs (Models/Premium, docs/EggPetPlan.md) and their effects (VFX/PetFx)
+	local HeroModels = require(Shared.Builders.Models) :: any
+	local Sculpt = require(Shared.Builders.Models.Sculpt) :: any
+	local PetFx = require(Shared.VFX.PetFx) :: any
+	local heroes =
+		{ "SproutPup", "MeadowStag", "TideSpirit", "IceDragon", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
+	local lastParts = 0
+	local signatures: { [string]: string } = {}
+	local unique = true
+	for _, key in heroes do
+		local egg, pet = HeroModels.egg(key), HeroModels.pet(key)
+		local parts = 0
+		for _, d in pet:GetDescendants() do
+			if d:IsA("BasePart") then
+				parts += 1
+			end
+		end
+		check(key .. " pet is more detailed than the rarity below it", parts > lastParts)
+		lastParts = parts
+		local _, shell = Sculpt.shellBounds(egg)
+		check(key .. " egg shell fits the chase", shell.X <= 4.2 and shell.Z <= 4.2 and shell.Y <= 6)
+		check(key .. " egg keeps its Body joint (legs sprout under it)", egg.PrimaryPart:FindFirstChild("Body") ~= nil)
+		for _, kind in { "egg", "pet" } do
+			local recipe = PetFx.recipe(kind, key)
+			local ok = recipe ~= nil and #recipe.layers > 0
+			local sig = {}
+			for _, layer in if recipe then recipe.layers else {} do
+				ok = ok and (layer.sprite == nil or PetFx.Sprites.has(layer.sprite))
+				table.insert(sig, layer.kind .. ":" .. tostring(layer.sprite))
+			end
+			table.sort(sig)
+			local text = table.concat(sig, ",")
+			if signatures[text] then
+				unique = false
+			end
+			signatures[text] = key .. " " .. kind
+			check(key .. " " .. kind .. " has a valid effect recipe", ok)
+		end
+		pet.Parent = workspace
+		local handle = PetFx.attach(pet, "pet", key)
+		check(key .. " pet effect attaches", handle ~= nil and pet:FindFirstChild("PetFx") ~= nil)
+		if handle then
+			handle.Destroy()
+		end
+		check(key .. " pet effect cleans up", pet:FindFirstChild("PetFx") == nil)
+		pet:Destroy()
+		egg:Destroy()
+	end
+	check("every hero egg and pet has its own effect stack", unique)
+	check("no recipe for a pair without one", PetFx.attach(HeroModels.pet("BumbleBloc"), "pet", "BumbleBloc") == nil)
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
 	check("pen slots capped", PS.slotsForPen(99) == Economy.PlotSlots.max)

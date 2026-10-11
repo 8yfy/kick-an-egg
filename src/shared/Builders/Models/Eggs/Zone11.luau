@@ -26,13 +26,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		glow = rgb(120, 255, 140),
 		metal = rgb(200, 170, 70),
 	}),
-	QuetzalPhoenix = E.build({
-		rarity = "Mythic",
-		colors = { rgb(253, 242, 207), rgb(40, 170, 120), rgb(255, 80, 60) },
-		pattern = "flames",
-		top = "crown",
-		glow = rgb(255, 120, 50),
-	}),
+	-- Premium hero spec (Models/Premium/QuetzalPhoenix.luau, docs/EggPetPlan.md).
+	QuetzalPhoenix = require(script.Parent.Parent.Premium.QuetzalPhoenix).egg,
 }
 
 return Eggs
