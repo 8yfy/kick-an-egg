@@ -1,18 +1,19 @@
 # Importing the original Kick Sack GLBs (one-time, in Roblox Studio)
 
-The game already uses the original GLB geometry as soon as these imports exist (Builders/SackGeometry); until
-then it falls back to the part-built remodel. Importing uploads the meshes to your Roblox account, so it has to
-be done by you in Studio. About 10 minutes.
+The game already uses the original GLB geometry as soon as the imports exist (Builders/SackGeometry); until then
+it falls back to the part-built remodel. Importing uploads the meshes to your Roblox account, so it has to be done
+by you in Studio (imported meshes are allowed: CLAUDE.md hard rule 3).
 
-The 20 files are in `assets/sacks/glb/` (gitignored; also in the Kick_Sacks_Roblox_Complete package under Assets/GLB).
+**One file for all 20 sacks:** `assets/sacks/kick-sacks-all.glb` (6 MB, made by `tools/sacks/combine.py` from the
+20 originals in `assets/sacks/glb/`; both gitignored, rebuild with the command in combine.py).
 
 1. Open the place in Studio. **Disconnect the Rojo plugin** while importing.
-2. **File > Import 3D**, pick `kick-sack-01-burlap-sack.glb`. In the import window keep the defaults (keep the
-   hierarchy and the original part names, import materials). Import. Repeat for all 20 files. Each one lands in
-   Workspace as a Model. Check the Output window for import warnings.
-3. Open **View > Command Bar**, paste the contents of `tools/sacks/ImportRename.commandbar.lua` and press Enter.
-   It moves the 20 models to `ReplicatedStorage > SackAssets > Meshes` as `Sack_01` .. `Sack_20` and warns about
-   any missing number.
+2. **File > Import 3D**, pick `kick-sacks-all.glb`, keep the defaults (keep the hierarchy, part names and
+   materials) and Import. It arrives in Workspace as one model holding Sack_01 .. Sack_20. Check the Output window
+   for import warnings. (If Studio refuses the big file, import the 20 files in `assets/sacks/glb/` one by one.)
+3. **View > Command Bar**: paste the contents of `tools/sacks/ImportRename.commandbar.lua` and press Enter. It moves
+   the sacks to `ReplicatedStorage > SackAssets > Meshes` as `Sack_01` .. `Sack_20`, restores the original part
+   names and warns about anything missing.
 4. Right-click `ReplicatedStorage > SackAssets` > **Save to File...** and save it as
    `assets/sacks/SackAssets.rbxm` in this repo (so Rojo builds keep the imports). Tell Claude: it adds the one-line
    Rojo mapping and verifies all 20 in Studio.

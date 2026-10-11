@@ -16,3 +16,4 @@ assets/ui-upload/
 assets/sacks/glb/
 tools/sacks/standin/
 preview.project.json
+assets/sacks/*.glb

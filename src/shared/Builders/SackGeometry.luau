@@ -43,6 +43,14 @@ local function fromGLB(tier: number, template: Model): Model
 
 	local visual = template:Clone()
 	visual.Name = "ImportedGeometry"
+	-- the merged import (tools/sacks/combine.py) can carry Blender's ".001" suffixes: restore the GLB node names
+	-- that SackColors and SackAura look parts up by
+	for _, d in visual:GetDescendants() do
+		local clean = string.gsub(d.Name, "%.%d%d%d$", "")
+		if clean ~= d.Name then
+			d.Name = clean
+		end
+	end
 	visual:PivotTo(CFrame.new())
 	local _, size = visual:GetBoundingBox()
 	local height = (bounds.Max.Y - bounds.Min.Y) * S -- source metres -> studs
