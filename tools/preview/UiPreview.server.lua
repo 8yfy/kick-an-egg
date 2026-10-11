@@ -2,7 +2,7 @@
 -- screenshotted and compared with the UI handoff mockups. Run through tools/preview/preview.sh, which sets
 -- SCREEN / STAGE below, launches Studio headless-style with run-in-roblox and captures the window.
 -- Data shown is a DESIGN FIXTURE (fake balances / pets), clearly not game data.
-local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks
+local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks | Showroom
 local STAGE = "desktop" -- desktop (1600x900) | phone (844x390)
 local HOLD = 30
 local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row)
@@ -167,7 +167,7 @@ if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" then
 	if SCREEN ~= "HUD" then
 		drawers.open(SCREEN)
 	end
-elseif SCREEN == "Showcase" or SCREEN == "GameSacks" then
+elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" then
 	-- 3D sack renders (Kick Sacks package check): GLB stand-ins built from the original GLBs (tools/sacks/StandIn),
 	-- five tiers FROM..FROM+4 in a row, far from the map. Showcase = package SackModel + SackVFX (10 studs/m);
 	-- GameSacks = the game's Builders/SackGeometry + VFX/SackAura (6.5 studs/m, front -Z).
@@ -204,7 +204,13 @@ elseif SCREEN == "Showcase" or SCREEN == "GameSacks" then
 	folder.Parent = workspace
 	local spacing = if SCREEN == "Showcase" then 13 else 9
 	local cam = workspace.CurrentCamera
-	if SCREEN == "Showcase" then
+	if SCREEN == "Showroom" then
+		-- the one-at-a-time showroom panel + sack FROM (UI/Dev/SackShowroom), game view, effects on
+		local showroom = require(UI.Dev.SackShowroom).new(stage, false)
+		showroom.open(CFrame.lookAt(origin, origin + Vector3.new(0, 0, 1)))
+		showroom.show(FROM)
+		CAMERA = CFrame.lookAt(origin + Vector3.new(0, 7.5, 30), origin + Vector3.new(0, 4, 0))
+	elseif SCREEN == "Showcase" then
 		local SackModel = require(ReplicatedStorage.SackModules.SackModel)
 		local SackVFX = require(ReplicatedStorage.SackModules.SackVFX)
 		for i, tier in tiers do
@@ -319,7 +325,7 @@ marker.BorderSizePixel = 0
 marker.ZIndex = 1000
 marker.Parent = stage -- top-left of the stage (centred on the viewport in the 3D modes)
 
-if SCREEN == "Showcase" or SCREEN == "GameSacks" then
+if SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" then
 	HOLD = 50 -- 3D previews take longer to build; keep the window up for the capture
 	-- Studio's camera controller fights script moves: make it scriptable and keep re-asserting the shot
 	local camera = workspace.CurrentCamera

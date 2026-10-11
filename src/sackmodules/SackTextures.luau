@@ -44,6 +44,12 @@ function TextureIds.Get(key)
     -- Kick The Egg change: in Studio only, show the real sprite from the local content copy
     -- (tools/preview/stage-art.sh) until it is uploaded. Live servers still use the fallbacks below.
     if game:GetService("RunService"):IsStudio() then return "rbxasset://textures/KickTheEggUI/sackvfx_" .. key .. ".png" end
+    -- Kick The Egg change: never fall back silently
+    TextureIds._warned = TextureIds._warned or {}
+    if not TextureIds._warned[key] then
+        TextureIds._warned[key] = true
+        warn("[SackTextures] sackvfx_" .. key .. ".png has no uploaded image id: using a built-in fallback (assets/sack-vfx, tools/sacks/IMPORT.md)")
+    end
     return TextureIds.Fallbacks[key] or TextureIds.Fallbacks.glow
 end
 -- Kick The Egg change: true when Get(key) returns the real sprite (uploaded, or the Studio local copy).

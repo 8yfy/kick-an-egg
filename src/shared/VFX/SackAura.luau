@@ -30,6 +30,11 @@ for name, id in BUILTIN do
 	-- Studio only: the real sprite from the local content copy (tools/preview/stage-art.sh) until uploaded
 	local studio = if RunService:IsStudio() then `rbxasset://textures/KickTheEggUI/sackvfx_{name}.png` else nil
 	SackVFX.Textures[name] = UPLOADED[name] or studio or id
+	if not UPLOADED[name] and not studio then -- never fall back silently
+		warn(
+			`[SackAura] sackvfx_{name}.png has no uploaded image id: using a built-in fallback (tools/sacks/IMPORT.md)`
+		)
+	end
 end
 
 local FRONT = 1

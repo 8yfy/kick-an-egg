@@ -1,8 +1,9 @@
 --!strict
 -- Studio only: the /showcase sack showroom (SackService.showcase). Attaches the effects exactly once on this
 -- client to every sack in workspace.SackShowcase (the server never creates effects, so nothing is duplicated):
--- the Kick Sacks package's SackVFX for "/showcase", the game's own SackAura for "/showcase game". Switches a
--- sack's effects off beyond CULL studs from the camera and cleans up when a sack or the showroom is removed.
+-- SackModules/SackVFX for "/showcase", the package's SackVFXBasic for "/showcase basic", the game's own SackAura
+-- for "/showcase game". Switches a sack's effects off beyond CULL studs from the camera and cleans up when a
+-- sack or the showroom is removed.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -54,7 +55,8 @@ local function attach(model: Instance)
 		if not model.PrimaryPart then
 			return
 		end
-		local VFX = require(ReplicatedStorage:WaitForChild("SackModules"):WaitForChild("SackVFX")) :: any
+		local name = if folder:GetAttribute("Variant") == "basic" then "SackVFXBasic" else "SackVFX"
+		local VFX = require(ReplicatedStorage:WaitForChild("SackModules"):WaitForChild(name)) :: any
 		ok, handle = pcall(VFX.Attach, model, tier, { Quality = quality() })
 	end
 	if not ok then

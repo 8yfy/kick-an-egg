@@ -254,7 +254,8 @@ end
 
 -- Studio only: a 20-sack showroom 40 studs in front of the player, facing them; any /showcase removes an
 -- existing one. Two variants (CLAUDE_PROMPT "Test all 20 tiers"):
---   /showcase       the Kick Sacks package demo: SackModules/SackModel (10 studs/m) + the package SackVFX.
+--   /showcase       the Kick Sacks package demo: SackModules/SackModel (10 studs/m) + SackModules/SackVFX (the
+--                   faithful port); "/showcase basic" uses the package's own simpler SackVFXBasic instead.
 --                   Strict (RequireGLB) once all 20 GLBs are imported into ReplicatedStorage.SackAssets.Meshes,
 --                   otherwise the package's procedural fallback with a warning.
 --   /showcase game  exactly what players see: Builders/SackGeometry (the imports when present) + VFX/SackAura.
@@ -279,7 +280,7 @@ function SackService.showcase(player: Player, variant: string?)
 	local base = CFrame.lookAt(at, at + look) -- +Z (the sack fronts) faces the player; rows run away (-Z)
 	local folder = Instance.new("Folder")
 	folder.Name = "SackShowcase"
-	folder:SetAttribute("Variant", if gameView then "game" else "package")
+	folder:SetAttribute("Variant", if gameView then "game" elseif variant == "basic" then "basic" else "package")
 	folder.Parent = workspace
 	for tier = 1, 20 do
 		local column, row = (tier - 1) % 5, (tier - 1) // 5
@@ -324,7 +325,8 @@ function SackService.showcase(player: Player, variant: string?)
 	end
 end
 
--- Studio-only playtest commands: /sack <1-20> switches your sack, /cash <amount> adds money, /showcase [game]
+-- Studio-only playtest commands: /sack <1-20> switches your sack, /cash <amount> adds money, /showroom opens the
+-- one-at-a-time sack showroom, /showcase [game|basic]
 -- toggles the 20-sack showroom. One handler for both chat systems; a repeat of the same message within half a
 -- second is ignored so nothing runs twice.
 local lastCommand: { [Player]: { text: string, at: number } } = {}
@@ -335,6 +337,10 @@ function SackService.command(player: Player, message: string)
 		return
 	end
 	lastCommand[player] = { text = text, at = os.clock() }
+	if string.match(text, "^/showroom%s*$") then -- ShowroomController toggles on every change
+		player:SetAttribute("SackShowroom", (tonumber(player:GetAttribute("SackShowroom")) or 0) + 1)
+		return
+	end
 	local variant = string.match(text, "^/showcase%s*(%a*)%s*$")
 	if variant then
 		SackService.showcase(player, variant)
@@ -367,7 +373,7 @@ local function registerStudioCommands()
 		folder.Name = "TextChatCommands"
 		folder.Parent = TextChatService
 	end
-	for _, alias in { "sack", "cash", "showcase" } do
+	for _, alias in { "sack", "cash", "showcase", "showroom" } do
 		local command = Instance.new("TextChatCommand")
 		command.Name = "KTE_" .. alias
 		command.PrimaryAlias = "/" .. alias
