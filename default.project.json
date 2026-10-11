@@ -14,6 +14,7 @@
         "Client": { "$path": "src/client" }
       }
     },
+    "TextChatService": { "$properties": { "ChatVersion": "TextChatService" } },
     "Workspace": { "$properties": { "FilteringEnabled": true } },
     "Lighting": {
       "$properties": {

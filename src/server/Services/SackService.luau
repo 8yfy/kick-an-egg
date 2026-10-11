@@ -324,35 +324,76 @@ function SackService.showcase(player: Player, variant: string?)
 	end
 end
 
+-- Studio-only playtest commands: /sack <1-20> switches your sack, /cash <amount> adds money, /showcase [game]
+-- toggles the 20-sack showroom. One handler for both chat systems; a repeat of the same message within half a
+-- second is ignored so nothing runs twice.
+local lastCommand: { [Player]: { text: string, at: number } } = {}
+function SackService.command(player: Player, message: string)
+	local text = string.lower((string.gsub(message, "^%s+", "")))
+	local last = lastCommand[player]
+	if last and last.text == text and os.clock() - last.at < 0.5 then
+		return
+	end
+	lastCommand[player] = { text = text, at = os.clock() }
+	local variant = string.match(text, "^/showcase%s*(%a*)%s*$")
+	if variant then
+		SackService.showcase(player, variant)
+		return
+	end
+	local cmd, arg = string.match(text, "^/(%a+)%s+(%S+)")
+	local n = tonumber(arg)
+	local data = DataService:Get(player)
+	if not data or not n then
+		return
+	end
+	if cmd == "sack" then
+		DataService:Set(player, { rackLevel = math.clamp(math.floor(n), 1, #Upgrades.Sack.tiers) })
+		PlotService:MirrorBase(player)
+		refreshTools(player)
+		print(`[studio] {player.Name}: sack {math.clamp(math.floor(n), 1, #Upgrades.Sack.tiers)}`)
+	elseif cmd == "cash" then
+		DataService:Set(player, { money = data.money + math.max(0, n) })
+		print(`[studio] {player.Name}: +{math.max(0, n)} cash`)
+	end
+end
+
+-- TextChatService (this game's chat) handles anything starting with "/" as a command and never posts it, so
+-- Player.Chatted doesn't see it: register real TextChatCommands, created on the server so they're handled here.
+local function registerStudioCommands()
+	local TextChatService = game:GetService("TextChatService")
+	local folder = TextChatService:FindFirstChild("TextChatCommands")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "TextChatCommands"
+		folder.Parent = TextChatService
+	end
+	for _, alias in { "sack", "cash", "showcase" } do
+		local command = Instance.new("TextChatCommand")
+		command.Name = "KTE_" .. alias
+		command.PrimaryAlias = "/" .. alias
+		command.Triggered:Connect(function(source: TextSource, text: string)
+			local player = Players:GetPlayerByUserId(source.UserId)
+			if player then
+				SackService.command(player, text)
+			end
+		end)
+		command.Parent = folder
+	end
+end
+
 function SackService:Start()
 	Remotes.get("Train").OnServerEvent:Connect(onTrain)
 	Remotes.get("UpgradeTraining").OnServerEvent:Connect(onUpgradeTraining)
+	if RunService:IsStudio() then
+		registerStudioCommands()
+	end
 	local function added(player: Player)
 		player.CharacterAdded:Connect(function(character)
 			onCharacter(player, character)
 		end)
 		if RunService:IsStudio() then
-			-- Studio-only playtest commands (chat): /sack <tier> jumps to any sack, /cash <amount> adds money,
-			-- /showcase toggles the 20-sack showroom
-			player.Chatted:Connect(function(message)
-				local variant = string.match(message, "^/showcase%s*(%a*)$")
-				if variant then
-					SackService.showcase(player, variant)
-					return
-				end
-				local cmd, arg = string.match(message, "^/(%a+)%s+(%S+)")
-				local n = tonumber(arg)
-				local data = DataService:Get(player)
-				if not data or not n then
-					return
-				end
-				if cmd == "sack" then
-					DataService:Set(player, { rackLevel = math.clamp(math.floor(n), 1, #Upgrades.Sack.tiers) })
-					PlotService:MirrorBase(player)
-					refreshTools(player)
-				elseif cmd == "cash" then
-					DataService:Set(player, { money = data.money + math.max(0, n) })
-				end
+			player.Chatted:Connect(function(message) -- legacy chat; TextChatService uses the commands below
+				SackService.command(player, message)
 			end)
 		end
 		if player.Character then
@@ -365,6 +406,7 @@ function SackService:Start()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		lastTrain[player] = nil
+		lastCommand[player] = nil
 		out[player] = nil
 	end)
 	DataService:OnLoaded(function(player)
