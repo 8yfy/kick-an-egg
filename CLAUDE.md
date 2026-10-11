@@ -38,8 +38,11 @@ The avalanche only hurts its owner. Other players see it but are never caught by
    server at kick time and sent to the client. The client only animates. Never trust client values.
 2. **Data-driven.** Zones, eggs, pets, rarities and mutations live in `src/shared/Config/*`.
    Do not hardcode balance numbers anywhere else.
-3. **Models are data, not meshes.** Every egg and pet is a Luau table of blocks consumed by
-   `src/shared/Builders/BlockBuilder.luau`. No imported meshes, no Toolbox assets.
+3. **Imported meshes are allowed** (agreed by A and B, 2026-10-11). Import them in Studio
+   (File > Import 3D) and save the result as an `.rbxm` under `assets/` mapped in `default.project.json`,
+   so Rojo builds keep them (example: the Kick Sack GLBs, `tools/sacks/IMPORT.md`). Eggs and pets stay
+   Luau tables of blocks for `src/shared/Builders/BlockBuilder.luau` unless both agree otherwise.
+   No Toolbox assets.
 4. **Contracts are frozen.** `Config/*`, `Shared/Remotes.luau` and the `BlockBuilder` API are shared.
    To change them, make a small separate PR titled `contract: ...` and tell your partner.
 5. Stay inside your own folders (see TASKS.md) to avoid merge conflicts.
