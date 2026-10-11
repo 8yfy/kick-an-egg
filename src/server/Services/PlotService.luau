@@ -169,8 +169,10 @@ end
 local function spawnEggModel(base: Model, slot: number, egg: EggPlot)
 	clearSlot(base, slot)
 	local config = petsById[egg.petId]
-	local model = Models.egg(if config then config.model else egg.petId)
+	local key = if config then config.model else egg.petId
+	local model = Models.egg(key)
 	model.Name = `Egg{slot}`
+	model:SetAttribute("ModelKey", key) -- clients attach the egg's own effect (VFX/PetFx)
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic -- streams in whole, never half-built
 	model:SetAttribute("Kind", "Egg")
 	model:SetAttribute("Slot", slot)
@@ -184,8 +186,10 @@ local function spawnPetModel(player: Player, base: Model, petUid: string, pet: P
 	local slot = pet.slot :: number
 	clearSlot(base, slot)
 	local config = petsById[pet.petId]
-	local model = Models.pet(if config then config.model else pet.petId)
+	local key = if config then config.model else pet.petId
+	local model = Models.pet(key)
 	model.Name = `Pet{slot}`
+	model:SetAttribute("ModelKey", key) -- clients attach the pet's own effect (VFX/PetFx)
 	local size = if pet.size then Mutations.Size[pet.size] else nil
 	if size then
 		Builder.scale(model, size.scale)
