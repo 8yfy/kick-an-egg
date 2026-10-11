@@ -4,7 +4,8 @@
     "$className": "DataModel",
     "ReplicatedStorage": {
       "Shared": { "$path": "src/shared" },
-      "SackModules": { "$path": "src/sackmodules" }
+      "SackModules": { "$path": "src/sackmodules" },
+      "SackAssets": { "$path": "assets/sacks/SackAssets.rbxm" }
     },
     "ServerScriptService": {
       "Server": { "$path": "src/server" }

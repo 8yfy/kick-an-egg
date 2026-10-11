@@ -25,8 +25,21 @@ Importing uploads the meshes to your Roblox account, so only you can do it, in S
    `assets/sacks/glb/` one by one.
 3. **View > Command Bar**: paste `tools/sacks/ImportRename.commandbar.lua`, press Enter. It moves the sacks to
    `ReplicatedStorage > SackAssets > Meshes` as `Sack_01` .. `Sack_20` and reports `20 of 20`.
-4. Right-click `ReplicatedStorage > SackAssets` > **Save to File...** as `assets/sacks/SackAssets.rbxm` in this repo
-   (so Rojo builds keep the imports). Tell Claude: it adds the one-line Rojo mapping and verifies all 20 in Studio.
+4. Save the place (Ctrl+S), or right-click `ReplicatedStorage > SackAssets` > **Save to File...** as
+   `assets/sacks/SackAssets.rbxm`. From a saved place, extract it with
+   `lune run tools/sacks/extract-sackassets.luau KickTheEgg.rbxl assets/sacks/SackAssets.rbxm`.
+5. **Restore the original part names.** One import de-duplicates names across all 20 sacks (`ceiling_mount3`,
+   `chain_link_03`, `..._Node`), so SackColors and SackAura can't find most parts. Fix the rbxm by geometry
+   (each part's world bounds against its GLB node's; one 180° yaw for the whole import, worst match 0.06 studs):
+   ```
+   "<Blender>/4.5/python/bin/python.exe" -I tools/sacks/glb_nodes.py assets/sacks/glb <tmp>/glb-node-bounds.json
+   lune run tools/sacks/fix-import-names.luau assets/sacks/SackAssets.rbxm <tmp>/glb-node-bounds.json
+   ```
+6. `default.project.json` maps `ReplicatedStorage.SackAssets` to that rbxm, so every Rojo build and sync has the
+   imports. Reconnect Rojo (or rebuild the place) to replace the importer-named copy in your open session.
+
+The committed `assets/sacks/SackAssets.rbxm` is the result of these steps (20 sacks, 1,900 MeshParts, all names
+restored). Redo them only for a fresh import, e.g. from a different account or group.
 
 ## Inspecting (Studio only, chat)
 
@@ -46,5 +59,6 @@ Upload the 13 PNGs in `assets/sack-vfx/` (View > Asset Manager > Images > Bulk I
 
 ## Checks
 
-- `SackGeometry.imported()` = 20; sack models carry `GeometrySource = "GLB"` and `MatchedGLBMaterials` > 0.
+- `SackGeometry.imported()` = 20; sack models carry `GeometrySource = "GLB"` and `MatchedGLBMaterials` equal to
+  their part count (server tests check tiers 1, 7, 17 and 20).
 - Mesh assets must be usable by the experience's owner (import with the account or group that owns the game).

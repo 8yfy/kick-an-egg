@@ -191,9 +191,28 @@ section("SackService + pens + collecting", function()
 			model:Destroy()
 		end
 	end
-	-- the game's sack geometry: the original GLB imports when present, else the part remodel (none here)
+	-- the game's sack geometry: the original GLB imports (assets/sacks/SackAssets.rbxm), else the part remodel
 	local SackGeometry = require(Shared.Builders.SackGeometry) :: any
-	check("no GLB imports in the test place", SackGeometry.imported() == 0)
+	check("all 20 GLB imports in the place", SackGeometry.imported() == 20)
+	for _, tier in { 1, 7, 17, 20 } do
+		local geo, source = SackGeometry.build(tier)
+		local parts = 0
+		for _, d in geo:GetDescendants() do
+			if d:IsA("BasePart") then
+				parts += 1
+			end
+		end
+		-- every imported part carries its original GLB node name, so every one gets its original material
+		check(
+			"sack " .. tier .. " builds from the import with original materials",
+			source == "GLB" and parts > 20 and geo:GetAttribute("MatchedGLBMaterials") == parts
+		)
+		geo:Destroy()
+	end
+	local SackAssets = game:GetService("ReplicatedStorage"):FindFirstChild("SackAssets")
+	if SackAssets then
+		SackAssets.Parent = nil
+	end
 	local geo, source = SackGeometry.build(7)
 	check("SackGeometry falls back to the part remodel", source == "Parts" and #geo:GetDescendants() > 20)
 	geo:Destroy()
@@ -202,6 +221,9 @@ section("SackService + pens + collecting", function()
 		"package SackModel is strict without imports",
 		not pcall(SackModel.Build, 1, workspace, CFrame.new(), { RequireGLB = true })
 	)
+	if SackAssets then
+		SackAssets.Parent = game:GetService("ReplicatedStorage")
+	end
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
 	check("pen slots capped", PS.slotsForPen(99) == Economy.PlotSlots.max)
