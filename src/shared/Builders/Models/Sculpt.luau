@@ -66,37 +66,46 @@ function Sculpt.both(parts: { PartSpec }): { PartSpec }
 	return Kit.join(parts, Sculpt.mirror(parts))
 end
 
--- Radius of an egg (height h, belly width w) at height y: wider below the middle, rounder on top.
-function Sculpt.eggRadius(h: number, w: number, y: number): number
+-- Eggs are the classic blocky Roblox egg: square layers stepping in and out (studded tops), not a round shell.
+Sculpt.EGG_STEP = 0.55 -- studs per layer
+
+-- How many square layers an egg of height h gets (7 for a 3.7-stud egg, like Kit.eggShell).
+function Sculpt.eggLayers(h: number): number
+	return math.max(7, math.floor(h / Sculpt.EGG_STEP + 0.5))
+end
+
+-- The egg profile (height h, belly width w): half-width at height y, wider below the middle, rounder on top.
+local function profile(h: number, w: number, y: number): number
 	local t = math.clamp((y / h) * 2 - 1, -1, 1)
 	local r = math.sqrt(math.max(0, 1 - t * t)) * (1 - 0.14 * t)
 	return w / 2 * r / 1.03
 end
 
--- Round egg shell: `n` stacked vertical cylinder slices (smooth, premium silhouette; no studs on round parts).
--- `paint(i, n, y)` colours each slice. Joint "Body" (the egg's shell group). Returns parts, slice height.
-function Sculpt.eggShell(
-	h: number,
-	w: number,
-	n: number,
-	paint: (number, number, number) -> Color3,
-	o: Opts?
-): { PartSpec }
+-- Half-width of the square layer at height y (the shell is stepped, so this is constant within a layer).
+function Sculpt.eggRadius(h: number, w: number, y: number): number
+	local n = Sculpt.eggLayers(h)
+	local dh = h / n
+	local i = math.clamp(math.floor(y / dh) + 1, 1, n)
+	return math.max(profile(h, w, (i - 0.5) * dh), 0.3)
+end
+
+-- Blocky egg shell: square layers (Sculpt.eggLayers(h) of them) following the egg profile, joint "Body" (the
+-- shell group legs sprout under). `paint(i, n, y)` colours layer i of n (y = its centre height).
+function Sculpt.eggShell(h: number, w: number, paint: (number, number, number) -> Color3, o: Opts?): { PartSpec }
 	local parts = {}
+	local n = Sculpt.eggLayers(h)
 	local dh = h / n
 	for i = 1, n do
 		local y = (i - 0.5) * dh
-		local r = math.max(Sculpt.eggRadius(h, w, y), 0.25)
+		local r = Sculpt.eggRadius(h, w, y)
 		local opts: Opts = table.clone(o or {})
 		opts.joint = opts.joint or "Body"
-		opts.shape = "Cylinder"
-		opts.rot = { 0, 0, 90 }
-		table.insert(parts, Kit.part("Shell" .. i, { dh + 0.02, r * 2, r * 2 }, { 0, y, 0 }, paint(i, n, y), opts))
+		table.insert(parts, Kit.part("Shell" .. i, { r * 2, dh, r * 2 }, { 0, y, 0 }, paint(i, n, y), opts))
 	end
 	return parts
 end
 
--- A ring band hugging the egg at height y (thickness th, sticking out by `out`).
+-- A square band around the egg at height y (thickness th, sticking out by `out`), like Kit.eggBand.
 function Sculpt.eggBand(
 	name: string,
 	h: number,
@@ -110,16 +119,55 @@ function Sculpt.eggBand(
 	local r = Sculpt.eggRadius(h, w, y) + out
 	local opts: Opts = table.clone(o or {})
 	opts.joint = opts.joint or "Body"
-	opts.shape = "Cylinder"
-	opts.rot = { 0, 0, 90 }
-	return Kit.part(name, { th, r * 2, r * 2 }, { 0, y, 0 }, color, opts)
+	return Kit.part(name, { r * 2, th, r * 2 }, { 0, y, 0 }, color, opts)
 end
 
--- CFrame on the egg surface at angle `a` (0 = front, -Z; 90 = right, +X) and height y, facing outward.
+-- CFrame on the egg's surface at angle `a` (0 = front, -Z; 90 = right, +X; 180 = back) and height y, facing
+-- outward, flush on the square face the angle points at (corners clamp onto a face).
 function Sculpt.onEgg(h: number, w: number, a: number, y: number, lift: number?): CFrame
-	local r = Sculpt.eggRadius(h, w, y) + (lift or 0)
-	local th = math.rad(a)
-	return CFrame.new(math.sin(th) * r, y, -math.cos(th) * r) * CFrame.Angles(0, -th, 0)
+	local r = Sculpt.eggRadius(h, w, y)
+	local face = math.floor((a + 45) / 90) * 90
+	local th = math.rad(face)
+	local along = math.clamp(math.tan(math.rad(a - face)) * r, -r + 0.2, r - 0.2)
+	local normal = Vector3.new(math.sin(th), 0, -math.cos(th))
+	local tangent = Vector3.new(math.cos(th), 0, math.sin(th))
+	local pos = normal * (r + (lift or 0)) + tangent * along + Vector3.new(0, y, 0)
+	return CFrame.new(pos) * CFrame.Angles(0, -th, 0)
+end
+
+-- `perSide` parts on each of the egg's four faces at height y (trims, crests, fur), facing outward;
+-- o.rot turns each in place (degrees).
+function Sculpt.eggRing(
+	name: string,
+	h: number,
+	w: number,
+	y: number,
+	perSide: number,
+	size: { number },
+	color: Color3,
+	o: Opts?
+): { PartSpec }
+	local parts = {}
+	local r = Sculpt.eggRadius(h, w, y)
+	local opts: Opts = table.clone(o or {})
+	opts.joint = opts.joint or "Body"
+	local turn = opts.rot
+	opts.rot = nil
+	for f = 0, 3 do
+		local th = math.rad(f * 90)
+		local normal = Vector3.new(math.sin(th), 0, -math.cos(th))
+		local tangent = Vector3.new(math.cos(th), 0, math.sin(th))
+		for k = 1, perSide do
+			local along = (k - (perSide + 1) / 2) * (2 * r / perSide)
+			local c = CFrame.new(normal * (r + size[3] / 2 - 0.06) + tangent * along + Vector3.new(0, y, 0))
+				* CFrame.Angles(0, -th, 0)
+			if turn then
+				c *= CFrame.Angles(math.rad(turn[1]), math.rad(turn[2]), math.rad(turn[3]))
+			end
+			table.insert(parts, Sculpt.at(name .. (f * perSide + k), size, c, color, opts))
+		end
+	end
+	return parts
 end
 
 -- Plate flush on the egg surface (depth along the outward normal); o.rot turns it in place (degrees).

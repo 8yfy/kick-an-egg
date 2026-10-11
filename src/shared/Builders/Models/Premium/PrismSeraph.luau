@@ -67,7 +67,7 @@ end
 
 -- Egg -------------------------------------------------------------------------------------------------------
 local H, W = 5.4, 4.0
-local eggParts = S.eggShell(H, W, 18, function(i, n)
+local eggParts = S.eggShell(H, W, function(i, n)
 	return if i >= n - 1 then CLOUD else PEARL
 end)
 -- seven-band rainbow prism belt
@@ -103,13 +103,13 @@ for k = 1, 7 do
 end
 -- small prism wings
 for _, side in { -1, 1 } do
-	local pivot = cf({ side * (S.eggRadius(H, W, 3.3) - 0.05), 3.3, 0.35 }, { 0, 0, side * 52 })
+	local pivot = cf({ side * (S.eggRadius(H, W, 3.3) - 0.05), 3.3, 0.35 }, { 0, 0, -side * 52 })
 	for k = 1, 4 do
 		addTo(
 			eggParts,
 			prismFeather(
 				"Wing" .. side .. "_" .. k,
-				pivot * CFrame.Angles(0, 0, math.rad(side * (k - 1) * 22)),
+				pivot * CFrame.Angles(0, 0, math.rad(-side * (k - 1) * 22)),
 				1.45 - k * 0.12,
 				0.42,
 				RAINBOW[(k * 2 - 1) % 7 + 1],
@@ -158,7 +158,7 @@ for k, c in RAINBOW do
 		eggParts,
 		S.shard(
 			"Orbiter" .. k,
-			cf({ math.sin(a) * 3.0, 2.2 + (k % 3) * 0.55, -math.cos(a) * 3.0 }, { 0, 0, 12 }),
+			cf({ math.sin(a) * 3.3, 2.2 + (k % 3) * 0.55, -math.cos(a) * 3.3 }, { 0, 0, 12 }),
 			0.8,
 			0.3,
 			c,

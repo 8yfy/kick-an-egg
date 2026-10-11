@@ -277,7 +277,7 @@ elseif SCREEN == "Heroes" then
 	folder.Parent = workspace
 	local heroes =
 		{ "SproutPup", "MeadowStag", "TideSpirit", "IceDragon", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
-	local spacing = 11
+	local spacing = if FROM == 1 then 7.5 else 11
 	local function place(model: Model, at: Vector3, kind: string, key: string, yaw: number?)
 		local _, size = model:GetBoundingBox()
 		-- models face -Z: turn them to the camera (plus a 3/4 yaw in close-ups)
@@ -328,7 +328,7 @@ elseif SCREEN == "Heroes" then
 	end
 	if FROM <= 10 then
 		CAMERA = if FROM == 1
-			then CFrame.lookAt(origin + Vector3.new(0, 8, 40), origin + Vector3.new(0, 3, 0))
+			then CFrame.lookAt(origin + Vector3.new(0, 7, 31), origin + Vector3.new(0, 3, 0))
 			else CFrame.lookAt(origin + Vector3.new(0, 11, 48), origin + Vector3.new(0, 5, 0))
 	end
 elseif SCREEN == "Proof" or SCREEN == "Proof2" then

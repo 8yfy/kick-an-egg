@@ -23,11 +23,11 @@ end
 
 local egg: Builder.Spec = {
 	parts = S.join(
-		S.eggShell(H, W, 14, function(i)
-			return if i <= 6 then CREAM elseif i >= 13 then LEAF_LT else LEAF
+		S.eggShell(H, W, function(i, n)
+			return if i <= 3 then CREAM elseif i == n then LEAF_LT else LEAF
 		end),
 		-- pinked leaf edge where the cap meets the cream
-		S.ring("CapEdge", CFrame.new(0, 1.72, 0), 10, S.eggRadius(H, W, 1.72) - 0.02, { 0.42, 0.42, 0.16 }, LEAF, {
+		S.eggRing("CapEdge", H, W, 1.72, 3, { 0.42, 0.42, 0.16 }, LEAF, {
 			joint = "Body",
 			rot = { 0, 0, 45 },
 		}),

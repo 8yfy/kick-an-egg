@@ -27,13 +27,8 @@ end
 -- Egg -------------------------------------------------------------------------------------------------------
 local H, W = 4.8, 3.6
 local eggParts = S.join(
-	S.eggShell(H, W, 16, function(i, n)
-		return if i <= 4
-			then NAVY_DK
-			elseif i <= 9 then NAVY
-			elseif i <= 12 then ICE
-			elseif i <= n - 1 then ICE_LT
-			else WHITE
+	S.eggShell(H, W, function(i, n)
+		return if i <= 2 then NAVY_DK elseif i <= 5 then NAVY elseif i <= 7 then ICE elseif i < n then ICE_LT else WHITE
 	end),
 	{
 		S.eggBand("SilverBand", H, W, 2.35, 0.14, 0.05, SILVER, { studs = false }),
@@ -41,7 +36,7 @@ local eggParts = S.join(
 		S.plate("CoreFrame", H, W, 0, 1.75, { 0.95, 0.95, 0.12 }, SILVER),
 	},
 	-- frost fur trim around the base
-	S.ring("Fur", CFrame.new(0, 0.62, 0), 12, S.eggRadius(H, W, 0.62) + 0.05, { 0.62, 0.5, 0.4 }, WHITE, {
+	S.eggRing("Fur", H, W, 0.62, 3, { 0.62, 0.5, 0.4 }, WHITE, {
 		joint = "Body",
 		rot = { 0, 0, 20 },
 	}),
@@ -84,7 +79,7 @@ end
 table.insert(eggParts, core("Orbit", 2.6))
 for k = 1, 3 do
 	local a = math.rad(k * 120)
-	local base = cf({ math.sin(a) * 2.6, 2.2 + k * 0.35, -math.cos(a) * 2.6 }, { 0, 0, 15 })
+	local base = cf({ math.sin(a) * 2.9, 2.2 + k * 0.35, -math.cos(a) * 2.9 }, { 0, 0, 15 })
 	for _, p in S.shard("Floater" .. k, base, 0.9, 0.32, ICE_LT, o("Orbit", { material = "Neon" })) do
 		table.insert(eggParts, p)
 	end

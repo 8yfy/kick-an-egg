@@ -23,11 +23,11 @@ end
 -- Egg -------------------------------------------------------------------------------------------------------
 local H, W = 4.4, 3.3
 local eggParts = S.join(
-	S.eggShell(H, W, 16, function(i, n)
-		return if i <= 3 then SAND elseif i <= 7 then DEEP elseif i <= 11 then SEA elseif i <= n - 1 then AQUA else FOAM
+	S.eggShell(H, W, function(i, n)
+		return if i == 1 then SAND elseif i <= 3 then DEEP elseif i <= 5 then SEA elseif i < n then AQUA else FOAM
 	end),
 	{ S.eggBand("WaveBand", H, W, 1.95, 0.3, 0.05, FOAM, { studs = false }) },
-	S.ring("Crest", CFrame.new(0, 2.2, 0), 12, S.eggRadius(H, W, 2.2) + 0.03, { 0.42, 0.42, 0.2 }, FOAM, {
+	S.eggRing("Crest", H, W, 2.2, 3, { 0.42, 0.42, 0.2 }, FOAM, {
 		joint = "Body",
 		rot = { 0, 0, 45 },
 	}),
@@ -48,7 +48,7 @@ local eggParts = S.join(
 	{ S.at("SeashellHinge", { 0.4, 0.22, 0.16 }, S.onEgg(H, W, 0, 2.38, 0.1), CORAL, { joint = "Body" }) },
 	S.fan("Starfish", S.onEgg(H, W, 180, 1.2, 0.08), 5, 0, 288, 0.5, 0.2, 0.1, { CORAL }, { joint = "Body" }),
 	{ core("Orbit", 2.35) },
-	S.ring("WaterRing", CFrame.new(0, 2.35, 0), 12, 2.3, { 0.55, 0.16, 0.22 }, AQUA, {
+	S.ring("WaterRing", CFrame.new(0, 2.35, 0), 14, 2.75, { 0.55, 0.16, 0.22 }, AQUA, {
 		joint = "Orbit",
 		material = "Glass",
 		transparency = 0.25,
@@ -59,7 +59,7 @@ for k = 1, 5 do
 	local a = math.rad(k * 72)
 	table.insert(
 		eggParts,
-		P("Bubble" .. k, { 0.3, 0.3, 0.3 }, { math.sin(a) * 1.95, 3.0 + (k % 3) * 0.35, -math.cos(a) * 1.95 }, CYAN, {
+		P("Bubble" .. k, { 0.3, 0.3, 0.3 }, { math.sin(a) * 2.35, 3.0 + (k % 3) * 0.35, -math.cos(a) * 2.35 }, CYAN, {
 			joint = "Orbit2",
 			material = "Neon",
 			shape = "Ball",

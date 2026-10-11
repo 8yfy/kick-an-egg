@@ -8,13 +8,13 @@ follow the same language after that, as the brief requires.
 
 | Hero | Rarity | Egg parts | Pet parts | Egg FX layers | Pet FX layers |
 |---|---|---|---|---|---|
-| 01 Sprout Pup | Common | 35 | 36 | 3 | 4 |
-| 03 Meadow Stag | Rare | 39 | 69 | 4 | 5 |
-| 07 Tide Spirit | Epic | 61 | 84 | 5 | 6 |
-| 23 Ice Dragon | Legendary | 69 | 157 | 5 | 7 |
-| 43 Quetzal Phoenix | Mythic | 89 | 174 | 5 | 7 |
-| 63 Clockwork Titan | Divine | 123 | 212 | 5 | 7 |
-| 79 Prism Seraph | Secret | 143 | 227 | 6 | 9 |
+| 01 Sprout Pup | Common | 30 | 36 | 3 | 4 |
+| 03 Meadow Stag | Rare | 32 | 69 | 4 | 5 |
+| 07 Tide Spirit | Epic | 55 | 84 | 5 | 6 |
+| 23 Ice Dragon | Legendary | 62 | 157 | 5 | 7 |
+| 43 Quetzal Phoenix | Mythic | 81 | 174 | 5 | 7 |
+| 63 Clockwork Titan | Divine | 119 | 212 | 5 | 7 |
+| 79 Prism Seraph | Secret | 135 | 227 | 6 | 9 |
 
 Renders (Roblox Studio): `docs/art/heroes/`: one close-up per pair, both lineups, and the old models for
 comparison (`before_*`). Re-render with `sh tools/preview/preview.sh Heroes desktop out.png 1` (eggs), `... 2`
@@ -26,8 +26,9 @@ egg shell fits the chase, every recipe is valid and unique, and effects attach a
 - **Models are block data** (CLAUDE.md rule 3): one file per pair, `Builders/Models/Premium/<Key>.luau`, returning
   `{ egg = Spec, pet = Spec }` for BlockBuilder. The zone files point their entry at it, one line each.
   `Builders/Models/Sculpt.luau` holds the helpers:
-  - `eggShell`: a round, smooth egg made of stacked cylinder slices instead of square slabs;
-  - `eggBand`, `plate` and `onEgg`: put things on the shell;
+  - `eggShell`: the classic blocky egg: stepped square layers with studs (about one layer per 0.55 studs of
+    height, 7 for a 3.7-stud egg);
+  - `eggBand`, `eggRing`, `plate` and `onEgg`: put bands, trims and plates flush on the square faces;
   - `shard`: crystals;
   - `fan`: wings, feathers, crests;
   - `ring` and `gear`: halos, collars, gear rings;
@@ -64,13 +65,13 @@ egg shell fits the chase, every recipe is valid and unique, and effects attach a
 
 | Rarity | Pet parts | Egg parts | Pet FX layers | Must have |
 |---|---|---|---|---|
-| Common | 25–40 | 20–36 | 3–4 | cute readable shape, one soft particle family, soft glow |
-| Uncommon | 35–55 | 25–40 | 3–4 | one extra accessory or silhouette hint |
-| Rare | 55–75 | 35–50 | 4–5 | iconic accessory, coloured eyes, a clear signature effect, rarity band on the egg |
-| Epic | 75–110 | 50–70 | 5–6 | transformed silhouette, floating parts (Orbit), layered particles |
-| Legendary | 120–160 | 60–80 | 6–7 | hero silhouette (wings/horns/spikes), one major ring, an accent light |
-| Mythic | 160–190 | 80–100 | 7 | several effect families, Halo + Orbit groups, rays or trails, two lights |
-| Divine | 190–220 | 100–130 | 7 | ceremonial framing: sigil disc, rays, crown/halo, gear or sun framing |
+| Common | 25–40 | 20–30 | 3–4 | cute readable shape, one soft particle family, soft glow |
+| Uncommon | 35–55 | 25–35 | 3–4 | one extra accessory or silhouette hint |
+| Rare | 55–75 | 30–45 | 4–5 | iconic accessory, coloured eyes, a clear signature effect, rarity band on the egg |
+| Epic | 75–110 | 45–60 | 5–6 | transformed silhouette, floating parts (Orbit), layered particles |
+| Legendary | 120–160 | 55–70 | 6–7 | hero silhouette (wings/horns/spikes), one major ring, an accent light |
+| Mythic | 160–190 | 70–90 | 7 | several effect families, Halo + Orbit groups, rays or trails, two lights |
+| Divine | 190–220 | 100–125 | 7 | ceremonial framing: sigil disc, rays, crown/halo, gear or sun framing |
 | Secret | 220+ | 130+ | 8–9 | the showcase stack: rainbow trails, prism rings, rays, holy glow, three orbit layers |
 
 **Build approach:** every pair is planned as **procedural blocks** (BlockBuilder + Sculpt). Four organic

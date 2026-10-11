@@ -78,15 +78,15 @@ end
 -- Egg -------------------------------------------------------------------------------------------------------
 local H, W = 5.2, 3.9
 local eggParts = S.join(
-	S.eggShell(H, W, 17, function(i, n)
-		return if i <= 3 then STEEL_DK elseif i == 8 or i == 13 then COPPER elseif i >= n - 1 then BRASS_DK else BRASS
+	S.eggShell(H, W, function(i, n)
+		return if i <= 2 then STEEL_DK elseif i == 5 or i == 7 then COPPER elseif i == n then BRASS_DK else BRASS
 	end),
 	{
 		S.eggBand("SteelBand", H, W, 1.05, 0.2, 0.06, STEEL),
 		S.eggBand("CopperBand", H, W, 3.95, 0.16, 0.06, COPPER),
 	},
 	porthole("Port", "Body", Vector3.new(0, 2.85, -S.eggRadius(H, W, 2.85) - 0.02), 0.62),
-	toothRing("WaistGear", "Orbit", 2.15, S.eggRadius(H, W, 2.15) + 0.42, 18),
+	toothRing("WaistGear", "Orbit", 2.15, S.eggRadius(H, W, 2.15) * 1.42 + 0.35, 20),
 	{ core("Orbit", 2.15) }
 )
 -- rivet rows

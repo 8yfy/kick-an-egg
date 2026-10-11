@@ -66,12 +66,12 @@ end
 -- Egg -------------------------------------------------------------------------------------------------------
 local H, W = 5.0, 3.7
 local eggParts = S.join(
-	S.eggShell(H, W, 17, function(i, n)
-		return if i <= 2
+	S.eggShell(H, W, function(i, n)
+		return if i == 1
 			then STONE_DK
-			elseif i <= 4 then STONE
-			elseif i >= n - 1 then TEAL
-			elseif i % 4 == 0 then EMERALD
+			elseif i == 2 then STONE
+			elseif i == n then TEAL
+			elseif i % 3 == 0 then EMERALD
 			else JADE
 	end),
 	{
@@ -149,7 +149,7 @@ for k = 1, 4 do
 		eggParts,
 		S.shard(
 			"Jade" .. k,
-			cf({ math.sin(a) * 2.75, 2.2 + (k % 2) * 0.7, -math.cos(a) * 2.75 }, { 0, 0, 14 }),
+			cf({ math.sin(a) * 3.1, 2.2 + (k % 2) * 0.7, -math.cos(a) * 3.1 }, { 0, 0, 14 }),
 			0.9,
 			0.32,
 			TEAL,

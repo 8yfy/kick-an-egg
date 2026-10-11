@@ -35,8 +35,8 @@ local function antlerNub(side: number): { Builder.PartSpec }
 end
 
 local eggParts = S.join(
-	S.eggShell(H, W, 15, function(i, n)
-		return if i <= 2 then FAWN_DK elseif i >= n - 2 then FAWN_LT else FAWN
+	S.eggShell(H, W, function(i, n)
+		return if i == 1 then FAWN_DK elseif i >= n - 1 then FAWN_LT else FAWN
 	end),
 	{
 		S.eggBand("RareBand", H, W, 1.25, 0.18, 0.06, RARE, { material = "Neon" }),
