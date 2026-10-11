@@ -27,7 +27,9 @@ local BUILTIN: { [string]: string } = {
 }
 SackVFX.Textures = {} :: { [string]: string }
 for name, id in BUILTIN do
-	SackVFX.Textures[name] = UPLOADED[name] or id
+	-- Studio only: the real sprite from the local content copy (tools/preview/stage-art.sh) until uploaded
+	local studio = if RunService:IsStudio() then `rbxasset://textures/KickTheEggUI/sackvfx_{name}.png` else nil
+	SackVFX.Textures[name] = UPLOADED[name] or studio or id
 end
 
 local FRONT = 1

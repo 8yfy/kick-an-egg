@@ -43,6 +43,7 @@ if ($hwnd -eq [IntPtr]::Zero) { "no preview window"; exit 1 }
 Start-Sleep -Seconds $WaitSeconds
 $full = [Cap]::Grab($hwnd)
 $p = [Cap]::Marker($full)
+if ($full -eq $null) { "window closed before the capture"; exit 1 }
 if ($p.X -lt 0) { $full.Save($Out); "marker not found; saved full window $Out"; exit 0 }
 $crop = $full.Clone((New-Object System.Drawing.Rectangle $p.X, $p.Y, ([Math]::Min($W, $full.Width - $p.X)), ([Math]::Min($H, $full.Height - $p.Y))), $full.PixelFormat)
 $crop.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)

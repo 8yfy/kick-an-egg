@@ -18,7 +18,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Upgrades = require(Shared:WaitForChild("Config"):WaitForChild("Upgrades"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
-local Builder = require(Shared:WaitForChild("Builders"):WaitForChild("BlockBuilder"))
+local SackGeometry = require(Shared:WaitForChild("Builders"):WaitForChild("SackGeometry"))
 local Sacks = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("Sacks"))
 local PlayerAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Player"))
 local VFX = require(Shared:WaitForChild("VFX")) :: any
@@ -144,7 +144,7 @@ local function addChain(model: Model, look: Sacks.Look)
 end
 
 local function build(tier: number, at: CFrame, own: boolean): Sack
-	local model = Builder.build(Sacks.spec(tier), "Sack")
+	local model = SackGeometry.build(tier) -- the original GLB import when present, else the part remodel
 	addChain(model, Sacks.look(tier))
 	for _, d in model:GetDescendants() do
 		if d:IsA("WeldConstraint") or d:IsA("Motor6D") then

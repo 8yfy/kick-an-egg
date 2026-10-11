@@ -2,9 +2,12 @@
 -- screenshotted and compared with the UI handoff mockups. Run through tools/preview/preview.sh, which sets
 -- SCREEN / STAGE below, launches Studio headless-style with run-in-roblox and captures the window.
 -- Data shown is a DESIGN FIXTURE (fake balances / pets), clearly not game data.
-local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof
+local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks
 local STAGE = "desktop" -- desktop (1600x900) | phone (844x390)
 local HOLD = 30
+local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row)
+local STANDIN = true -- build GLB stand-ins (needs the KTE_Dev folder: preview.sh with STANDIN=1)
+local CAMERA: CFrame? = nil -- 3D modes: the shot (re-applied every frame)
 
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -164,6 +167,77 @@ if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" then
 	if SCREEN ~= "HUD" then
 		drawers.open(SCREEN)
 	end
+elseif SCREEN == "Showcase" or SCREEN == "GameSacks" then
+	-- 3D sack renders (Kick Sacks package check): GLB stand-ins built from the original GLBs (tools/sacks/StandIn),
+	-- five tiers FROM..FROM+4 in a row, far from the map. Showcase = package SackModel + SackVFX (10 studs/m);
+	-- GameSacks = the game's Builders/SackGeometry + VFX/SackAura (6.5 studs/m, front -Z).
+	stage.BackgroundTransparency = 1
+	stage.AnchorPoint = Vector2.new(0.5, 0.5)
+	stage.Position = UDim2.fromScale(0.5, 0.5)
+	stage.ClipsDescendants = false
+	local ServerStorage = game:GetService("ServerStorage")
+	local dev = ServerStorage:FindFirstChild("KTE_Dev")
+	local tiers = {}
+	for t = FROM, math.min(20, FROM + 4) do
+		table.insert(tiers, t)
+	end
+	if dev and STANDIN then
+		local t0 = os.clock()
+		print("STANDIN built", require(dev.StandIn).install(dev.Data, tiers), "models in", os.clock() - t0, "s")
+	end
+	local origin = Vector3.new(3000, 100, 0)
+	local floor = Instance.new("Part")
+	floor.Name = "PreviewFloor"
+	floor.Anchored = true
+	floor.Size = Vector3.new(300, 1, 300)
+	floor.Position = origin - Vector3.new(0, 0.5, 0)
+	floor.Color = Color3.fromRGB(70, 74, 88)
+	floor.Material = Enum.Material.SmoothPlastic
+	floor.Parent = workspace
+	local wall = floor:Clone()
+	wall.Size = Vector3.new(300, 160, 1)
+	wall.Position = origin + Vector3.new(0, 80, -40)
+	wall.Color = Color3.fromRGB(38, 41, 56)
+	wall.Parent = workspace
+	local folder = Instance.new("Folder")
+	folder.Name = "SackPreview"
+	folder.Parent = workspace
+	local spacing = if SCREEN == "Showcase" then 13 else 9
+	local cam = workspace.CurrentCamera
+	if SCREEN == "Showcase" then
+		local SackModel = require(ReplicatedStorage.SackModules.SackModel)
+		local SackVFX = require(ReplicatedStorage.SackModules.SackVFX)
+		for i, tier in tiers do
+			local where = CFrame.new(origin + Vector3.new((i - 3) * spacing, 0.6, 0))
+			local ok, model = pcall(SackModel.Build, tier, folder, where, { RequireGLB = STANDIN, AutoScale = true, ForceOriginalColors = true, Anchored = true })
+			if ok then
+				print("SHOWCASE", tier, model:GetAttribute("GeometrySource"), model:GetAttribute("MatchedGLBMaterials"))
+				SackVFX.Attach(model, tier, { Quality = 1 })
+			else
+				warn("SHOWCASE", tier, model)
+			end
+		end
+		CAMERA = CFrame.lookAt(origin + Vector3.new(0, 10, 44), origin + Vector3.new(0, 8, 0))
+	else
+		local SackGeometry = require(ReplicatedStorage.Shared.Builders.SackGeometry)
+		local Sacks = require(ReplicatedStorage.Shared.Builders.Models.Sacks)
+		local SackAura = require(ReplicatedStorage.Shared.VFX.SackAura)
+		for i, tier in tiers do
+			local model, source = SackGeometry.build(tier)
+			-- hub at HANG above the floor, front (-Z) turned to the camera
+			local at = CFrame.new(origin + Vector3.new((i - 3) * spacing, Sacks.HANG, 0)) * CFrame.Angles(0, math.pi, 0)
+			model:PivotTo(at)
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+				end
+			end
+			model.Parent = folder
+			print("GAMESACK", tier, source, model:GetAttribute("MatchedGLBMaterials"))
+			pcall(SackAura.Apply, model, tier, at * Sacks.vfxRoot(tier), Sacks.SCALE, false)
+		end
+		CAMERA = CFrame.lookAt(origin + Vector3.new(0, 6.5, 30), origin + Vector3.new(0, 5, 0))
+	end
 elseif SCREEN == "Proof" or SCREEN == "Proof2" then
 	-- Asset-proof view: the supplied PNGs as plain ImageLabels (Fit, white tint), each with its name + key.
 	local AssetIds = require(UI.System.AssetIds)
@@ -243,8 +317,19 @@ marker.Size = UDim2.fromOffset(12, 12)
 marker.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
 marker.BorderSizePixel = 0
 marker.ZIndex = 1000
-marker.Parent = gui
+marker.Parent = stage -- top-left of the stage (centred on the viewport in the 3D modes)
 
+if SCREEN == "Showcase" or SCREEN == "GameSacks" then
+	HOLD = 50 -- 3D previews take longer to build; keep the window up for the capture
+	-- Studio's camera controller fights script moves: make it scriptable and keep re-asserting the shot
+	local camera = workspace.CurrentCamera
+	camera.CameraType = Enum.CameraType.Scriptable
+	game:GetService("RunService").Heartbeat:Connect(function()
+		if CAMERA then
+			camera.CFrame = CAMERA
+		end
+	end)
+end
 print("PREVIEW_READY", SCREEN, STAGE, size)
 task.wait(HOLD)
 print("PREVIEW_DONE")

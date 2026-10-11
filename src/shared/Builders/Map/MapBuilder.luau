@@ -31,6 +31,7 @@ local PhysicsService = game:GetService("PhysicsService")
 local Builder = require(script.Parent.Parent.BlockBuilder)
 local Props = require(script.Parent.Props)
 local Sacks = require(script.Parent.Parent.Models.Sacks)
+local SackGeometry = require(script.Parent.Parent.SackGeometry)
 local MapFx = require(script.Parent.MapFx)
 local Bricks = require(script.Parent.Bricks)
 local Landmarks = require(script.Parent.Landmarks)
@@ -797,7 +798,22 @@ local function refreshRack(base: Model, slot: CFrame)
 			current:Destroy()
 		end
 		local hang = slot * CFrame.new(0, hubY, 0)
-		local sack = stamp(Sacks.spec(show), hang, 1, stand, false, "Sack")
+		-- the original imported GLB sack when available (Builders/SackGeometry), else the part-built remodel
+		local sack = SackGeometry.build(show)
+		sack:PivotTo(hang)
+		for _, d in sack:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+				d.CanCollide = false
+				d.CanTouch = false
+			elseif d:IsA("WeldConstraint") or d:IsA("Motor6D") then
+				d:Destroy()
+			end
+		end
+		if sack.PrimaryPart then
+			sack.PrimaryPart:Destroy()
+		end
+		sack.Parent = stand
 		local pivot = Instance.new("Part")
 		pivot.Name = "Pivot"
 		pivot.Size = Vector3.one * 0.2

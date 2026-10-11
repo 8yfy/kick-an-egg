@@ -1,0 +1,2 @@
+# Vendored Kick Sacks package modules: kept byte-close to the package for diffing (see their headers)
+src/sackmodules/

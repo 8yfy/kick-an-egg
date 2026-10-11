@@ -252,6 +252,78 @@ local function check()
 	end
 end
 
+-- Studio only: a 20-sack showroom 40 studs in front of the player, facing them; any /showcase removes an
+-- existing one. Two variants (CLAUDE_PROMPT "Test all 20 tiers"):
+--   /showcase       the Kick Sacks package demo: SackModules/SackModel (10 studs/m) + the package SackVFX.
+--                   Strict (RequireGLB) once all 20 GLBs are imported into ReplicatedStorage.SackAssets.Meshes,
+--                   otherwise the package's procedural fallback with a warning.
+--   /showcase game  exactly what players see: Builders/SackGeometry (the imports when present) + VFX/SackAura.
+-- The server only builds models; ShowcaseController attaches the effects once on each client.
+function SackService.showcase(player: Player, variant: string?)
+	local old = workspace:FindFirstChild("SackShowcase")
+	if old then
+		old:Destroy()
+		return
+	end
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not (root and root:IsA("BasePart")) then
+		return
+	end
+	local SackModel = require(ReplicatedStorage:WaitForChild("SackModules"):WaitForChild("SackModel")) :: any
+	local SackGeometry = require(Shared.Builders.SackGeometry)
+	local imported = SackGeometry.imported()
+	local strict = imported == 20
+	local gameView = variant == "game"
+	local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
+	local at = root.Position + look * 40 - Vector3.new(0, 1.8, 0) -- root ~3 studs up; frays hang 1.1 below the bag
+	local base = CFrame.lookAt(at, at + look) -- +Z (the sack fronts) faces the player; rows run away (-Z)
+	local folder = Instance.new("Folder")
+	folder.Name = "SackShowcase"
+	folder:SetAttribute("Variant", if gameView then "game" else "package")
+	folder.Parent = workspace
+	for tier = 1, 20 do
+		local column, row = (tier - 1) % 5, (tier - 1) // 5
+		if gameView then
+			local model = SackGeometry.build(tier)
+			-- hub at the game's hang height, front (-Z) turned to the player
+			local where = base * CFrame.new((column - 2) * 10, Sacks.HANG, -row * 11) * CFrame.Angles(0, math.pi, 0)
+			model:PivotTo(where)
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+					d.CanCollide = false
+					d.CanQuery = false
+					d.CanTouch = false
+				elseif d:IsA("WeldConstraint") or d:IsA("Motor6D") then
+					d:Destroy()
+				end
+			end
+			model:SetAttribute("SackTier", tier)
+			model.Parent = folder
+		else
+			local where = base * CFrame.new((column - 2) * 14, 0, -row * 15)
+			local ok, err = pcall(SackModel.Build, tier, folder, where, {
+				RequireGLB = strict,
+				AutoScale = true,
+				ForceOriginalColors = true,
+				Anchored = true,
+			})
+			if not ok then
+				warn(`[showcase] Sack_{string.format("%02d", tier)}: {err}`)
+			end
+		end
+	end
+	if strict then
+		print(`[showcase] 20 sacks from the original GLB imports ({if gameView then "game" else "package"} view)`)
+	else
+		warn(
+			`[showcase] only {imported}/20 GLB imports in ReplicatedStorage.SackAssets.Meshes: showing the {if gameView
+				then "part-built remodel"
+				else "package's procedural fallback"} (see tools/sacks/IMPORT.md)`
+		)
+	end
+end
+
 function SackService:Start()
 	Remotes.get("Train").OnServerEvent:Connect(onTrain)
 	Remotes.get("UpgradeTraining").OnServerEvent:Connect(onUpgradeTraining)
@@ -260,8 +332,14 @@ function SackService:Start()
 			onCharacter(player, character)
 		end)
 		if RunService:IsStudio() then
-			-- Studio-only playtest commands (chat): /sack <tier> jumps to any sack, /cash <amount> adds money
+			-- Studio-only playtest commands (chat): /sack <tier> jumps to any sack, /cash <amount> adds money,
+			-- /showcase toggles the 20-sack showroom
 			player.Chatted:Connect(function(message)
+				local variant = string.match(message, "^/showcase%s*(%a*)$")
+				if variant then
+					SackService.showcase(player, variant)
+					return
+				end
 				local cmd, arg = string.match(message, "^/(%a+)%s+(%S+)")
 				local n = tonumber(arg)
 				local data = DataService:Get(player)

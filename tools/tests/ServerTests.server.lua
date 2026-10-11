@@ -191,6 +191,17 @@ section("SackService + pens + collecting", function()
 			model:Destroy()
 		end
 	end
+	-- the game's sack geometry: the original GLB imports when present, else the part remodel (none here)
+	local SackGeometry = require(Shared.Builders.SackGeometry) :: any
+	check("no GLB imports in the test place", SackGeometry.imported() == 0)
+	local geo, source = SackGeometry.build(7)
+	check("SackGeometry falls back to the part remodel", source == "Parts" and #geo:GetDescendants() > 20)
+	geo:Destroy()
+	local SackModel = require(game:GetService("ReplicatedStorage").SackModules.SackModel) :: any
+	check(
+		"package SackModel is strict without imports",
+		not pcall(SackModel.Build, 1, workspace, CFrame.new(), { RequireGLB = true })
+	)
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
 	check("pen slots capped", PS.slotsForPen(99) == Economy.PlotSlots.max)
