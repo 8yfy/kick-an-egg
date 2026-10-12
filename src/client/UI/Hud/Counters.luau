@@ -1,14 +1,17 @@
 --!strict
 -- Cash + Kick Power counters (UI handoff v2 01-Mockups/01-Gameplay-HUD.png, bottom-left). Each is a dark bordered
--- bar with its supplied icon (currency-cash / power-sneaker), a big outlined value that interpolates for 0.3 s
+-- bar with its final approved icon (hud_money / hud_power), a big outlined value that interpolates for 0.3 s
 -- and always lands on the exact server value (no bounce on rapid gains), and a green "+" button: cash opens the
--- Shop (developer products), power opens Training (strength is trained, not bought). Phones: top-left, beside
--- the icon-only nav. Replaces A's Stats lines (Run Speed lives in Training > Speed).
+-- Shop (developer products), power opens the existing sack / strength screen (the same one the Boxing Sack
+-- Shop's counter opens; strength is trained, not bought). The icons pop when money goes up and punch when Kick
+-- Power goes up (UI/System/IconMotion). Phones: top-left, beside the icon-only nav. Replaces A's Stats lines
+-- (Run Speed lives in that screen's Speed tab).
 local Kit = require(script.Parent.Parent.Kit)
 local System = script.Parent.Parent.System
 local Data = require(System.Data)
 local Modal = require(System.Modal)
 local Motion = require(System.Motion)
+local IconMotion = require(System.IconMotion)
 local Theme = require(System.Theme)
 local Ui = require(System.Ui)
 
@@ -17,7 +20,7 @@ local Counters = {}
 
 export type Counters = { update: () -> () }
 
-type Counter = { row: Frame, value: NumberValue, label: TextLabel }
+type Counter = { row: Frame, value: NumberValue, label: TextLabel, icon: ImageLabel }
 
 local function counter(
 	parent: Instance,
@@ -46,7 +49,7 @@ local function counter(
 	list.VerticalAlignment = Enum.VerticalAlignment.Center
 	local holder = Ui.frame(row, "Icon", UDim2.fromOffset(height + 14, height + 14))
 	holder.LayoutOrder = 1
-	Ui.art(holder, icon)
+	local art = Ui.art(holder, icon)
 	local label =
 		Ui.text(row, format(0), textSize, { autoX = true, stroke = math.max(4, textSize // 10), name = "Value" })
 	label.LayoutOrder = 2
@@ -71,7 +74,7 @@ local function counter(
 	value.Changed:Connect(function(v: number)
 		label.Text = format(v)
 	end)
-	return { row = row, value = value, label = label }
+	return { row = row, value = value, label = label, icon = art }
 end
 
 function Counters.new(parent: Instance): Counters
@@ -82,7 +85,7 @@ function Counters.new(parent: Instance): Counters
 	local cash = counter(
 		root,
 		"Cash",
-		"premium_icons_currency_cash",
+		"hud_money",
 		84,
 		62,
 		{ Color3.fromHex("C8FF4A"), Color3.fromHex("3FD81A") },
@@ -97,7 +100,7 @@ function Counters.new(parent: Instance): Counters
 	local power = counter(
 		root,
 		"Power",
-		"premium_icons_power_sneaker",
+		"hud_power",
 		76,
 		48,
 		{ Color3.fromHex("FFF06A"), Color3.fromHex("FFB000") },
@@ -116,7 +119,10 @@ function Counters.new(parent: Instance): Counters
 		list.VerticalAlignment = if compact then Enum.VerticalAlignment.Top else Enum.VerticalAlignment.Bottom
 	end)
 
+	IconMotion.attach(cash.icon, "money")
+	IconMotion.attach(power.icon, "power")
 	local first = true
+	local lastMoney, lastPower = 0, 0
 	return {
 		update = function()
 			if not Data.loaded() then
@@ -128,10 +134,19 @@ function Counters.new(parent: Instance): Counters
 				power.value.Value = Data.power()
 				cash.label.Text = Ui.money(Data.money())
 				power.label.Text = "POWER " .. Ui.number(Data.power())
+				lastMoney, lastPower = Data.money(), Data.power()
 				return
 			end
-			Motion.count(cash.value, Data.money())
-			Motion.count(power.value, Data.power())
+			local money, kickPower = Data.money(), Data.power()
+			if money > lastMoney then
+				IconMotion.moneyUp(cash.icon)
+			end
+			if kickPower > lastPower then
+				IconMotion.powerUp(power.icon)
+			end
+			lastMoney, lastPower = money, kickPower
+			Motion.count(cash.value, money)
+			Motion.count(power.value, kickPower)
 		end,
 	}
 end

@@ -22,19 +22,37 @@ local A: { [string]: Entry } = {
 	-- 02-Assets/Banners (shop banner backdrops; hero art stays a separate layer)
 	banners_cash_background = { source = "02-Assets/Banners/cash-background.png", id = "rbxassetid://87430887454166" },
 	banners_hatch_background = { source = "02-Assets/Banners/hatch-background.png", id = "rbxassetid://73485605638537" },
-	banners_power_background = { source = "02-Assets/Banners/power-background.png", id = "rbxassetid://124677169471098" },
+	banners_power_background = {
+		source = "02-Assets/Banners/power-background.png",
+		id = "rbxassetid://124677169471098",
+	},
 	-- 02-Assets/Boxing-Sacks (bound to Config/Upgrades.Sack by NAME in SACKS below)
 	["01_burlap_sack"] = { source = "02-Assets/Boxing-Sacks/01-burlap-sack.png", id = "rbxassetid://91113451788633" },
 	["02_gym_canvas"] = { source = "02-Assets/Boxing-Sacks/02-gym-canvas.png", id = "rbxassetid://71371869320711" },
-	["03_leather_classic"] = { source = "02-Assets/Boxing-Sacks/03-leather-classic.png", id = "rbxassetid://123168551945605" },
+	["03_leather_classic"] = {
+		source = "02-Assets/Boxing-Sacks/03-leather-classic.png",
+		id = "rbxassetid://123168551945605",
+	},
 	["04_pro_red"] = { source = "02-Assets/Boxing-Sacks/04-pro-red.png", id = "rbxassetid://138385070713934" },
 	["05_tirestack"] = { source = "02-Assets/Boxing-Sacks/05-tirestack.png", id = "rbxassetid://74427195392481" },
 	["06_iron_plate"] = { source = "02-Assets/Boxing-Sacks/06-iron-plate.png", id = "rbxassetid://117838688841876" },
-	["07_bronze_statue"] = { source = "02-Assets/Boxing-Sacks/07-bronze-statue.png", id = "rbxassetid://82376484882120" },
-	["08_silver_knight"] = { source = "02-Assets/Boxing-Sacks/08-silver-knight.png", id = "rbxassetid://84365098742204" },
-	["09_gold_champion"] = { source = "02-Assets/Boxing-Sacks/09-gold-champion.png", id = "rbxassetid://85765290544611" },
+	["07_bronze_statue"] = {
+		source = "02-Assets/Boxing-Sacks/07-bronze-statue.png",
+		id = "rbxassetid://82376484882120",
+	},
+	["08_silver_knight"] = {
+		source = "02-Assets/Boxing-Sacks/08-silver-knight.png",
+		id = "rbxassetid://84365098742204",
+	},
+	["09_gold_champion"] = {
+		source = "02-Assets/Boxing-Sacks/09-gold-champion.png",
+		id = "rbxassetid://85765290544611",
+	},
 	["10_ice_block"] = { source = "02-Assets/Boxing-Sacks/10-ice-block.png", id = "rbxassetid://127679095489551" },
-	["11_crystal_geode"] = { source = "02-Assets/Boxing-Sacks/11-crystal-geode.png", id = "rbxassetid://102888690251620" },
+	["11_crystal_geode"] = {
+		source = "02-Assets/Boxing-Sacks/11-crystal-geode.png",
+		id = "rbxassetid://102888690251620",
+	},
 	["12_candy_smash"] = { source = "02-Assets/Boxing-Sacks/12-candy-smash.png", id = "rbxassetid://79953088836931" },
 	["13_lava_core"] = { source = "02-Assets/Boxing-Sacks/13-lava-core.png", id = "rbxassetid://137279866165799" },
 	["14_thunder_cell"] = { source = "02-Assets/Boxing-Sacks/14-thunder-cell.png", id = "rbxassetid://90417499855666" },
@@ -45,14 +63,26 @@ local A: { [string]: Entry } = {
 	["19_sun_guardian"] = { source = "02-Assets/Boxing-Sacks/19-sun-guardian.png", id = "rbxassetid://76531280610257" },
 	["20_rainbow_god"] = { source = "02-Assets/Boxing-Sacks/20-rainbow-god.png", id = "rbxassetid://91102148660237" },
 	-- 02-Assets/Premium-Icons (navigation + currency heroes; supersede the old UI/icon-* files)
-	premium_icons_currency_cash = { source = "02-Assets/Premium-Icons/currency-cash.png", id = "rbxassetid://122210387180336" },
+	premium_icons_currency_cash = {
+		source = "02-Assets/Premium-Icons/currency-cash.png",
+		id = "rbxassetid://122210387180336",
+	},
 	premium_icons_nav_eggs = { source = "02-Assets/Premium-Icons/nav-eggs.png", id = "rbxassetid://119366070358291" },
 	premium_icons_nav_index = { source = "02-Assets/Premium-Icons/nav-index.png", id = "rbxassetid://94178073999979" },
 	premium_icons_nav_pets = { source = "02-Assets/Premium-Icons/nav-pets.png", id = "rbxassetid://100066710339265" },
-	premium_icons_nav_rebirth = { source = "02-Assets/Premium-Icons/nav-rebirth.png", id = "rbxassetid://125467004208382" },
+	premium_icons_nav_rebirth = {
+		source = "02-Assets/Premium-Icons/nav-rebirth.png",
+		id = "rbxassetid://125467004208382",
+	},
 	premium_icons_nav_shop = { source = "02-Assets/Premium-Icons/nav-shop.png", id = "rbxassetid://137513692032978" },
-	premium_icons_nav_training = { source = "02-Assets/Premium-Icons/nav-training.png", id = "rbxassetid://84196659777573" },
-	premium_icons_power_sneaker = { source = "02-Assets/Premium-Icons/power-sneaker.png", id = "rbxassetid://97152880787198" },
+	premium_icons_nav_training = {
+		source = "02-Assets/Premium-Icons/nav-training.png",
+		id = "rbxassetid://84196659777573",
+	},
+	premium_icons_power_sneaker = {
+		source = "02-Assets/Premium-Icons/power-sneaker.png",
+		id = "rbxassetid://97152880787198",
+	},
 	-- 02-Assets/UI (reusable effects, technical controls, stud texture)
 	fx_glow = { source = "02-Assets/UI/fx-glow.png", id = "rbxassetid://131200174693466" },
 	fx_rays = { source = "02-Assets/UI/fx-rays.png", id = "rbxassetid://80237947202198" },
@@ -75,14 +105,78 @@ local A: { [string]: Entry } = {
 	zone_art_crystal_caves = { source = "02-Assets/Zone-Art/crystal-caves.png", id = "rbxassetid://129698839697789" },
 	zone_art_jungle_ruins = { source = "02-Assets/Zone-Art/jungle-ruins.png", id = "rbxassetid://121053504894769" },
 	zone_art_neon_city = { source = "02-Assets/Zone-Art/neon-city.png", id = "rbxassetid://95477373741493" },
-	zone_art_haunted_graveyard = { source = "02-Assets/Zone-Art/haunted-graveyard.png", id = "rbxassetid://108145850555118" },
+	zone_art_haunted_graveyard = {
+		source = "02-Assets/Zone-Art/haunted-graveyard.png",
+		id = "rbxassetid://108145850555118",
+	},
 	zone_art_sky_islands = { source = "02-Assets/Zone-Art/sky-islands.png", id = "rbxassetid://117110405270371" },
 	zone_art_toxic_swamp = { source = "02-Assets/Zone-Art/toxic-swamp.png", id = "rbxassetid://107746871407492" },
-	zone_art_clockwork_factory = { source = "02-Assets/Zone-Art/clockwork-factory.png", id = "rbxassetid://76179793237866" },
+	zone_art_clockwork_factory = {
+		source = "02-Assets/Zone-Art/clockwork-factory.png",
+		id = "rbxassetid://76179793237866",
+	},
 	zone_art_frozen_aurora = { source = "02-Assets/Zone-Art/frozen-aurora.png", id = "rbxassetid://128752109720890" },
 	zone_art_lava_core = { source = "02-Assets/Zone-Art/lava-core.png", id = "rbxassetid://76479570711918" },
 	zone_art_galaxy_void = { source = "02-Assets/Zone-Art/galaxy-void.png", id = "rbxassetid://116152121647212" },
 	zone_art_rainbow_heaven = { source = "02-Assets/Zone-Art/rainbow-heaven.png", id = "rbxassetid://139335812344018" },
+	-- Final approved HUD icons (Kick_An_Egg_Final_Approved_Icons_NoToolUI; they replace the older nav/currency icons)
+	hud_shop = { source = "Approved-Icons/Shop.png", id = "" },
+	hud_index = { source = "Approved-Icons/Index.png", id = "" },
+	hud_rebirth = { source = "Approved-Icons/Rebirth.png", id = "" },
+	hud_eggs = { source = "Approved-Icons/Eggs.png", id = "" },
+	hud_pets = { source = "Approved-Icons/Pets.png", id = "" },
+	hud_settings = { source = "Approved-Icons/Settings.png", id = "" },
+	hud_sound = { source = "Approved-Icons/Sound.png", id = "" },
+	hud_money = { source = "Approved-Icons/Money.png", id = "" },
+	hud_power = { source = "Approved-Icons/Power.png", id = "" },
+	-- Contextual kick UI (Master handoff v2: KICK / AUTO KICK buttons, strength meter states)
+	kick_button = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Kick_Button.png", id = "" },
+	kick_auto = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Auto_Kick_Button.png", id = "" },
+	kick_meter_idle = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Idle.png", id = "" },
+	kick_meter_low = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Low.png", id = "" },
+	kick_meter_mid = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Mid.png", id = "" },
+	kick_meter_high = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_High.png", id = "" },
+	kick_meter_full = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Full.png", id = "" },
+	-- Kick ratings (Master handoff v2: Perfect / Excellent / Great / Good / Okay / Miss)
+	rating_perfect = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Perfect.png", id = "" },
+	rating_excellent = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Excellent.png", id = "" },
+	rating_great = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Great.png", id = "" },
+	rating_good = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Good.png", id = "" },
+	rating_okay = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Okay.png", id = "" },
+	rating_miss = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Miss.png", id = "" },
+	-- Zone progress bar frames (frame 1 = empty) and zone name labels (Master handoff v2)
+	zone_bar_empty = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Empty.png", id = "" },
+	zone_bar_quarter = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Quarter.png", id = "" },
+	zone_bar_half = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Half.png", id = "" },
+	zone_bar_three_quarter = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Three_Quarter.png",
+		id = "",
+	},
+	zone_bar_full = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Full.png", id = "" },
+	zone_bar_rainbow = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Rainbow.png", id = "" },
+	zone_label_empty = { source = "Master-v2/02_Zone_Progress/Zone_Name_Panel_Empty.png", id = "" },
+	zone_label_01 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/01_Meadow.png", id = "" },
+	zone_label_02 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/02_Sandy_Beach.png", id = "" },
+	zone_label_03 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/03_Autumn_Forest.png", id = "" },
+	zone_label_04 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/04_Mushroom_Grove.png", id = "" },
+	zone_label_05 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/05_Desert_Dunes.png", id = "" },
+	zone_label_06 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/06_Snowy_Peaks.png", id = "" },
+	zone_label_07 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/07_Candy_Land.png", id = "" },
+	zone_label_08 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/08_Coral_Reef.png", id = "" },
+	zone_label_09 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/09_Volcano.png", id = "" },
+	zone_label_10 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/10_Crystal_Caves.png", id = "" },
+	zone_label_11 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/11_Jungle_Ruins.png", id = "" },
+	zone_label_12 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/12_Neon_City.png", id = "" },
+	zone_label_13 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/13_Haunted_Graveyard.png", id = "" },
+	zone_label_14 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/14_Sky_Islands.png", id = "" },
+	zone_label_15 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/15_Toxic_Swamp.png", id = "" },
+	zone_label_16 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/16_Clockwork_Factory.png", id = "" },
+	zone_label_17 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/17_Frozen_Aurora.png", id = "" },
+	zone_label_18 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/18_Lava_Core.png", id = "" },
+	zone_label_19 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/19_Galaxy_Void.png", id = "" },
+	zone_label_20 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/20_Rainbow_Heaven.png", id = "" },
+	-- UI sparkle overlay (Master handoff v2)
+	fx_ui_sparkle = { source = "Master-v2/08_New_Icons/UI_Sparkle_Transparent.png", id = "" },
 }
 
 -- Config/Upgrades.Sack.tiers[].name -> sack art (by the sack's name, never by list position).
@@ -132,6 +226,11 @@ AssetIds.ZONES = {
 	"zone_art_galaxy_void",
 	"zone_art_rainbow_heaven",
 } :: { string }
+
+-- Config/Zones[].id -> zone name label shown under the zone progress bar.
+function AssetIds.zoneLabel(id: number): string
+	return string.format("zone_label_%02d", id)
+end
 
 local LOCAL_ROOT = "rbxasset://textures/KickTheEggUI/"
 local warned: { [string]: boolean } = {}

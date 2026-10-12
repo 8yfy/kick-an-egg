@@ -1,12 +1,16 @@
 --!strict
 -- World interactions (client):
 --   * ProximityPrompts from the map carry an "Action" attribute: UpgradePen / UpgradeTraining fire their
---     remotes, "OpenMenu:<Name>" opens a window.
+--     remotes, "EquipSack" takes the Kick Sack out / puts it away (UI/SackGear), "OpenMenu:<Name>" opens a
+--     window ("OpenMenu:Store" = the Boxing Sack Shop's counter -> the existing sack purchasing screen).
+--   * A red "!" bounces over your own base's upgrade signs and over the Boxing Sack Shop sign when you can
+--     afford the next upgrade / sack.
 --   * (Strength training is the Kick Sack gear: Controllers/SackController.)
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MyBase = require(script.Parent.MyBase)
+local SackGear = require(script.Parent.SackGear)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Upgrades = require(Shared:WaitForChild("Config"):WaitForChild("Upgrades"))
 local Economy = require(Shared:WaitForChild("Config"):WaitForChild("Economy"))
@@ -72,6 +76,9 @@ local function refreshAlerts(data: { [string]: any })
 	local rl = MyBase.level("RackLevel", data, "rackLevel")
 	local nextRack = levels[rl + 1]
 	alert(base:FindFirstChild("RackSign"), nextRack ~= nil and money >= nextRack.cost)
+	local map = workspace:FindFirstChild("Map")
+	local shop = map and map:FindFirstChild("BoxingSackShop", true)
+	alert(shop and shop:FindFirstChild("Sign"), nextRack ~= nil and money >= nextRack.cost)
 	local pl = math.max(1, MyBase.level("PenLevel", data, "penLevel"))
 	local slots = Economy.PlotSlots.base + (pl - 1) * Upgrades.Pen.slotsPerLevel
 	local penCost = Upgrades.Pen.costBase * Upgrades.Pen.costGrowth ^ (pl - 1)
@@ -86,6 +93,8 @@ function Interact.start(openMenu: (name: string) -> ()): (data: { [string]: any 
 		local action = prompt:GetAttribute("Action")
 		if action == "UpgradePen" or action == "UpgradeTraining" then
 			fire(action)
+		elseif action == "EquipSack" then
+			SackGear.toggle()
 		elseif typeof(action) == "string" and string.sub(action, 1, 9) == "OpenMenu:" then
 			openMenu(string.sub(action, 10))
 		end

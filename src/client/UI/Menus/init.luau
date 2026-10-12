@@ -4,6 +4,8 @@
 -- Menus.open(name) lets prompts / the "+" badge open a window.
 local Kit = require(script.Parent.Kit)
 local Icons = require(script.Parent.Icons)
+local Ui = require(script.Parent.System.Ui)
+local IconMotion = require(script.Parent.System.IconMotion)
 local Fx = require(script.Parent.Fx)
 local IndexMenu = require(script.IndexMenu)
 local StoreMenu = require(script.StoreMenu)
@@ -148,10 +150,16 @@ function Menus.new(parent: Instance, opts: { tiles: boolean? }?): Menus
 		gear.Size = if compact then UDim2.fromOffset(96, 96) else UDim2.fromOffset(58, 58)
 		gear.Position = if compact then UDim2.new(1, -10, 0.5, 30) else UDim2.new(1, -96, 0, 22)
 	end)
+	local gearArt: ImageLabel
 	local gb = Kit.roundButton(gear, "Button", function()
+		IconMotion.click(gearArt, "settings")
 		toggle("Settings")
 	end)
-	Icons.view(gb, "Gear", UDim2.fromScale(0.7, 0.7)).Position = UDim2.fromScale(0.15, 0.15)
+	-- final approved Settings icon (UI/System/AssetIds "hud_settings"), slowly turning (UI/System/IconMotion)
+	gearArt = Ui.art(gb, "hud_settings", UDim2.fromScale(0.86, 0.86))
+	gearArt.Position = UDim2.fromScale(0.07, 0.07)
+	gearArt.ZIndex = 3
+	IconMotion.attach(gearArt, "settings")
 
 	return {
 		update = function(data: { [string]: any })
