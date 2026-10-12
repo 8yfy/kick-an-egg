@@ -50,20 +50,8 @@ local Pets: { [string]: Builder.Spec } = {
 		tail = "long",
 		armor = true,
 	}),
-	PrismSeraph = C.build({
-		kind = "Flyer",
-		rarity = "Secret",
-		palette = {
-			main = rgb(255, 255, 255),
-			accent = rgb(200, 160, 255),
-			belly = rgb(255, 240, 250),
-			eye = rgb(255, 255, 255),
-			glow = rgb(255, 255, 255),
-		},
-		wings = "fairy",
-		crystals = true,
-		mane = true,
-	}),
+	-- Premium hero spec (Models/Premium/PrismSeraph.luau, docs/EggPetPlan.md).
+	PrismSeraph = require(script.Parent.Parent.Premium.PrismSeraph).pet,
 }
 
 return Pets

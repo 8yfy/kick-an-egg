@@ -29,14 +29,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		glow = rgb(255, 200, 80),
 		metal = rgb(160, 120, 60),
 	}),
-	ClockworkTitan = E.build({
-		rarity = "Divine",
-		colors = { rgb(249, 241, 221), rgb(200, 160, 80), rgb(90, 70, 50) },
-		pattern = "armor",
-		top = "crown",
-		glow = rgb(255, 220, 100),
-		metal = rgb(150, 115, 60),
-	}),
+	-- Premium hero spec (Models/Premium/ClockworkTitan.luau, docs/EggPetPlan.md).
+	ClockworkTitan = require(script.Parent.Parent.Premium.ClockworkTitan).egg,
 }
 
 return Eggs

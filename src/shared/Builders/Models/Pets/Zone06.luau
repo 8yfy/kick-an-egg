@@ -36,22 +36,8 @@ local Pets: { [string]: Builder.Spec } = {
 		mane = true,
 		horns = "curl",
 	}),
-	IceDragon = C.build({
-		kind = "Quadruped",
-		rarity = "Legendary",
-		palette = {
-			main = rgb(150, 210, 250),
-			accent = rgb(230, 250, 255),
-			belly = rgb(210, 235, 255),
-			eye = rgb(60, 230, 255),
-			glow = rgb(120, 240, 255),
-		},
-		wings = "crystal",
-		horns = "straight",
-		spikes = true,
-		tail = "spike",
-		crystals = true,
-	}),
+	-- Premium hero spec (Models/Premium/IceDragon.luau, docs/EggPetPlan.md).
+	IceDragon = require(script.Parent.Parent.Premium.IceDragon).pet,
 }
 
 return Pets

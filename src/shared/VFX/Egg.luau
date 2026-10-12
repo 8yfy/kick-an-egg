@@ -17,6 +17,7 @@ local Config = Shared:WaitForChild("Config")
 local Rarities = require(Config:WaitForChild("Rarities"))
 local Zones = require(Config:WaitForChild("Zones"))
 local Rig = require(Shared:WaitForChild("Anim"):WaitForChild("Rig"))
+local Sculpt = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("Sculpt"))
 local Pool = require(script.Parent.Pool)
 local Burst = require(script.Parent.Burst)
 local Fx = require(script.Parent.Fx)
@@ -257,7 +258,7 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 	local rare = rarity.order >= Rarities.Rare.order
 
 	-- Size everything from the egg's body (eggs range from small to huge), so the legs always read.
-	local _, size = egg:GetBoundingBox()
+	local _, size = Sculpt.shellBounds(egg) -- the shell, not decorations floating around it
 	local sz = math.clamp(size.Y / 3.4, 0.8, 2.6)
 	local legLen = 1.15 * sz
 	local footH = 0.55 * sz

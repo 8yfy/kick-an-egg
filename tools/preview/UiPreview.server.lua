@@ -2,10 +2,10 @@
 -- screenshotted and compared with the UI handoff mockups. Run through tools/preview/preview.sh, which sets
 -- SCREEN / STAGE below, launches Studio headless-style with run-in-roblox and captures the window.
 -- Data shown is a DESIGN FIXTURE (fake balances / pets), clearly not game data.
-local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks | Showroom
+local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks | Showroom | Heroes
 local STAGE = "desktop" -- desktop (1600x900) | phone (844x390)
 local HOLD = 30
-local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row)
+local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row); Heroes: 1 = eggs, 2 = pets, 3 = both, 10 + n = pair n close-up
 local STANDIN = true -- build GLB stand-ins (needs the KTE_Dev folder: preview.sh with STANDIN=1)
 local CAMERA: CFrame? = nil -- 3D modes: the shot (re-applied every frame)
 
@@ -215,7 +215,13 @@ elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" the
 		local SackVFX = require(ReplicatedStorage.SackModules.SackVFX)
 		for i, tier in tiers do
 			local where = CFrame.new(origin + Vector3.new((i - 3) * spacing, 0.6, 0))
-			local ok, model = pcall(SackModel.Build, tier, folder, where, { RequireGLB = STANDIN, AutoScale = true, ForceOriginalColors = true, Anchored = true })
+			local ok, model = pcall(
+				SackModel.Build,
+				tier,
+				folder,
+				where,
+				{ RequireGLB = STANDIN, AutoScale = true, ForceOriginalColors = true, Anchored = true }
+			)
 			if ok then
 				print("SHOWCASE", tier, model:GetAttribute("GeometrySource"), model:GetAttribute("MatchedGLBMaterials"))
 				SackVFX.Attach(model, tier, { Quality = 1 })
@@ -243,6 +249,87 @@ elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" the
 			pcall(SackAura.Apply, model, tier, at * Sacks.vfxRoot(tier), Sacks.SCALE, false)
 		end
 		CAMERA = CFrame.lookAt(origin + Vector3.new(0, 6.5, 30), origin + Vector3.new(0, 5, 0))
+	end
+elseif SCREEN == "Heroes" then
+	-- the 7 hero egg/pet pairs of the 79-pair art plan (docs/EggPetPlan.md), Common -> Secret, with their effects
+	stage.BackgroundTransparency = 1
+	stage.AnchorPoint = Vector2.new(0.5, 0.5)
+	stage.Position = UDim2.fromScale(0.5, 0.5)
+	stage.ClipsDescendants = false
+	local Models = require(ReplicatedStorage.Shared.Builders.Models)
+	local okFx, PetFx = pcall(require, ReplicatedStorage.Shared.VFX:FindFirstChild("PetFx") or Instance.new("Folder"))
+	local origin = Vector3.new(3000, 100, 0)
+	local floor = Instance.new("Part")
+	floor.Name = "PreviewFloor"
+	floor.Anchored = true
+	floor.Size = Vector3.new(400, 1, 300)
+	floor.Position = origin - Vector3.new(0, 0.5, 0)
+	floor.Color = Color3.fromRGB(70, 74, 88)
+	floor.Material = Enum.Material.SmoothPlastic
+	floor.Parent = workspace
+	local wall = floor:Clone()
+	wall.Size = Vector3.new(400, 160, 1)
+	wall.Position = origin + Vector3.new(0, 80, -40)
+	wall.Color = Color3.fromRGB(38, 41, 56)
+	wall.Parent = workspace
+	local folder = Instance.new("Folder")
+	folder.Name = "HeroPreview"
+	folder.Parent = workspace
+	local heroes =
+		{ "SproutPup", "MeadowStag", "TideSpirit", "IceDragon", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
+	local spacing = if FROM == 1 then 7.5 else 11
+	local function place(model: Model, at: Vector3, kind: string, key: string, yaw: number?)
+		local _, size = model:GetBoundingBox()
+		-- models face -Z: turn them to the camera (plus a 3/4 yaw in close-ups)
+		model:PivotTo(CFrame.new(at) * CFrame.Angles(0, math.pi + math.rad(yaw or 0), 0))
+		-- the Root is at the feet (BlockBuilder convention), so floaters hover as they do on a pedestal
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = true
+			end
+		end
+		model.Parent = folder
+		local parts = 0
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				parts += 1
+			end
+		end
+		local fx = if okFx and type(PetFx) == "table" then PetFx.attach(model, kind, key, { Quality = 1 }) else nil
+		print(
+			"HERO",
+			kind,
+			key,
+			"parts",
+			parts,
+			string.format("size %.1f x %.1f x %.1f", size.X, size.Y, size.Z),
+			"fx",
+			fx ~= nil
+		)
+	end
+	if FROM > 10 then -- one pair close-up: egg left, pet right
+		local key = heroes[FROM - 10]
+		local pet = Models.pet(key)
+		local _, size = pet:GetBoundingBox()
+		place(Models.egg(key), origin + Vector3.new(-size.X / 2 - 3.5, 0, 0), "egg", key, 20)
+		place(pet, origin + Vector3.new(2, 0, 0), "pet", key, -32)
+		local h = math.max(size.Y, 5)
+		CAMERA = CFrame.lookAt(origin + Vector3.new(-1, h * 0.75, h * 1.9 + 6), origin + Vector3.new(-1, h * 0.42, 0))
+		heroes = {}
+	end
+	for i, key in heroes do
+		local x = (i - 4) * spacing
+		if FROM == 1 or FROM == 3 then
+			place(Models.egg(key), origin + Vector3.new(x, 0, if FROM == 3 then -12 else 0), "egg", key)
+		end
+		if FROM == 2 or FROM == 3 then
+			place(Models.pet(key), origin + Vector3.new(x, 0, 0), "pet", key)
+		end
+	end
+	if FROM <= 10 then
+		CAMERA = if FROM == 1
+			then CFrame.lookAt(origin + Vector3.new(0, 7, 31), origin + Vector3.new(0, 3, 0))
+			else CFrame.lookAt(origin + Vector3.new(0, 11, 48), origin + Vector3.new(0, 5, 0))
 	end
 elseif SCREEN == "Proof" or SCREEN == "Proof2" then
 	-- Asset-proof view: the supplied PNGs as plain ImageLabels (Fit, white tint), each with its name + key.
@@ -325,7 +412,7 @@ marker.BorderSizePixel = 0
 marker.ZIndex = 1000
 marker.Parent = stage -- top-left of the stage (centred on the viewport in the 3D modes)
 
-if SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" then
+if SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" or SCREEN == "Heroes" then
 	HOLD = 50 -- 3D previews take longer to build; keep the window up for the capture
 	-- Studio's camera controller fights script moves: make it scriptable and keep re-asserting the shot
 	local camera = workspace.CurrentCamera

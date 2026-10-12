@@ -1,6 +1,7 @@
 --!strict
 -- Decorates the replicated plot models (PlotService) with A's VFX/Anim: eggs wobble and crack
--- toward HatchAt, freshly hatched pets burst + reveal, pets idle and wear their weather overlay.
+-- toward HatchAt, freshly hatched pets burst + reveal, pets idle and wear their weather overlay, and every
+-- egg / pet wears its own idle effect (VFX/PetFx, keyed by the model's ModelKey attribute).
 -- MoneyPop on income. Studio only: press P to place your next egg on the first free pedestal.
 
 local Players = game:GetService("Players")
@@ -12,6 +13,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 local Mutations = require(Shared.Config.Mutations)
 local VFX = require(Shared.VFX)
+local PetFx = require(Shared.VFX.PetFx)
 local Anim = require(Shared.Anim)
 local Remotes = require(Shared.Remotes)
 
@@ -34,8 +36,18 @@ local function untrack(model: Model)
 	end
 end
 
+-- The model's own idle effect, if its pair has a recipe yet (docs/EggPetPlan.md).
+local function petFx(model: Model, kind: string, stops: { () -> () })
+	local key = model:GetAttribute("ModelKey")
+	local handle = if typeof(key) == "string" then PetFx.attach(model, kind, key) else nil
+	if handle then
+		table.insert(stops, handle.Destroy)
+	end
+end
+
 local function trackEgg(egg: Model)
 	local stops = { Anim.play(egg, "EggWobble") }
+	petFx(egg, "egg", stops)
 	tracked[egg] = stops
 	local lastStep = -1
 	local connection = RunService.Heartbeat:Connect(function()
@@ -64,6 +76,7 @@ local function trackPet(pet: Model)
 		VFX.play("PetReveal", pet, { rarity = rarity, name = pet:GetAttribute("PetName") })
 	end
 	local stops = { Anim.play(pet, "Idle") }
+	petFx(pet, "pet", stops)
 	local weather = pet:GetAttribute("Weather")
 	local mutation = if typeof(weather) == "string" then Mutations.Weather[weather] else nil
 	if mutation then
