@@ -3,7 +3,8 @@
 -- name label under it, from the supplied art (zone_bar_* frames, zone_label_NN). It replaces the old brick track.
 --   * What it follows: your egg while it flies (positions from the server's KickResult, exactly like
 --     FlightController) and while you steer it (the server model workspace.Chases[eggUid]); otherwise your
---     character. Zones come from Config/Zones; behind the start line (base) the bar is hidden.
+--     character. Zones come from Config/Zones; behind the start line (base) the bar is hidden, and so is it for a
+--     character still on the kick pad (the pad sits on Meadow's start line; you're not in Meadow until you leave it).
 --   * A zone change is "confirmed" once the new zone has held for CONFIRM seconds (no flicker on a boundary).
 --     Each confirmed change bumps a revision: the bar resets to frame 1 / 0 % and the label pops in.
 --   * Progress = how far you are through the zone in the direction you entered it, reported with its zone and
@@ -21,6 +22,7 @@ local Ui = require(System.Ui)
 local UiVfx = require(System.UiVfx)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Zones = require(Shared:WaitForChild("Config"):WaitForChild("Zones"))
+local KickPad = require(Shared:WaitForChild("KickPad"))
 
 local CONFIRM = 0.1 -- seconds a new zone must hold before it counts
 local TICK = 1 / 20 -- progress updates per second
@@ -193,14 +195,15 @@ function ZoneProgress.new(parent: Instance): ZoneProgress
 		UiVfx.shineSweep(bar)
 	end
 
-	-- where the tracked thing is (depth along the runway), or nil when nothing is tracked yet
-	local function depth(): number?
+	-- where the tracked thing is (depth along the runway) and whether it's your character, or nil when nothing is
+	-- tracked yet
+	local function depth(): (number?, boolean)
 		local now = workspace:GetServerTimeNow()
 		local f = flight
 		if f then
 			if now < f.launchTime + f.flightSeconds then
 				local t = math.clamp((now - f.launchTime) / f.flightSeconds, 0, 1)
-				return f.landPos.Z * t
+				return f.landPos.Z * t, false
 			end
 			flight = nil
 		end
@@ -209,12 +212,12 @@ function ZoneProgress.new(parent: Instance): ZoneProgress
 			local chases = workspace:FindFirstChild("Chases")
 			local egg = chases and chases:FindFirstChild(uid)
 			if egg and egg:IsA("Model") then
-				return egg:GetPivot().Position.Z
+				return egg:GetPivot().Position.Z, false
 			end
 		end
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		return if hrp and hrp:IsA("BasePart") then hrp.Position.Z else nil
+		return if hrp and hrp:IsA("BasePart") then hrp.Position.Z else nil, true
 	end
 
 	local pinned = false
@@ -228,11 +231,11 @@ function ZoneProgress.new(parent: Instance): ZoneProgress
 			return
 		end
 		acc = 0
-		local z = depth()
+		local z, isCharacter = depth()
 		if not z then
 			return
 		end
-		local zone = ZoneProgress.zoneAt(z)
+		local zone = if isCharacter and z < KickPad.ACCEPT_RADIUS then 0 else ZoneProgress.zoneAt(z)
 		local now = os.clock()
 		if zone ~= candidate then
 			candidate, candidateSince = zone, now

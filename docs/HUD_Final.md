@@ -99,12 +99,28 @@ Effects use pooled or short-lived ImageLabels, with no RenderStepped decoration 
   - the shop from outside and at the counter.
 - **Tooling:** StyLua and luau-lsp are clean on all new and changed code; the Rojo build succeeds.
 
-### Still needs a live Studio Play session (not run here)
+### Live Studio Play session (automated, `sh tools/playtest/playtest.sh`): 26/26
 
-- Walking onto and off the pad, a real kick and the chase, then KICK returning afterwards.
-- Zone changes during real flights and steering.
-- Pressing E at the shop and the Train prompt.
-- Touch input on a real phone and tablet.
+A real Play session with a server, a client and a LocalPlayer (`StudioTestService:ExecutePlayModeAsync`). It
+drives the player, then reports back. Frames: `docs/art/hud/playtest_*.jpg`.
+
+- **HUD:** SHOP / INDEX / REBIRTH; no TRAINING; no SACK / Tool slot; Roblox hotbar hidden; all 9 approved icons
+  on screen.
+- **Spawn:** KICK hidden.
+- **On the pad:** KICK + AUTO KICK appear; the meter stays hidden until pressed; no zone bar.
+- **Leaving the pad:** KICK hides.
+- **Kick sent from off the pad:** rejected by the server.
+- **Perfect kick from the pad** (test Kick Power 12): accepted, 432 studs, lands in zone 5. KICK hides in flight.
+- **Zone bar in flight:** Meadow > Sandy Beach > Autumn Forest > Mushroom Grove > Desert Dunes, in order. It restarts
+  near 0% at all 5 zone changes and ends on the landing zone.
+- **Chase:** it ends (nobody steers, so the avalanche takes the egg), and KICK comes back on the pad.
+- **Boxing Sack Shop:** it's in the world. Its counter prompt "Browse sacks" opens the existing sack screen
+  ("Training"), and closing returns to the world.
+- **Your base's sack stand:** has the Train prompt. Train takes the Kick Sack out, and Train again puts it away.
+
+### Not covered yet
+- A real phone or tablet (touch).
+- A human steering the egg home to secure it (the test lets the avalanche win).
 
 ## Manual / account steps left
 
