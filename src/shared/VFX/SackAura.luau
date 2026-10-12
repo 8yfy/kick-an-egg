@@ -1,6 +1,7 @@
 --!strict
 -- Kick Sack idle VFX, tiers 1-20 (client). Ported from the "Kick Sacks VFX Remodel" bundle (SackVFX.lua,
--- matched to its web preview); the per-tier effect code below is the bundle's, unchanged.
+-- matched to its web preview); the per-tier effect code below is the bundle's, unchanged apart from three
+-- orbit `field`s written as the equivalent `spin` (tiers 8, 19, 20) for the native-particle path.
 -- Changes for this game (Partner B):
 --   * the sacks are BlockBuilder data (Builders/Models/Sacks, converted from the remodel), so effects are
 --     placed from the sack's bag-bottom frame and scale (Sacks.vfxRoot / Sacks.SCALE), not a mesh's bounds;
@@ -115,14 +116,118 @@ local RAINBOW = CS({
 })
 
 ----------------------------------------------------------------- context
------------------------------------------------------------------ context
+-- Performance (Boxing Sack VFX optimization, docs/SackVfxPerformance.md). The look of every tier is unchanged;
+-- what changed is who does the work:
+--   * swarms (the preview's hand-simulated particles) used to be moved by Lua every frame: one attachment
+--     position, one size and one transparency write per particle per frame, each allocating a new sequence.
+--     Now every particle whose path is a straight / falling / dragged line (most of them) is launched once per
+--     life as a real particle: its spawn spot, velocity, gravity, drag, size growth, fades, twinkle and colour
+--     over life are baked into that one particle and the engine moves it. Lua only respawns it. Swarms that
+--     orbit the sack (`spin`) or turn in a `frame` ride an invisible part that is turned once per frame. Only
+--     swarms with a free-form `field` are still moved by Lua, and they now write a property only when its
+--     (quantised, cached) value changes.
+--   * rings, orbiters, wings and turning frames are moved with one workspace:BulkMoveTo per step.
+--   * levels of detail and quality profiles (VFX/SackLod) park particles, slow the Lua updates, turn lights and
+--     lightning off, and hide everything far away, without destroying and rebuilding the effect.
+local SackLod = require(script.Parent.SackLod)
+
+local LN2 = math.log(2)
+local WHITE = Color3.new(1, 1, 1)
+local SEG_STRETCH = 1.15 -- a launched particle outlives its segment by 15%, so a respawn a frame late never gaps
+local STREAM_FLOOR = 0.3 -- streaming emitters keep at least this share of their rate at any visible level
+local ACTIVATE_BUDGET = 64 -- particles brought in per step: a new / nearer sack fills in over a few frames, no spike
+-- Density boost for the top sacks, so Galaxy Void, Sun Guardian and Rainbow God stay premium further out.
+local PREMIUM: { [number]: number } = { [18] = 1.3, [19] = 1.3, [20] = 1.3 }
+
+-- shared, allocated once: transparency in 1/64 steps, constant sizes by 1/400 stud, colours by 6 bits a channel
+local ALPHA_STEPS = 64
+local ALPHA_SEQ: { [number]: NumberSequence } = {}
+for i = 0, ALPHA_STEPS do
+	ALPHA_SEQ[i] = NumberSequence.new(1 - i / ALPHA_STEPS)
+end
+local SIZE_SEQ: { [number]: NumberSequence } = {}
+local function constSize(studs: number): (NumberSequence, number)
+	local key = math.max(1, math.floor(studs * 400 + 0.5))
+	local s = SIZE_SEQ[key]
+	if not s then
+		s = NumberSequence.new(key / 400)
+		SIZE_SEQ[key] = s
+	end
+	return s, key
+end
+local COLOR_SEQ: { [number]: ColorSequence } = {}
+local function q6(x: number): number
+	return math.floor(math.clamp(x, 0, 1) * 63 + 0.5)
+end
+local function colorSeq(c: Color3): (ColorSequence, number)
+	local key = q6(c.R) * 4096 + q6(c.G) * 64 + q6(c.B)
+	local s = COLOR_SEQ[key]
+	if not s then
+		s = ColorSequence.new(c)
+		COLOR_SEQ[key] = s
+	end
+	return s, key
+end
+local function alphaLevel(a: number): number
+	return math.floor(math.clamp(a, 0, 1) * ALPHA_STEPS + 0.5)
+end
+
+-- Position and velocity after `a` seconds with constant gravity `g` and drag `d` (v' = g - d v), exactly.
+local function motion(p0: Vector3, v0: Vector3, g: Vector3, d: number, a: number): (Vector3, Vector3)
+	if d > 1e-6 then
+		local k = math.exp(-d * a)
+		local term = g / d
+		return p0 + term * a + (v0 - term) * ((1 - k) / d), term + (v0 - term) * k
+	end
+	return p0 + v0 * a + g * (0.5 * a * a), v0 + g * a
+end
+
+-- Attachment frame at `pos` whose +Y (the emitter's Top) points along the unit vector `dir`.
+local function aim(pos: Vector3, dir: Vector3): CFrame
+	local axis = Vector3.yAxis:Cross(dir)
+	local m = axis.Magnitude
+	if m < 1e-5 then
+		return if dir.Y >= 0 then CFrame.new(pos) else CFrame.new(pos) * CFrame.Angles(math.pi, 0, 0)
+	end
+	return CFrame.new(pos) * CFrame.fromAxisAngle(axis / m, math.acos(math.clamp(dir.Y, -1, 1)))
+end
+
+local function scaled(f: CFrame, S: number): CFrame
+	return CFrame.new(f.Position * S) * f.Rotation
+end
+
+local active: { [Model]: any } = {}
+
 local Ctx: any = {}
 Ctx.__index = Ctx
 
 -- `rootCF`: world CFrame of the bag bottom with the remodel's front (+Z) turned to face the sack's front;
 -- `S`: studs per metre of the remodel.
 function Ctx.new(model: Model, rootCF: CFrame, S: number)
-	local self = setmetatable({ model = model, loops = {}, t = 0, S = S }, Ctx)
+	local self = setmetatable({
+		model = model,
+		loops = {},
+		t = 0,
+		S = S,
+		tier = 0,
+		swarms = {},
+		emitters = {}, -- { e, rate, keep }: engine emitters (keep = glows / pulses, never thinned)
+		lights = {}, -- { l, a }
+		neons = {},
+		boltList = {},
+		moveParts = {},
+		moveCFs = {},
+		pending = {}, -- { swarm, particle } waiting to be brought in (ACTIVATE_BUDGET per step)
+		lod = SackLod.FULL,
+		visible = true,
+		hidden = false,
+		density = 0, -- particles start parked; the first setLod brings in the right share
+		stride = 1,
+		lightsOn = true,
+		boltShare = 1,
+		frameNo = 0,
+		loopDt = 0,
+	}, Ctx)
 	self.folder = Instance.new("Folder")
 	self.folder.Name = "SackVFX"
 	local root = Instance.new("Part")
@@ -144,6 +249,25 @@ function Ctx:cf(x, y, z)
 end
 function Ctx:world(x, y, z)
 	return self.root.CFrame * self:cf(x, y, z)
+end
+
+-- Bounding sphere for SackLod (centre on the bag, radius covering the effects).
+function Ctx:bounds(): (Vector3, number)
+	return (self.root.CFrame * CFrame.new(0, 0.6 * self.S, 0)).Position, 1.5 * self.S
+end
+
+-- Queues a part move; flush() sends the whole step's moves in one BulkMoveTo.
+function Ctx:move(part: BasePart, cf: CFrame)
+	local n = #self.moveParts + 1
+	self.moveParts[n] = part
+	self.moveCFs[n] = cf
+end
+function Ctx:flush()
+	if #self.moveParts > 0 then
+		workspace:BulkMoveTo(self.moveParts, self.moveCFs, Enum.BulkMoveMode.FireCFrameChanged)
+		table.clear(self.moveParts)
+		table.clear(self.moveCFs)
+	end
 end
 
 function Ctx:attach(x, y, z, rot)
@@ -177,7 +301,7 @@ function Ctx:volume(sx, sy, sz, x, y, z)
 	return p
 end
 
--- ParticleEmitter; sizes, speeds and acceleration are in metres
+-- ParticleEmitter; sizes, speeds and acceleration are in metres. `o.keep`: never thinned by the level of detail.
 function Ctx:emit(parent, o)
 	local S = self.S
 	local e = Instance.new("ParticleEmitter")
@@ -187,7 +311,7 @@ function Ctx:emit(parent, o)
 	e.LightInfluence = o.influence or 0
 	e.Brightness = o.brightness or 1
 	local rate = o.rate or 20
-	e.Rate = rate >= 5 and rate * SackVFX.Quality or rate
+	e.Rate = rate >= 5 and not o.keep and rate * SackVFX.Quality or rate
 	e.Lifetime = NumberRange.new(o.life[1], o.life[2])
 	local sp = o.speed or { 0, 0 }
 	e.Speed = NumberRange.new(sp[1] * S, sp[2] * S)
@@ -212,6 +336,7 @@ function Ctx:emit(parent, o)
 	e.Size = NS(sz)
 	e.Transparency = o.alpha or FADE
 	e.Parent = parent
+	table.insert(self.emitters, { e = e, rate = e.Rate, keep = o.keep == true or rate < 5 })
 	return e
 end
 
@@ -219,6 +344,7 @@ end
 function Ctx:sprite(parent, color, size, transparency)
 	return self:emit(parent, {
 		tex = "glow",
+		keep = true,
 		color = ColorSequence.new(color),
 		rate = 5,
 		life = { 0.8, 0.8 },
@@ -234,6 +360,7 @@ function Ctx:light(x, y, z, color, brightness, range)
 	local l = Instance.new("PointLight")
 	l.Color, l.Brightness, l.Range, l.Shadows = color, brightness, range * self.S, false
 	l.Parent = a
+	table.insert(self.lights, { l = l, a = a })
 	return l
 end
 
@@ -246,7 +373,9 @@ function Ctx:neon(shape, sx, sy, sz, color, transparency)
 	p.Color = color
 	p.Transparency = transparency or 0
 	p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow, p.Anchored = false, false, false, false, true
+	p:SetAttribute("SackVFX_Placed", true) -- placed by the effect every step: sack movers leave it alone
 	p.Parent = self.folder
+	table.insert(self.neons, p)
 	return p
 end
 
@@ -258,13 +387,19 @@ function Ctx:ring(radius, thick, height, n, color, transparency)
 		segs[i] = self:neon(nil, len, height, thick, color, transparency)
 	end
 	local ring = {}
+	local colorKey = -1
 	function ring.place(cf: CFrame, r: number?)
 		local rr = (r or radius) * self.S
 		for i, s in ipairs(segs) do
-			s.CFrame = cf * CFrame.Angles(0, (i / n) * TAU, 0) * CFrame.new(0, 0, rr)
+			self:move(s, cf * CFrame.Angles(0, (i / n) * TAU, 0) * CFrame.new(0, 0, rr))
 		end
 	end
 	function ring.color(c: Color3)
+		local _, key = colorSeq(c)
+		if key == colorKey then
+			return
+		end
+		colorKey = key
 		for _, s in ipairs(segs) do
 			s.Color = c
 		end
@@ -315,7 +450,7 @@ end
 function Ctx:pose(rig, rot)
 	local pivot = self:world(rig.px, rig.py, rig.pz)
 	for _, e in ipairs(rig.list) do
-		e.part.CFrame = pivot * rot * e.rel
+		self:move(e.part, pivot * rot * e.rel)
 	end
 end
 
@@ -327,11 +462,14 @@ function Ctx:orbit(part, o)
 		if o.spin then
 			spin = spin * CFrame.Angles(dt * o.spin, dt * o.spin * 1.3, 0)
 		end
-		part.CFrame = self.root.CFrame
-			* CFrame.new(0, o.y * S, 0)
-			* CFrame.Angles(o.tilt or 0, 0, o.tiltZ or 0)
-			* CFrame.new(math.cos(a) * o.r * S, math.sin(t * 1.3 + ph) * (o.bob or 0) * S, math.sin(a) * o.r * S)
-			* spin
+		self:move(
+			part,
+			self.root.CFrame
+				* CFrame.new(0, o.y * S, 0)
+				* CFrame.Angles(o.tilt or 0, 0, o.tiltZ or 0)
+				* CFrame.new(math.cos(a) * o.r * S, math.sin(t * 1.3 + ph) * (o.bob or 0) * S, math.sin(a) * o.r * S)
+				* spin
+		)
 	end)
 end
 
@@ -339,89 +477,332 @@ function Ctx:every(fn)
 	self.loops[#self.loops + 1] = fn
 end
 
--- Port of the preview's emit(): every particle runs the same spawn/field/fade code.
--- Each particle is one locked particle on its own attachment, moved every frame,
--- so it keeps Roblox's additive particle glow. Units are metres in sack space.
+-- swarms -------------------------------------------------------------------------------------------------------
+-- Port of the preview's emit(): every particle runs the same spawn / fade code, one particle per emitter so it
+-- keeps Roblox's additive glow. Units are metres in sack space. Options as before, plus `spin` (rad/s): the
+-- particles orbit the sack's axis at that rate (what the old `field` V3(-z * w, vy, x * w) did, now exact and
+-- done by turning one part).
+
+local function spawnParticle(sw: any, p: any, t: number)
+	local o = sw.o
+	local q = { p = Vector3.zero, v = Vector3.zero, c = o.color or WHITE, s = o.size or 0.04, life = 1, a = 1 }
+	o.spawn(q, p.i)
+	p.pos, p.vel, p.s0, p.life, p.am, p.col, p.born = q.p, q.v, q.s, q.life, q.a, q.c, t
+	if sw.spinOnly then
+		-- in the turning frame: the spawn spot as it is right now, moving only up / down from here
+		p.pos = sw.frame(t):PointToObjectSpace(q.p)
+		p.vel = Vector3.new(0, q.v.Y, 0)
+	end
+end
+
+local function sizeAt(sw: any, p: any, k: number): number
+	local o = sw.o
+	local f = if sw.sizeMode == 1 then 1 + k * o.grow elseif sw.sizeMode == 2 then 1 - k * o.shrink else 1
+	return p.s0 * math.max(f, 0)
+end
+
+local function alphaAt(sw: any, p: any, age: number): number
+	local k = age / p.life
+	if k > 1 then
+		return 0
+	end
+	local o = sw.o
+	local a = if o.alphaFn
+		then o.alphaFn(k)
+		else ((k < sw.fi and k / sw.fi) or (k > 1 - sw.fo and (1 - k) / sw.fo) or 1)
+	if o.twinkle then
+		a *= 0.45 + 0.55 * math.abs(math.sin((p.born + age) * o.twinkle + p.i * 7.31))
+	end
+	return math.clamp(a * sw.A * p.am, 0, 1)
+end
+
+-- Size over one launched segment [age, age + dur] (straight lines in k, so 2-3 keypoints are exact).
+local function sizeSeqFor(sw: any, p: any, age: number, dur: number, SS: number, fresh: boolean): NumberSequence
+	if sw.sizeMode == 0 then
+		return (constSize(p.s0 * SS))
+	end
+	local key = math.floor(p.s0 * SS * 400 + 0.5)
+	if fresh and sw.sizeCache[key] then
+		return sw.sizeCache[key]
+	end
+	local L = p.life
+	local kps = { NumberSequenceKeypoint.new(0, sizeAt(sw, p, age / L) * SS) }
+	local uEnd = (L - age) / dur
+	if uEnd < 1 then
+		kps[#kps + 1] = NumberSequenceKeypoint.new(uEnd, sizeAt(sw, p, 1) * SS)
+	end
+	kps[#kps + 1] = NumberSequenceKeypoint.new(1, sizeAt(sw, p, math.min((age + dur) / L, 1)) * SS)
+	local seq = NumberSequence.new(kps)
+	if fresh then
+		sw.sizeCache[key] = seq
+	end
+	return seq
+end
+
+-- Transparency over a segment: exact corner points for plain fades, sampled for twinkle / alphaFn.
+local function alphaSeqFor(sw: any, p: any, age: number, dur: number, fresh: boolean): NumberSequence
+	local o = sw.o
+	local kps = {}
+	if o.twinkle or o.alphaFn then
+		local n = if o.twinkle then 20 else 12
+		for j = 0, n - 1 do
+			local u = j / (n - 1)
+			kps[j + 1] = NumberSequenceKeypoint.new(u, 1 - alphaAt(sw, p, age + u * dur))
+		end
+		return NumberSequence.new(kps)
+	end
+	local key = math.floor(p.am * 64 + 0.5)
+	if fresh and sw.alphaCache[key] then
+		return sw.alphaCache[key]
+	end
+	local L, last = p.life, -1
+	local ages = { age, sw.fi * L, (1 - sw.fo) * L, L, L + dur * 1e-3, age + dur }
+	table.sort(ages)
+	for _, a in ages do
+		local u = (a - age) / dur
+		if u >= 0 and u <= 1 and u > last + 1e-4 then
+			kps[#kps + 1] = NumberSequenceKeypoint.new(u, 1 - alphaAt(sw, p, a))
+			last = u
+		end
+	end
+	if kps[#kps].Time < 1 then
+		kps[#kps + 1] = NumberSequenceKeypoint.new(1, 1 - alphaAt(sw, p, age + dur))
+	end
+	local seq = NumberSequence.new(kps)
+	if fresh then
+		sw.alphaCache[key] = seq
+	end
+	return seq
+end
+
+local function colorSeqFor(sw: any, p: any, age: number, dur: number): ColorSequence
+	local o = sw.o
+	if not o.colorLife then
+		return (colorSeq(p.col))
+	end
+	local kps = table.create(10)
+	for j = 0, 9 do
+		local u = j / 9
+		local a = age + u * dur
+		kps[j + 1] = ColorSequenceKeypoint.new(u, o.colorLife(math.min(a / p.life, 1), p.i, p.born + a))
+	end
+	return ColorSequence.new(kps)
+end
+
+-- (Re)launches particle `p` as a real particle at `age` into its life, for one segment.
+local function launch(self: any, sw: any, p: any, age: number)
+	local S = self.S
+	local pos, vel = motion(p.pos, p.vel, sw.g, sw.drag, age)
+	local seg = math.min(p.life - age, sw.segMax)
+	local dur = seg * SEG_STRETCH
+	local fresh = age == 0 and seg == p.life
+	local vs = vel * S
+	local speed = vs.Magnitude
+	local frame = aim(pos * S, if speed > 1e-4 then vs / speed else Vector3.yAxis)
+	p.a.CFrame = frame
+	local e = p.e
+	-- a locked particle's acceleration is in its attachment's space (checked in Studio): undo the aim
+	e.Acceleration = frame:VectorToObjectSpace(sw.g * S)
+	e.Speed = NumberRange.new(speed)
+	e.Lifetime = NumberRange.new(dur)
+	e.Size = sizeSeqFor(sw, p, age, dur, S * SackVFX.SizeScale, fresh)
+	e.Transparency = alphaSeqFor(sw, p, age, dur, fresh)
+	e.Color = colorSeqFor(sw, p, age, dur)
+	e:Clear()
+	e:Emit(1)
+	p.due = p.born + age + seg
+end
+
+local function activate(self: any, sw: any, p: any)
+	p.active = true
+	local t = self.t
+	spawnParticle(sw, p, t)
+	local age = math.random() * math.min(p.life, 1e4) -- start mid-life, like the preview's warm start
+	p.born = t - age
+	if sw.sim then
+		p.last, p.emitted, p.alphaLevel, p.sizeKey = t, -math.huge, -1, -1
+		local _, key = colorSeq(p.col)
+		p.colorKey = key
+		p.e.Color = (colorSeq(p.col))
+	else
+		launch(self, sw, p, age)
+	end
+end
+
+local function park(p: any)
+	p.active, p.queued = false, false
+	p.e:Clear()
+end
+
+-- Brings in up to ACTIVATE_BUDGET queued particles.
+local function activatePending(self: any)
+	local pending = self.pending
+	local n = #pending
+	if n == 0 then
+		return
+	end
+	local done = 0
+	while n > 0 and done < ACTIVATE_BUDGET do
+		local item = pending[n]
+		pending[n] = nil
+		n -= 1
+		local p = item[2]
+		if p.queued then
+			p.queued = false
+			activate(self, item[1], p)
+			done += 1
+		end
+	end
+end
+
+-- Native swarms: respawn / continue the particles whose segment is over (cheap: most frames do nothing).
+local function serviceNative(self: any, sw: any, t: number)
+	for _, p in sw.list do
+		if p.active and t >= p.due then
+			local age = t - p.born
+			if age >= p.life - 1e-3 then
+				spawnParticle(sw, p, t)
+				launch(self, sw, p, 0)
+			else
+				launch(self, sw, p, age)
+			end
+		end
+	end
+end
+
+-- Lua-moved swarms (`field`): every `stride`-th particle each frame, writing only what changed.
+local function stepSim(self: any, sw: any, t: number, now: number, stride: number)
+	local o, S, SS = sw.o, self.S, self.S * SackVFX.SizeScale
+	local frame = sw.frame and sw.frame(t)
+	local gravity, drag, field = sw.gravity, sw.drag, o.field
+	local fno = self.frameNo
+	for _, p in sw.list do
+		if not p.active or (stride > 1 and (p.i + fno) % stride ~= 0) then
+			continue
+		end
+		local dt = t - p.last
+		p.last = t
+		local e = p.e
+		if t - p.born >= p.life then
+			spawnParticle(sw, p, t)
+			local seq, key = colorSeq(p.col)
+			if key ~= p.colorKey then
+				p.colorKey = key
+				e.Color = seq
+			end
+		end
+		p.vel += gravity * dt
+		if drag > 0 then
+			p.vel *= math.max(0, 1 - drag * dt)
+		end
+		local k = (t - p.born) / p.life
+		p.vel = field(p, t, dt, k)
+		p.pos += p.vel * dt
+		local w = if frame then frame * p.pos else p.pos
+		p.a.Position = Vector3.new(w.X * S, w.Y * S, w.Z * S * FRONT)
+		local sseq, skey = constSize(sizeAt(sw, p, k) * SS)
+		if skey ~= p.sizeKey then
+			p.sizeKey = skey
+			e.Size = sseq
+		end
+		local level = alphaLevel(alphaAt(sw, p, t - p.born))
+		if level ~= p.alphaLevel then
+			p.alphaLevel = level
+			e.Transparency = ALPHA_SEQ[level]
+		end
+		if o.colorLife then
+			local cseq, ckey = colorSeq(o.colorLife(k, p.i, t))
+			if ckey ~= p.colorKey then
+				p.colorKey = ckey
+				e.Color = cseq
+			end
+		end
+		if now - p.emitted > 18 then
+			e:Clear()
+			e:Emit(1)
+			p.emitted = now
+		end
+	end
+end
+
 function Ctx:swarm(o)
 	local n = math.max(1, math.floor(o.count * SackVFX.Quality + 0.5))
-	local S, SS = self.S, self.S * SackVFX.SizeScale
-	local gravity, drag = o.gravity or Vector3.zero, o.drag or 0
-	local fi, fo, A = o.fadeIn or 0.15, o.fadeOut or 0.45, o.alpha or 1
-	local list = {}
-	local function spawn(p: any)
-		local q = {
-			p = Vector3.zero,
-			v = Vector3.zero,
-			c = o.color or Color3.new(1, 1, 1),
-			s = o.size or 0.04,
-			life = 1,
-			a = 1,
-		}
-		o.spawn(q, p.i)
-		p.pos, p.vel, p.s0, p.life, p.am, p.age = q.p, q.v, q.s, q.life, q.a, 0
-		p.e.Color = ColorSequence.new(q.c)
+	local S = self.S
+	local sw: any = {
+		o = o,
+		sim = o.field ~= nil, -- a free-form velocity field still needs Lua every frame
+		gravity = o.gravity or Vector3.zero,
+		drag = o.drag or 0,
+		fi = o.fadeIn or 0.15,
+		fo = o.fadeOut or 0.45,
+		A = o.alpha or 1,
+		frame = o.frame,
+		sizeMode = (o.grow and 1) or (o.shrink and 2) or 0,
+		segMax = if o.twinkle then 3 * math.pi / o.twinkle else 30, -- twinkle is baked a few periods at a time
+		sizeCache = {},
+		alphaCache = {},
+		list = {},
+	}
+	if o.spin then
+		local w = o.spin
+		sw.frame = function(t: number): CFrame
+			return CFrame.Angles(0, -w * t, 0)
+		end
+		sw.spinOnly = true
+	end
+	sw.g = if sw.spinOnly then Vector3.new(0, sw.gravity.Y, 0) else sw.gravity
+	sw.host = self.root
+	if sw.frame and not sw.sim then
+		local f = Instance.new("Part")
+		f.Name = "SackVFX_Frame"
+		f.Size = Vector3.new(0.2, 0.2, 0.2)
+		f.Transparency = 1
+		f.CanCollide, f.CanQuery, f.CanTouch, f.Massless, f.CastShadow = false, false, false, true, false
+		f.Anchored = true
+		f.CFrame = self.root.CFrame * scaled(sw.frame(0), S)
+		f:SetAttribute("SackVFX_Placed", true)
+		f.Parent = self.folder
+		sw.host = f
+	end
+	-- stratified ranks: any density keeps an even, random share of the particles (tiny swarms always run)
+	local order = table.create(n)
+	for i = 1, n do
+		order[i] = i
+	end
+	for i = n, 2, -1 do
+		local j = math.random(1, i)
+		order[i], order[j] = order[j], order[i]
 	end
 	for i = 1, n do
 		local a = Instance.new("Attachment")
-		a.Parent = self.root
+		a.Parent = sw.host
 		local e = Instance.new("ParticleEmitter")
 		e.Texture = SackVFX.Textures[o.tex or "glow"]
 		e.LightEmission = o.normal and 0 or 1
 		e.LightInfluence = 0
 		e.Brightness = o.brightness or 1
 		e.Rate = 0
-		e.Lifetime = NumberRange.new(20)
-		e.Speed = NumberRange.new(0)
 		e.Rotation = o.rotRange or NumberRange.new(o.rot or 0)
 		e.RotSpeed = o.rotSpeed or NumberRange.new(0)
 		e.LockedToPart = true
 		e.ZOffset = o.z or 0
-		e.Transparency = NumberSequence.new(1)
-		e.Parent = a
-		local p: any = { i = i, a = a, e = e, emitted = -1e9 }
-		spawn(p)
-		p.age = math.random() * math.min(p.life, 1e4)
-		list[i] = p
-	end
-	self:every(function(t: number, dt: number)
-		local frame = o.frame and o.frame(t)
-		for _, p in ipairs(list) do
-			p.age += dt
-			if p.age >= p.life then
-				spawn(p)
-			end
-			p.vel += gravity * dt
-			if drag > 0 then
-				p.vel *= math.max(0, 1 - drag * dt)
-			end
-			local k = p.age / p.life
-			if o.field then
-				p.vel = o.field(p, t, dt, k)
-			end
-			p.pos += p.vel * dt
-			local alpha = o.alphaFn and o.alphaFn(k) or ((k < fi and k / fi) or (k > 1 - fo and (1 - k) / fo) or 1)
-			if o.twinkle then
-				alpha *= 0.45 + 0.55 * math.abs(math.sin(t * o.twinkle + p.i * 7.31))
-			end
-			alpha = math.clamp(alpha * A * p.am, 0, 1)
-			local size = p.s0 * ((o.grow and (1 + k * o.grow)) or (o.shrink and (1 - k * o.shrink)) or 1)
-			local w = frame and (frame * p.pos) or p.pos
-			p.a.Position = Vector3.new(w.X * S, w.Y * S, w.Z * S * FRONT)
-			p.e.Size = NumberSequence.new(size * SS)
-			p.e.Transparency = NumberSequence.new(1 - alpha)
-			if o.colorLife then
-				p.e.Color = ColorSequence.new(o.colorLife(k, p.i, t))
-			end
-			if t - p.emitted > 18 then
-				p.e:Clear()
-				p.e:Emit(1)
-				p.emitted = t
-			end
+		if sw.sim then
+			e.Lifetime = NumberRange.new(20)
+			e.Speed = NumberRange.new(0)
+			e.Transparency = ALPHA_SEQ[0]
+		else
+			e.EmissionDirection = Enum.NormalId.Top
+			e.SpreadAngle = Vector2.zero
+			e.Drag = sw.drag / LN2 -- Roblox drag halves the speed every 1 / Drag seconds (checked in Studio)
 		end
-	end)
-	return list
+		e.Parent = a
+		sw.list[i] = { i = i, a = a, e = e, active = false, rank = if n <= 3 then 0 else (order[i] - 0.5) / n }
+	end
+	table.insert(self.swarms, sw)
+	return sw.list
 end
 
+-- lightning ----------------------------------------------------------------------------------------------------
 local V3 = Vector3.new
 
 -- expanding ring wave (preview pulseRing)
@@ -430,6 +811,7 @@ function Ctx:pulse(o)
 	local op = o.op or 1
 	return self:emit(self:attach(0, o.y, 0), {
 		tex = "ring",
+		keep = true,
 		orient = Orient.VelocityPerpendicular,
 		rate = 1 / o.period,
 		life = { o.period, o.period },
@@ -441,10 +823,10 @@ function Ctx:pulse(o)
 	})
 end
 
--- jagged lightning, re-randomised every min..max seconds (preview bolts)
+-- jagged lightning, re-randomised every min..max seconds (preview bolts); beams are written only on change
 function Ctx:bolts(o)
 	local SEG, S = 8, self.S
-	for _ = 1, o.n do
+	for index = 1, o.n do
 		local atts, beams = {}, {}
 		for k = 0, SEG do
 			atts[k] = Instance.new("Attachment")
@@ -468,8 +850,13 @@ function Ctx:bolts(o)
 				beams[#beams + 1] = b
 			end
 		end
+		local bolt = { beams = beams, index = index, n = o.n, active = true, level = -1, on = true }
+		table.insert(self.boltList, bolt)
 		local nextAt, born = 0, -1
 		self:every(function(t: number)
+			if not bolt.active then
+				return
+			end
 			if t > nextAt then
 				local a, b = o.ends()
 				local L = (b - a).Magnitude
@@ -482,30 +869,175 @@ function Ctx:bolts(o)
 				born, nextAt = t, t + rnd(o.min or 0.06, o.max or 0.4)
 			end
 			local k = math.min(1, (t - born) / 0.12)
-			local alpha = (1 - k) * (math.random() > 0.15 and 1 or 0.3)
-			local tr = NumberSequence.new(1 - alpha)
-			for _, b in ipairs(beams) do
-				b.Transparency = tr
-				b.Enabled = alpha > 0.01
+			local level = alphaLevel((1 - k) * (math.random() > 0.15 and 1 or 0.3))
+			if level == bolt.level then
+				return
 			end
+			bolt.level = level
+			local on = level > 0
+			for _, beam in ipairs(beams) do
+				if on then
+					beam.Transparency = ALPHA_SEQ[level]
+				end
+				if on ~= bolt.on then
+					beam.Enabled = on
+				end
+			end
+			bolt.on = on
 		end)
 	end
 end
 
-function Ctx:start()
-	local t0 = os.clock()
-	self.conn = RunService.RenderStepped:Connect(function(dt)
-		local t = os.clock() - t0
-		self.t = t
-		for _, f in ipairs(self.loops) do
-			f(t, dt)
+-- driving ------------------------------------------------------------------------------------------------------
+
+-- Runs every animation once now (first placement of rings / orbiters / wings), whatever the level.
+function Ctx:prime()
+	for _, f in ipairs(self.loops) do
+		f(self.t, 0)
+	end
+	for _, sw in self.swarms do
+		if sw.host ~= self.root then
+			self:move(sw.host, self.root.CFrame * scaled(sw.frame(self.t), self.S))
 		end
+	end
+	self:flush()
+end
+
+-- Applies a level of detail (SackLod): 1 Full .. 4 Disabled, on / off screen, under quality profile `prof`.
+function Ctx:setLod(level: number, visible: boolean, prof: any)
+	self.visible = visible
+	local off = level >= SackLod.DISABLED
+	local density = if off then 0 else math.min(1, prof.density[level] * (PREMIUM[self.tier] or 1))
+	local lightsOn = not off and level <= prof.lights
+	local boltShare = if off then 0 else prof.bolts[level]
+	self.stride = if off then 1 else prof.stride[level]
+	if level == self.lod and density == self.density and lightsOn == self.lightsOn and boltShare == self.boltShare then
+		return
+	end
+	self.lod = level
+	if off ~= self.hidden then
+		self.hidden = off
+		for _, em in self.emitters do
+			em.e.Enabled = not off
+			if off then
+				em.e:Clear()
+			end
+		end
+		for _, p in self.neons do
+			p.LocalTransparencyModifier = if off then 1 else 0
+		end
+	end
+	if density ~= self.density then
+		self.density = density
+		for _, em in self.emitters do
+			if not em.keep then
+				em.e.Rate = em.rate * math.max(density, STREAM_FLOOR)
+			end
+		end
+		for _, sw in self.swarms do
+			for _, p in sw.list do
+				local want = p.rank < density
+				if want and not p.active and not p.queued then
+					p.queued = true
+					table.insert(self.pending, { sw, p })
+				elseif not want and (p.active or p.queued) then
+					park(p)
+				end
+			end
+		end
+	end
+	if lightsOn ~= self.lightsOn then
+		self.lightsOn = lightsOn
+		for _, L in self.lights do
+			L.l.Parent = if lightsOn then L.a else nil
+		end
+	end
+	if boltShare ~= self.boltShare then
+		self.boltShare = boltShare
+		for _, b in self.boltList do
+			local on = (b.index - 1) / b.n < boltShare
+			if on ~= b.active then
+				b.active, b.level = on, -1
+				if not on then
+					for _, beam in ipairs(b.beams) do
+						beam.Enabled = false
+					end
+					b.on = false
+				end
+			end
+		end
+	end
+	if not off and self.primeOnShow then
+		self.primeOnShow = false
+		self:prime()
+	end
+	if off then
+		self.primeOnShow = true
+	end
+end
+
+-- Advances the effect by `dt` (driven effects: the caller moves the sack first; others: SackLod / start()).
+function Ctx:step(dt: number)
+	self.t += dt
+	if self.hidden then
+		return
+	end
+	local t = self.t
+	activatePending(self)
+	for _, sw in self.swarms do
+		if not sw.sim then
+			serviceNative(self, sw, t) -- also off screen, so the particles are alive when it comes back
+		end
+	end
+	self.loopDt += dt
+	if not self.visible then
+		return
+	end
+	self.frameNo += 1
+	local stride = self.stride
+	if stride <= 1 or self.frameNo % stride == 0 then
+		local ldt = math.min(self.loopDt, 0.25)
+		self.loopDt = 0
+		for _, f in ipairs(self.loops) do
+			f(t, ldt)
+		end
+		for _, sw in self.swarms do
+			if sw.host ~= self.root then
+				self:move(sw.host, self.root.CFrame * scaled(sw.frame(t), self.S))
+			end
+		end
+	end
+	local now = os.clock()
+	for _, sw in self.swarms do
+		if sw.sim then
+			stepSim(self, sw, t, now, stride)
+		end
+	end
+	self:flush()
+end
+
+-- Unmanaged, self-running effect (no SackLod): its own RenderStepped.
+function Ctx:start()
+	self.conn = RunService.RenderStepped:Connect(function(dt)
+		self:step(dt)
 	end)
 end
 
 function Ctx:destroy()
+	if self.dead then
+		return
+	end
+	self.dead = true
+	SackLod.unregister(self)
+	if active[self.model] == self then
+		active[self.model] = nil
+	end
+	if self.destroyConn then
+		self.destroyConn:Disconnect()
+	end
 	if self.conn then
 		self.conn:Disconnect()
+		self.conn = nil
 	end
 	self.folder:Destroy()
 end
@@ -539,8 +1071,13 @@ local function onSurf(q: any, R: number, y0: number, y1: number): number
 	q.p = V3(math.sin(th) * R, rnd(y0, y1), math.cos(th) * R)
 	return th
 end
+local lastAlpha: { [any]: number } = setmetatable({}, { __mode = "k" }) :: any
 local function setAlpha(e: any, a: number)
-	e.Transparency = NumberSequence.new(math.clamp(1 - a, 0, 1))
+	local level = alphaLevel(a)
+	if lastAlpha[e] ~= level then
+		lastAlpha[e] = level
+		e.Transparency = ALPHA_SEQ[level]
+	end
 end
 
 -- 1 Burlap Sack: drifting dust, falling fibres
@@ -790,9 +1327,7 @@ TIERS[8] = function(c)
 		count = 70,
 		size = 0.02,
 		alpha = 0.9,
-		field = function(p: any)
-			return V3(-p.pos.Z * 0.8, p.vel.Y, p.pos.X * 0.8)
-		end,
+		spin = 0.8, -- was field V(-z * 0.8, vy, x * 0.8): orbit the axis
 		spawn = function(q: any)
 			local a, r = rnd(0, TAU), rnd(0.28, 0.34)
 			q.p = V3(math.cos(a) * r, 0.02, math.sin(a) * r)
@@ -1523,9 +2058,7 @@ TIERS[19] = function(c)
 		twinkle = 4,
 		fadeIn = 0.3,
 		fadeOut = 0.5,
-		field = function(p: any)
-			return Vector3.new(-p.pos.Z * 0.6, p.vel.Y, p.pos.X * 0.6)
-		end,
+		spin = 0.6, -- was field V(-z * 0.6, vy, x * 0.6): orbit the axis
 		spawn = function(q: any)
 			local a, r = rnd(0, TAU), rnd(0.35, 0.6)
 			q.p = Vector3.new(math.cos(a) * r, rnd(0.1, 1.1), math.sin(a) * r)
@@ -1594,9 +2127,7 @@ TIERS[20] = function(c)
 		colorLife = function(k: number, i: number, t: number)
 			return hsl(i / AURA_N + t * 0.2 + k * 0.3, 1, 0.62)
 		end,
-		field = function(p: any)
-			return Vector3.new(-p.pos.Z * 1.4, p.vel.Y, p.pos.X * 1.4)
-		end,
+		spin = 1.4, -- was field V(-z * 1.4, vy, x * 1.4): orbit the axis
 		spawn = function(q: any)
 			local a, r = rnd(0, TAU), rnd(0.25, 0.4)
 			q.p = Vector3.new(math.cos(a) * r, rnd(-0.05, 0.2), math.sin(a) * r)
@@ -1685,41 +2216,45 @@ TIERS[20] = function(c)
 	end)
 end
 
--- Advances the effect by `dt` (for driven effects).
-function Ctx:step(dt: number)
-	self.t += dt
-	for _, f in ipairs(self.loops) do
-		f(self.t, dt)
-	end
-end
-
-local active: { [Model]: any } = {}
-
--- Starts tier `tier`'s effects on `model`. `driven`: the caller moves the sack and calls ctx:step(dt)
--- every frame after it; otherwise the effect runs on RenderStepped by itself. Returns the context.
-function SackVFX.Apply(model: Model, tier: number, rootCF: CFrame, S: number, driven: boolean?): any
+-- Starts tier `tier`'s effects on `model`. `driven`: the caller moves the sack and calls ctx:step(dt) every
+-- frame after it; otherwise VFX/SackLod steps it. Either way SackLod sets its level of detail, unless
+-- `unmanaged` (full detail, the caller may ctx:setLod itself; a non-driven effect then runs on its own
+-- RenderStepped). Returns the context.
+function SackVFX.Apply(
+	model: Model,
+	tier: number,
+	rootCF: CFrame,
+	S: number,
+	driven: boolean?,
+	unmanaged: boolean?
+): any
 	assert(TIERS[tier], "SackVFX: no effects for tier " .. tostring(tier) .. " (1-20 available)")
 	SackVFX.Remove(model)
 	local c = Ctx.new(model, rootCF, S)
+	c.tier = tier
+	c.driven = driven == true
 	TIERS[tier](c)
-	if not driven then
-		c:start()
-	end
 	active[model] = c
 	c.destroyConn = model.Destroying:Connect(function()
 		SackVFX.Remove(model)
 	end)
+	if unmanaged then
+		c:setLod(SackLod.FULL, true, SackLod.PROFILES.HIGH)
+		if not driven then
+			c:start()
+		end
+	else
+		SackLod.register(c)
+	end
+	c:prime()
+	activatePending(c)
 	return c
 end
 
 function SackVFX.Remove(model: Model)
 	local c = active[model]
 	if c then
-		if c.destroyConn then
-			c.destroyConn:Disconnect()
-		end
 		c:destroy()
-		active[model] = nil
 	end
 end
 

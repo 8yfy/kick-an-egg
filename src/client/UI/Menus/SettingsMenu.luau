@@ -1,7 +1,8 @@
 --!strict
--- Settings (client-side, this session): Sound, Music, Camera Shake, Low Detail effects.
+-- Settings (client-side, this session): Sound, Music, Camera Shake, Low Detail effects, Sack effects.
 -- Sound/Music drive SoundService.Master / SoundService.Music groups. Camera Shake and Low Detail set
--- LocalPlayer attributes "ShakeOff" / "LowDetail", which VFX reads.
+-- LocalPlayer attributes "ShakeOff" / "LowDetail", which VFX reads. Sack effects sets "SackVfxQuality"
+-- (nil = AUTO), the Kick Sack effects' quality profile (VFX/SackLod).
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -76,6 +77,44 @@ function SettingsMenu.new(parent: Instance): Menu
 		apply(on)
 	end
 
+	-- a row whose button steps through `options` (labels) on each click
+	local function choice(title: string, options: { string }, initial: number, apply: (index: number) -> ())
+		local row = Kit.panel({
+			name = title,
+			size = UDim2.new(1, -40, 0, 92),
+			parent = body,
+			colors = { Color3.fromRGB(70, 65, 95), Color3.fromRGB(50, 46, 70) },
+			radius = 18,
+		})
+		rows += 1
+		row.LayoutOrder = rows
+		Kit.label({
+			name = "Title",
+			text = title,
+			size = UDim2.new(1, -260, 0, 44),
+			position = UDim2.fromOffset(24, 24),
+			parent = row,
+			align = Enum.TextXAlignment.Left,
+		})
+		local index = initial
+		local button: TextButton
+		button = Kit.button({
+			name = "Choice",
+			text = options[index],
+			size = UDim2.fromOffset(180, 66),
+			position = UDim2.new(1, -16, 0.5, 0),
+			anchor = Vector2.new(1, 0.5),
+			parent = row,
+			colors = Kit.Colors.blue,
+			onClick = function()
+				index = index % #options + 1
+				local label = button:FindFirstChild("Label") :: TextLabel
+				label.Text = options[index]
+				apply(index)
+			end,
+		})
+	end
+
 	local master = SoundToggle.master()
 	toggle("Sound effects", master.Volume > 0, function(on)
 		master.Volume = if on then 0.5 else 0
@@ -91,6 +130,17 @@ function SettingsMenu.new(parent: Instance): Menu
 	toggle("Low detail effects", me:GetAttribute("LowDetail") == true, function(on)
 		me:SetAttribute("LowDetail", on)
 	end)
+	-- Kick Sack effects: AUTO follows the Roblox graphics level and this device's frame rate (VFX/SackLod)
+	local levels = { "AUTO", "HIGH", "MEDIUM", "LOW", "MINIMAL" }
+	local current = me:GetAttribute("SackVfxQuality")
+	choice(
+		"Sack effects",
+		levels,
+		if typeof(current) == "string" then table.find(levels, current) or 1 else 1,
+		function(index)
+			me:SetAttribute("SackVfxQuality", if index == 1 then nil else levels[index])
+		end
+	)
 	-- UI/System/Motion reads "ReducedMotion": no overshoot, loops, floating art or bursts; short fades only.
 	local reduced = me:GetAttribute("ReducedMotion")
 	toggle(
