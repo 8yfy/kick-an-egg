@@ -233,4 +233,41 @@ step("train", function()
 	end, 3) ~= nil)
 end)
 
+step("sack vfx lod", function()
+	local SackLod = require(ReplicatedStorage.Shared.VFX.SackLod)
+	local function levels()
+		local l = SackLod.levels()
+		return l, string.format(
+			"Full %d, Reduced %d, Minimal %d, Disabled %d, off screen %d",
+			l.Full,
+			l.Reduced,
+			l.Minimal,
+			l.Disabled,
+			l.OffScreen
+		)
+	end
+	local shop = map:FindFirstChild("BoxingSackShop", true)
+	local counter = shop and shop:FindFirstChild("Counter")
+	if counter then
+		tp(counter.Position + Vector3.new(0, 1, 5))
+		task.wait(4) -- effects are built nearest first, one per 0.25 s
+		local l, text = levels()
+		note("sack effects at the shop counter: " .. text)
+		check("sack vfx: the shop's sacks run at Full up close", l.Full >= 1, text)
+	end
+	tp(Vector3.new(0, 60, 900)) -- far out in the zones: every map sack is > 180 studs away
+	task.wait(1.5)
+	local l, text = levels()
+	note("sack effects far away: " .. text)
+	check("sack vfx: far away every sack effect is Disabled", l.Full + l.Reduced + l.Minimal == 0, text)
+	tp(onPad)
+	task.wait(1.5)
+	local _, back = levels()
+	note("sack effects back on the kick pad: " .. back)
+	player:SetAttribute("SackVfxQuality", "LOW")
+	check("sack vfx: the Settings override picks the profile", SackLod.profile().name == "LOW")
+	player:SetAttribute("SackVfxQuality", nil)
+	note("sack vfx profile (AUTO): " .. SackLod.profile().name)
+end)
+
 send("DONE", "")

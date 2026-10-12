@@ -7,6 +7,7 @@ local STAGE = "desktop" -- desktop (1600x900) | phone (844x390)
 local HOLD = 30
 local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row); Heroes: 1 = eggs, 2 = pets, 3 = both, 10 + n = pair n close-up; Kick: 1 idle, 2 timing, 3 Perfect, 4 Great, 5 Miss
 local STANDIN = true -- build GLB stand-ins (needs the KTE_Dev folder: preview.sh with STANDIN=1)
+local PROFILE = "HIGH" -- Kick Sack VFX quality profile for the 3D sack modes (VFX/SackLod; preview.sh PROFILE=...)
 local CAMERA: CFrame? = nil -- 3D modes: the shot (re-applied every frame)
 
 local CoreGui = game:GetService("CoreGui")
@@ -257,6 +258,10 @@ elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" the
 		local SackGeometry = require(ReplicatedStorage.Shared.Builders.SackGeometry)
 		local Sacks = require(ReplicatedStorage.Shared.Builders.Models.Sacks)
 		local SackAura = require(ReplicatedStorage.Shared.VFX.SackAura)
+		local lod = ReplicatedStorage.Shared.VFX:FindFirstChild("SackLod")
+		if lod then
+			(require(lod) :: any).override = PROFILE -- the shot shows a known profile, not Studio's frame rate
+		end
 		for i, tier in tiers do
 			local model, source = SackGeometry.build(tier)
 			-- hub at HANG above the floor, front (-Z) turned to the camera

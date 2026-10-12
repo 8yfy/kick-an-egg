@@ -400,6 +400,146 @@ section("Pet Index + rebirth rules", function()
 	end
 end)
 
+section("Kick Sack VFX: levels of detail, quality profiles, no leaks", function()
+	local SackLod = require(Shared.VFX.SackLod) :: any
+	local SackAura = require(Shared.VFX.SackAura) :: any
+	local SackGeometry = require(Shared.Builders.SackGeometry) :: any
+	local Sacks = require(Shared.Builders.Models.Sacks) :: any
+	-- bands with hysteresis (edges 45 / 100 / 180, 8 studs)
+	check("lod: 50 studs stays Full (hysteresis)", SackLod.band(50, 1, 1) == 1)
+	check("lod: 54 studs from Full -> Reduced", SackLod.band(54, 1, 1) == 2)
+	check("lod: 40 studs stays Reduced (hysteresis)", SackLod.band(40, 2, 1) == 2)
+	check("lod: 36 studs from Reduced -> Full", SackLod.band(36, 2, 1) == 1)
+	check("lod: 200 studs -> Disabled", SackLod.band(200, 1, 1) == 4)
+	check("lod: 170 studs from Disabled -> Minimal", SackLod.band(170, 4, 1) == 3)
+	check("lod: 175 studs stays Disabled", SackLod.band(175, 4, 1) == 4)
+	check("lod: LOW reach pulls the bands in", SackLod.band(50, 1, SackLod.PROFILES.LOW.reach) == 2)
+	-- conservative view test: camera at the origin looking down -Z, 70 degrees vertical
+	local tanY, aspect = math.tan(math.rad(35)), 16 / 9
+	check("view: ahead is in view", SackLod.inView(CFrame.new(), tanY, aspect, Vector3.new(0, 0, -50), 1))
+	check("view: behind is culled", not SackLod.inView(CFrame.new(), tanY, aspect, Vector3.new(0, 0, 50), 1))
+	check(
+		"view: far to the side is culled",
+		not SackLod.inView(CFrame.new(), tanY, aspect, Vector3.new(200, 0, -50), 1)
+	)
+	local edgeX = 50 * tanY * aspect
+	check(
+		"view: a sphere poking in at the edge counts",
+		SackLod.inView(CFrame.new(), tanY, aspect, Vector3.new(edgeX + 3, 0, -50), 5)
+	)
+	-- quality caps from Roblox's graphics level (touch is never a factor)
+	check("quality: Automatic -> HIGH (adaptive)", SackLod.capFor(0) == "HIGH")
+	check("quality: level 10 -> HIGH", SackLod.capFor(10) == "HIGH")
+	check("quality: level 6 -> MEDIUM", SackLod.capFor(6) == "MEDIUM")
+	check("quality: level 3 -> LOW", SackLod.capFor(3) == "LOW")
+	check("quality: level 1 -> MINIMAL", SackLod.capFor(1) == "MINIMAL")
+
+	local HIGH = SackLod.PROFILES.HIGH
+	local function census(folder: Instance): (number, number)
+		local n, emitters = 0, 0
+		for _, d in folder:GetDescendants() do
+			n += 1
+			if d:IsA("ParticleEmitter") then
+				emitters += 1
+			end
+		end
+		return n, emitters
+	end
+	local stepErrors, leaks, hiddenOk, backOk, premiumOk = {}, {}, true, true, true
+	local before = SackLod.count()
+	for tier = 1, 20 do
+		local model = SackGeometry.build(tier)
+		local hang = CFrame.new(tier * 30, 50, 0)
+		model:PivotTo(hang)
+		model.Parent = workspace
+		local ok, err = pcall(function()
+			local ctx = SackAura.Apply(model, tier, hang * Sacks.vfxRoot(tier), Sacks.SCALE, true, true)
+			local folder = model:FindFirstChild("SackVFX") :: Instance
+			local count0 = census(folder)
+			for level = 1, 4 do
+				ctx:setLod(level, true, HIGH)
+				for _ = 1, 40 do
+					ctx:step(1 / 60)
+				end
+				if level == 3 and tier >= 18 then
+					for _, em in ctx.emitters do
+						if em.keep and not em.e.Enabled then
+							premiumOk = false -- the big glows / sunbursts / galaxy stay at Minimal
+						end
+					end
+				end
+			end
+			-- Disabled: nothing shows, nothing is destroyed
+			for _, sw in ctx.swarms do
+				for _, p in sw.list do
+					if p.active then
+						hiddenOk = false
+					end
+				end
+			end
+			for _, em in ctx.emitters do
+				if em.e.Enabled then
+					hiddenOk = false
+				end
+			end
+			for _, part in ctx.neons do
+				if part.LocalTransparencyModifier ~= 1 then
+					hiddenOk = false
+				end
+			end
+			-- back to Full: everything returns (64 particles a frame), with the same instances
+			ctx:setLod(1, true, HIGH)
+			for _ = 1, 12 do
+				ctx:step(1 / 60)
+			end
+			for _, sw in ctx.swarms do
+				for _, p in sw.list do
+					if not p.active then
+						backOk = false
+					end
+				end
+			end
+			for _, L in ctx.lights do
+				if L.l.Parent == nil then
+					backOk = false
+				end
+			end
+			-- off screen: steps still run (particles stay alive) without errors
+			ctx:setLod(1, false, HIGH)
+			for _ = 1, 30 do
+				ctx:step(1 / 60)
+			end
+			if census(folder) ~= count0 then
+				table.insert(leaks, tier)
+			end
+			SackAura.Remove(model)
+			if model:FindFirstChild("SackVFX") or not ctx.dead then
+				table.insert(leaks, tier)
+			end
+		end)
+		if not ok then
+			table.insert(stepErrors, `{tier}: {err}`)
+		end
+		model:Destroy()
+	end
+	check("sack vfx: all 20 tiers step at every level", #stepErrors == 0)
+	for _, e in stepErrors do
+		warn("  " .. e)
+	end
+	check("sack vfx: Disabled hides everything without destroying it", hiddenOk)
+	check("sack vfx: back to Full brings every particle and light back", backOk)
+	check("sack vfx: tiers 18-20 keep their hero glows at Minimal", premiumOk)
+	check("sack vfx: no instances created by level changes, Remove frees all", #leaks == 0)
+	check("sack vfx: unmanaged effects never enter the LOD registry", SackLod.count() == before)
+	-- managed effects register and leave the registry on Remove / model destroy
+	local model = SackGeometry.build(18)
+	model.Parent = workspace
+	SackAura.Apply(model, 18, Sacks.vfxRoot(18), Sacks.SCALE, true)
+	check("sack vfx: Apply registers the effect for LOD", SackLod.count() == before + 1)
+	model:Destroy()
+	check("sack vfx: destroying the sack unregisters and frees its effect", SackLod.count() == before)
+end)
+
 section("every service loads", function()
 	for _, module in Services:GetChildren() do
 		if module:IsA("ModuleScript") then

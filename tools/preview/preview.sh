@@ -2,6 +2,7 @@
 # DEV ONLY: render one screen (or the 3D sack previews) in Studio and save a cropped screenshot of the window.
 #   sh tools/preview/preview.sh Training desktop out.png
 #   STANDIN=1 sh tools/preview/preview.sh Showcase desktop out.png 6   # sacks 6..10 from GLB stand-ins
+#   PROFILE=LOW sh tools/preview/preview.sh GameSacks desktop out.png 16 # sack VFX quality profile (default HIGH)
 # Needs Studio + run-in-roblox; stage the art first (tools/preview/stage-art.sh). STANDIN=1 bundles the GLB
 # stand-in data (tools/sacks/standin, from tools/sacks/glb2luau.py) into a dev-only place (preview.project.json).
 set -e
@@ -15,6 +16,7 @@ if [ "$STANDIN" = "1" ]; then
 fi
 sed -e "s/^local SCREEN = .*/local SCREEN = \"$screen\"/" -e "s/^local STAGE = .*/local STAGE = \"$stage\"/" \
 	-e "s/^local FROM = .*/local FROM = $from/" -e "s/^local STANDIN = .*/local STANDIN = $standin/" \
+	-e "s/^local PROFILE = .*/local PROFILE = \"${PROFILE:-HIGH}\"/" \
 	"$dir/UiPreview.server.lua" > "$tmp/run.server.lua"
 [ -f "$tmp/place.rbxl" ] && [ "$KEEP_PLACE" = "1" ] || rojo build "$project" -o "$tmp/place.rbxl" > /dev/null
 if [ "$stage" = "phone" ]; then w=844; h=390; else w=1600; h=900; fi
