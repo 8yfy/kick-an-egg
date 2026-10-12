@@ -178,13 +178,13 @@ function Drawers.new(parent: Instance): Drawers
 		end
 	end
 
-	eggButton = Rail.tile(rail, "Eggs", Theme.Nav.Eggs, "premium_icons_nav_eggs", function()
+	eggButton = Rail.tile(rail, "Eggs", Theme.Nav.Eggs, "hud_eggs", function()
 		show(if open == "Eggs" then nil else "Eggs")
-	end)
+	end, "eggs")
 	eggButton.gui.LayoutOrder = 1
-	petButton = Rail.tile(rail, "Pets", Theme.Nav.Pets, "premium_icons_nav_pets", function()
+	petButton = Rail.tile(rail, "Pets", Theme.Nav.Pets, "hud_pets", function()
 		show(if open == "Pets" then nil else "Pets")
-	end)
+	end, "pets")
 	petButton.gui.LayoutOrder = 2
 
 	Modal.onChanged(function(name: string?)

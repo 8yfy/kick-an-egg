@@ -2,10 +2,13 @@
 -- Partner A HUD root. Shaped like a controller so Partner B's client loader can start it:
 --   local UI = require(script.Parent.UI); UI:Init(); UI:Start()
 -- Reads only DataChanged and the chase remotes; never computes rewards.
--- Kick The Egg UI system (UI handoff): left rail (Shop / Index / Rebirth / Training), cash + kick power
--- counters, right rail (Eggs / Pets drawers) and the modal screens in UI/Screens, all on UI/System (theme,
--- motion, components, one modal manager, data adapter). A's kick panel, sack box, quest/zone bars, chase
--- overlay, sound and Settings / Trade windows stay as they were.
+-- Kick The Egg UI system (UI handoff + final approved icons): left rail (Shop / Index / Rebirth), cash + kick
+-- power counters, right rail (Eggs / Pets drawers), quest bar, settings + sound, all with the approved icon art
+-- animated by UI/System/IconMotion and UI/System/UiVfx, and the modal screens in UI/Screens on UI/System.
+-- Contextual only: the kick controls (UI/Hud/KickPanel: on the kick pad) and the zone progress bar
+-- (UI/Hud/ZoneProgress: in a zone). No Training button and no Tool / SACK slot: sacks are bought at the
+-- physical Boxing Sack Shop (its prompt opens the same purchasing screen) and taken out with the Train prompt
+-- at your base's sack stand (UI/SackGear).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -13,13 +16,13 @@ local Kit = require(script.Kit)
 local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
-local SackButton = require(script.Hud.SackButton)
 local ChaseOverlay = require(script.Hud.ChaseOverlay)
 local Rail = require(script.Hud.Rail)
 local Counters = require(script.Hud.Counters)
 local Drawers = require(script.Hud.Drawers)
 local Menus = require(script.Menus)
-local ZoneBar = require(script.Hud.ZoneBar)
+local ZoneProgress = require(script.Hud.ZoneProgress)
+local SackGear = require(script.SackGear)
 local Interact = require(script.Interact)
 local AssetIds = require(script.System.AssetIds)
 local Data = require(script.System.Data)
@@ -35,7 +38,7 @@ local UI = {}
 local data: { [string]: any } = {}
 local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
-local sack: SackButton.SackButton
+local zoneBar: ZoneProgress.ZoneProgress
 local overlay: ChaseOverlay.ChaseOverlay
 local menus: Menus.Menus
 local rail: Rail.LeftRail
@@ -93,20 +96,28 @@ function UI:Init()
 	quest = QuestBar.new(root)
 	SoundToggle.new(root)
 	kick = KickPanel.new(root)
-	sack = SackButton.new(root:FindFirstChild("KickPanel") or root) -- the SACK box sits next to KICK
+	SackGear.start(root) -- no SACK slot: the Train prompt / key 1 take the sack out
 	overlay = ChaseOverlay.new(root)
-	ZoneBar.new(root)
+	zoneBar = ZoneProgress.new(root)
 	rail = Rail.new(root)
 	counters = Counters.new(root)
 	drawers = Drawers.new(root)
 	Drawers.openTrade = function()
 		menus.open("Trade")
 	end
-	Modal.setToastAnchor(root:FindFirstChild("Quest") :: GuiObject?) -- toasts stay below the "Eggs secured" bar
+	-- toasts stay below the quest bar, and below the zone progress bar while it shows
+	local questBar = root:FindFirstChild("Quest") :: GuiObject?
+	local zoneRoot = root:FindFirstChild("ZoneProgress") :: GuiObject?
+	local function anchorToasts()
+		Modal.setToastAnchor(if zoneRoot and zoneRoot.Visible then zoneRoot else questBar)
+	end
+	anchorToasts()
+	if zoneRoot then
+		zoneRoot:GetPropertyChangedSignal("Visible"):Connect(anchorToasts)
+	end
 	Kit.watchViewport()
 	quest.update(data)
 	menus.update(data)
-	sack.update(data)
 	Data.onChanged(function()
 		rail.update()
 		counters.update()
@@ -144,7 +155,6 @@ function UI:Start()
 			Data.apply(partial)
 			quest.update(data)
 			menus.update(data)
-			sack.update(data)
 			if interactUpdate then
 				interactUpdate(data)
 			end
@@ -156,6 +166,7 @@ function UI:Start()
 			myEgg = result.eggUid
 			kick.setBusy(true)
 			Data.setBusy(true)
+			zoneBar.kicked(result)
 		end)
 		Remotes.get("ChaseEnded").OnClientEvent:Connect(function(p: { [string]: any })
 			if p and p.eggUid == myEgg then
@@ -163,6 +174,7 @@ function UI:Start()
 				kick.setBusy(false)
 				Data.setBusy(false)
 				overlay.stop()
+				zoneBar.chaseOver(p.eggUid)
 			end
 		end)
 

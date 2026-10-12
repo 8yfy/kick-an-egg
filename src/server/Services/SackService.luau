@@ -1,7 +1,8 @@
 --!strict
 -- Kick Sack gear (Config/Upgrades.Sack), server side:
 --   * Every character gets a Tool named after the player's current sack (attribute KickSack = true); the
---     client takes it out with the SACK box next to KICK (UI/Hud/SackButton), not the Roblox hotbar.
+--     client takes it out with the Train prompt at a base's sack stand or key 1 (UI/SackGear), not the Roblox
+--     hotbar (there is no Tool / SACK slot in the HUD).
 --     Equipping it places the sack in front of the player as character attributes, which every client
 --     draws (SackController): SackAt (CFrame: hang point, front facing the player), SackTier (number),
 --     SackPlaced (server time of the drop). Unequipping clears them.

@@ -274,6 +274,45 @@ section("SackService + pens + collecting", function()
 	end
 	check("every hero egg and pet has its own effect stack", unique)
 	check("no recipe for a pair without one", PetFx.attach(HeroModels.pet("BumbleBloc"), "pet", "BumbleBloc") == nil)
+	-- kick pad: the HUD shows KICK inside SHOW_RADIUS, the server accepts kicks inside ACCEPT_RADIUS only
+	local KickPad = require(Shared.KickPad) :: any
+	if not workspace:FindFirstChild("Map") then
+		require(Shared.Builders.Map.MapBuilder).build() -- the test place starts without the map
+	end
+	local pad = KickPad.part()
+	if pad then
+		local top = pad.Position + Vector3.new(0, 3, 0)
+		check("kick pad: on the pad counts", KickPad.contains(top, KickPad.ACCEPT_RADIUS))
+		check("kick pad: the HUD radius is inside the server one", KickPad.SHOW_RADIUS < KickPad.ACCEPT_RADIUS)
+		check(
+			"kick pad: 30 studs away is rejected",
+			not KickPad.contains(top + Vector3.new(30, 0, 0), KickPad.ACCEPT_RADIUS)
+		)
+		check("kick pad: no character is rejected", not KickPad.has(nil, KickPad.ACCEPT_RADIUS))
+	end
+	-- the physical Boxing Sack Shop (replaces the Training HUD button) + the Train prompt on sack stands
+	local map = workspace:FindFirstChild("Map")
+	local shop = map and map:FindFirstChild("BoxingSackShop", true)
+	if map then
+		check("boxing sack shop exists", shop ~= nil)
+		local opens, sacks = false, 0
+		for _, d in if shop then shop:GetDescendants() else {} do
+			if d:IsA("ProximityPrompt") and d:GetAttribute("Action") == "OpenMenu:Store" then
+				opens = true
+			elseif d:IsA("Model") and d.Name == "Sack" and typeof(d:GetAttribute("Tier")) == "number" then
+				sacks += 1
+			end
+		end
+		check("boxing sack shop opens the existing sack screen", opens)
+		check("boxing sack shop shows 6 sack models", sacks == 6)
+		local trainPrompts = 0
+		for _, d in map:GetDescendants() do
+			if d:IsA("ProximityPrompt") and d:GetAttribute("Action") == "EquipSack" then
+				trainPrompts += 1
+			end
+		end
+		check("every base's sack stand has a Train prompt", trainPrompts == 8)
+	end
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
 	check("pen slots capped", PS.slotsForPen(99) == Economy.PlotSlots.max)

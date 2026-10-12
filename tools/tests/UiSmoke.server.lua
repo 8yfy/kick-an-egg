@@ -27,6 +27,7 @@ local UI = game.StarterPlayer.StarterPlayerScripts.Client.UI
 local Data = require(UI.System.Data)
 local Modal = require(UI.System.Modal)
 local AssetIds = require(UI.System.AssetIds)
+local Zones = require(ReplicatedStorage.Shared.Config.Zones)
 
 local playerGui = Instance.new("Folder")
 playerGui.Name = "FakePlayerGui"
@@ -106,7 +107,92 @@ check("asset registry binds every sack and zone", function()
 		local key = AssetIds.zone(zone.id)
 		assert(key and AssetIds.source(key), "no zone art for " .. zone.name)
 	end
-	assert(#AssetIds.keys() == 59, "59 supplied PNGs, got " .. #AssetIds.keys())
+	-- 59 UI handoff PNGs + 50 from the final approved icons / master handoff v2 (HUD icons, kick UI, ratings,
+	-- zone bar frames + labels, UI sparkle)
+	assert(#AssetIds.keys() == 109, "109 supplied PNGs, got " .. #AssetIds.keys())
+	for _, key in
+		{
+			"hud_shop",
+			"hud_index",
+			"hud_rebirth",
+			"hud_eggs",
+			"hud_pets",
+			"hud_settings",
+			"hud_sound",
+			"hud_money",
+			"hud_power",
+		}
+	do
+		assert(AssetIds.source(key), "approved icon missing: " .. key)
+	end
+	for id = 1, #Zones do
+		assert(AssetIds.source(AssetIds.zoneLabel(id)), "zone label missing for zone " .. id)
+	end
+end)
+
+check("hud: no Training button, no Tool / SACK slot", function()
+	local left = hud:FindFirstChild("LeftRail")
+	assert(left, "no left rail")
+	assert(
+		left:FindFirstChild("Shop") and left:FindFirstChild("Index") and left:FindFirstChild("Rebirth"),
+		"rail buttons"
+	)
+	assert(not left:FindFirstChild("Training"), "Training button still in the HUD")
+	assert(not hud:FindFirstChild("Sack", true), "SACK slot still in the HUD")
+	for _, key in { "hud_shop", "hud_index", "hud_rebirth" } do
+		local found = false
+		for _, d in left:GetDescendants() do
+			if d:IsA("ImageLabel") and d:GetAttribute("ArtKey") == key then
+				found = true
+			end
+		end
+		assert(found, "rail does not use " .. key)
+	end
+end)
+
+check("kick panel: hidden off the pad, ratings stay inside the server bands", function()
+	local KickPanel = require(UI.Hud.KickPanel)
+	local kick = KickPanel.new(hud)
+	assert(kick.setBusy, "api")
+	local panel = hud:FindFirstChild("KickPanel")
+	assert(panel and panel:IsA("GuiObject") and not panel.Visible, "kick controls must start hidden")
+	-- KickService bands: perfect >= 0.9, good >= 0.6, else weak
+	local cases = {
+		{ 1, "rating_perfect", "perfect" },
+		{ 0.9, "rating_perfect", "perfect" },
+		{ 0.89, "rating_excellent", "good" },
+		{ 0.75, "rating_great", "good" },
+		{ 0.6, "rating_good", "good" },
+		{ 0.59, "rating_okay", "weak" },
+		{ 0.1, "rating_miss", "weak" },
+	}
+	for _, c in cases do
+		local key, band = KickPanel.rating(c[1])
+		assert(key == c[2] and band == c[3], `timing {c[1]} -> {key}/{band}`)
+	end
+end)
+
+check("zone progress: resets on new zones only, ignores stale reports", function()
+	local ZP = require(UI.Hud.ZoneProgress)
+	local s = ZP.newState()
+	assert(ZP.zoneAt(-5) == 0 and ZP.zoneAt(0) == 1, "zoneAt")
+	assert(ZP.zoneAt(1e9) == #Zones, "no zone past the last one")
+	assert(ZP.enter(s, 1, 0) and s.revision == 1, "enter Meadow")
+	local meadow = s.revision
+	assert(ZP.report(s, 1, meadow, 0.5) and s.progress == 0.5, "progress in Meadow")
+	assert(not ZP.enter(s, 1, 10), "same zone again must not reset")
+	assert(s.progress == 0.5 and s.revision == meadow, "duplicate enter kept progress")
+	local z2 = Zones[2].start + 1
+	assert(ZP.enter(s, 2, z2) and s.progress == 0 and s.revision == meadow + 1, "new zone resets to 0")
+	assert(ZP.frameKey(s.progress, 2) == "zone_bar_empty", "frame 1 on reset")
+	assert(not ZP.report(s, 1, meadow, 0.9), "late Meadow report ignored")
+	assert(s.progress == 0, "stale report did not overwrite the new zone")
+	assert(ZP.report(s, 2, s.revision, 0.4), "current zone report accepted")
+	assert(ZP.frameKey(0.95, #Zones) == "zone_bar_rainbow" and ZP.frameKey(0.95, 3) == "zone_bar_full", "full frames")
+	-- entering from the far end (steering home) counts progress the other way
+	local far = Zones[5].start + Zones[5].length - 1
+	ZP.enter(s, 5, far)
+	assert(s.inbound and ZP.ratio(s, far) < 0.1, "inbound progress starts at 0")
 end)
 
 for _, name in { "Training", "Shop", "Index", "Inventory", "Rebirth" } do

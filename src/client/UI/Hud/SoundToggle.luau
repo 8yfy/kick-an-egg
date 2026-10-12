@@ -1,9 +1,12 @@
 --!strict
 -- Sound on/off (round button: top right on desktop, right edge on phones). Mutes the client-side SoundService.Master group;
--- every sound Partner A adds is parented to that group. Also sets LocalPlayer attribute "SoundOn".
+-- every sound Partner A adds is parented to that group. Also sets LocalPlayer attribute "SoundOn". Shows the final
+-- approved Sound icon ("hud_sound"), dimmed while muted, with a short pulse on every toggle.
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Kit = require(script.Parent.Parent.Kit)
+local Ui = require(script.Parent.Parent.System.Ui)
+local IconMotion = require(script.Parent.Parent.System.IconMotion)
 
 local VOLUME = 0.5
 
@@ -36,12 +39,19 @@ function SoundToggle.new(parent: Instance)
 	local button = Kit.roundButton(holder, "Sound", function()
 		on = not on
 		master.Volume = if on then VOLUME else 0
-		Players.LocalPlayer:SetAttribute("SoundOn", on)
+		if Players.LocalPlayer then
+			Players.LocalPlayer:SetAttribute("SoundOn", on)
+		end
 		icon.ImageTransparency = if on then 0 else 0.6
+		IconMotion.toggled(icon)
 	end)
-	icon = require(script.Parent.Parent.Icons).view(button, "Sound", UDim2.fromScale(0.7, 0.7))
-	icon.Position = UDim2.fromScale(0.15, 0.15)
-	Players.LocalPlayer:SetAttribute("SoundOn", on)
+	icon = Ui.art(button, "hud_sound", UDim2.fromScale(0.86, 0.86))
+	icon.Position = UDim2.fromScale(0.07, 0.07)
+	icon.ZIndex = 3
+	IconMotion.attach(icon, "sound")
+	if Players.LocalPlayer then -- (none in Studio previews / headless tests)
+		Players.LocalPlayer:SetAttribute("SoundOn", on)
+	end
 end
 
 return SoundToggle

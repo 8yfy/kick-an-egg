@@ -1,15 +1,18 @@
 --!strict
 -- HUD navigation (UI handoff v2 01-Mockups/01-Gameplay-HUD.png). Left edge: SHOP (green), INDEX (cyan),
--- REBIRTH (purple), TRAINING (purple, sack icon) as horizontal icon + label buttons with the supplied
--- Premium-Icons PNGs. Phones (Kit.compact) shrink them to icon-only squares in the top-left corner, clear of
--- the thumbstick (each keeps its Name for accessibility). Badges only when something is true: Index = a zone
--- reward to claim, Rebirth = ready, Training = the next sack is affordable. The open screen's button stays
--- highlighted. Rail.tile is the square Eggs / Pets button used by the right rail (UI/Hud/Drawers).
+-- REBIRTH (purple) as horizontal icon + label buttons with the final approved icons (Shop = egg basket,
+-- Index = open egg book; UI/System/AssetIds "hud_*"), animated by UI/System/IconMotion. No TRAINING button:
+-- sacks are bought at the physical Boxing Sack Shop in the world (MapBuilder sackShop -> the same screen).
+-- Phones (Kit.compact) shrink them to icon-only squares in the top-left corner, clear of the thumbstick (each
+-- keeps its Name for accessibility). Badges only when something is true: Index = a zone reward to claim,
+-- Rebirth = ready. The open screen's button stays highlighted. Rail.tile is the square Eggs / Pets button used
+-- by the right rail (UI/Hud/Drawers).
 local Kit = require(script.Parent.Parent.Kit)
 local System = script.Parent.Parent.System
 local Data = require(System.Data)
 local Modal = require(System.Modal)
 local Motion = require(System.Motion)
+local IconMotion = require(System.IconMotion)
 local Theme = require(System.Theme)
 local Ui = require(System.Ui)
 
@@ -22,6 +25,7 @@ local GAP = 12
 
 export type RailButton = {
 	gui: TextButton,
+	icon: ImageLabel,
 	setBadge: (text: string?) -> (),
 	setActive: (on: boolean) -> (),
 	setCompact: (on: boolean) -> (),
@@ -84,19 +88,31 @@ function Rail.nav(
 	name: string,
 	fill: Theme.Pair,
 	icon: string,
-	onClick: (b: TextButton) -> ()
+	onClick: (b: TextButton) -> (),
+	style: IconMotion.Style?
 ): RailButton
-	local b, stroke = base(parent, name, fill, onClick)
+	local art: ImageLabel
+	local b, stroke = base(parent, name, fill, function(gui: TextButton)
+		if style then
+			IconMotion.click(art, style)
+		end
+		onClick(gui)
+	end)
 	b.Size = UDim2.fromOffset(NAV.X, NAV.Y)
 	local holder = Ui.frame(b, "Icon", UDim2.fromOffset(80, 80))
 	holder.AnchorPoint = Vector2.new(0, 0.5)
 	holder.ZIndex = 2
-	Ui.art(holder, icon).ZIndex = 2
+	art = Ui.art(holder, icon)
+	art.ZIndex = 2
+	if style then
+		IconMotion.attach(art, style)
+	end
 	local label = Ui.text(b, string.upper(name), 36, { stroke = 4, name = "Label" })
 	label.AnchorPoint = Vector2.new(0, 0.5)
 	label.ZIndex = 3
 	return {
 		gui = b,
+		icon = art,
 		setBadge = badgeFns(b),
 		setActive = function(on: boolean)
 			stroke.Color = if on then C.text else C.border
@@ -119,15 +135,26 @@ function Rail.tile(
 	name: string,
 	fill: Theme.Pair,
 	icon: string,
-	onClick: (b: TextButton) -> ()
+	onClick: (b: TextButton) -> (),
+	style: IconMotion.Style?
 ): RailButton
-	local b, stroke = base(parent, name, fill, onClick)
+	local art: ImageLabel
+	local b, stroke = base(parent, name, fill, function(gui: TextButton)
+		if style then
+			IconMotion.click(art, style)
+		end
+		onClick(gui)
+	end)
 	b.Size = UDim2.fromOffset(120, 120)
 	local holder = Ui.frame(b, "Icon", UDim2.fromOffset(84, 84))
 	holder.AnchorPoint = Vector2.new(0.5, 0)
 	holder.Position = UDim2.new(0.5, 0, 0, 2)
 	holder.ZIndex = 2
-	Ui.art(holder, icon).ZIndex = 2
+	art = Ui.art(holder, icon)
+	art.ZIndex = 2
+	if style then
+		IconMotion.attach(art, style)
+	end
 	local label = Ui.text(b, string.upper(name), 28, { align = Enum.TextXAlignment.Center, stroke = 4, name = "Label" })
 	label.AnchorPoint = Vector2.new(0.5, 1)
 	label.Position = UDim2.new(0.5, 0, 1, -2)
@@ -135,6 +162,7 @@ function Rail.tile(
 	label.ZIndex = 3
 	return {
 		gui = b,
+		icon = art,
 		setBadge = badgeFns(b),
 		setActive = function(on: boolean)
 			stroke.Color = if on then C.text else C.border
@@ -152,29 +180,28 @@ end
 export type LeftRail = { update: () -> () }
 
 function Rail.new(parent: Instance): LeftRail
-	local root = Ui.frame(parent, "LeftRail", UDim2.fromOffset(NAV.X, 4 * NAV.Y + 3 * GAP))
+	local root = Ui.frame(parent, "LeftRail", UDim2.fromOffset(NAV.X, 3 * NAV.Y + 2 * GAP))
 	Kit.autoScale(root)
 	Ui.list(root, GAP)
 
 	local buttons: { [string]: RailButton } = {}
-	local entries = {
-		{ "Shop", "premium_icons_nav_shop" },
-		{ "Index", "premium_icons_nav_index" },
-		{ "Rebirth", "premium_icons_nav_rebirth" },
-		{ "Training", "premium_icons_nav_training" },
+	local entries: { { any } } = {
+		{ "Shop", "hud_shop", "shop" },
+		{ "Index", "hud_index", "index" },
+		{ "Rebirth", "hud_rebirth", "rebirth" },
 	}
 	for i, e in entries do
 		local screen = e[1]
 		local btn = Rail.nav(root, screen, Theme.Nav[screen], e[2], function(gui: TextButton)
 			Modal.toggle(screen, gui)
-		end)
+		end, e[3])
 		btn.gui.LayoutOrder = i
 		buttons[screen] = btn
 	end
 
 	Kit.onLayout(function(compact: boolean)
 		local h = if compact then NAV_COMPACT else NAV.Y
-		root.Size = UDim2.fromOffset(if compact then NAV_COMPACT else NAV.X, 4 * h + 3 * GAP)
+		root.Size = UDim2.fromOffset(if compact then NAV_COMPACT else NAV.X, 3 * h + 2 * GAP)
 		root.Position = if compact then UDim2.fromOffset(10, 8) else UDim2.new(0, 24, 0.333, 0)
 		for _, btn in buttons do
 			btn.setCompact(compact)
@@ -193,13 +220,7 @@ function Rail.new(parent: Instance): LeftRail
 			buttons.Index.setBadge(if claimable > 0 then tostring(claimable) else nil)
 			local rebirth = Data.rebirth()
 			buttons.Rebirth.setBadge(if rebirth.available and rebirth.ready and not rebirth.inChase then "!" else nil)
-			local canBuy = false
-			for _, row in Data.sacks() do
-				if row.state == "Buy" then
-					canBuy = true
-				end
-			end
-			buttons.Training.setBadge(if canBuy then "!" else nil)
+			-- (an affordable sack is flagged over the Boxing Sack Shop's sign in the world: UI/Interact)
 		end,
 	}
 end

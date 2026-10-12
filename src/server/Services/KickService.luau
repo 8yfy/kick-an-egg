@@ -15,6 +15,7 @@ local Pets = require(Shared.Config.Pets)
 local Rarities = require(Shared.Config.Rarities)
 local Zones = require(Shared.Config.Zones)
 local Remotes = require(Shared.Remotes)
+local KickPad = require(Shared.KickPad)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
@@ -269,6 +270,10 @@ local function onRequestKick(player: Player, timing: any)
 		return
 	end
 	if typeof(timing) ~= "number" or timing ~= timing then
+		return
+	end
+	-- Only from the kick pad: the client hides KICK elsewhere, but never trust that (same pad as the HUD).
+	if not KickPad.has(player.Character, KickPad.ACCEPT_RADIUS) then
 		return
 	end
 	local data = DataService:Get(player)

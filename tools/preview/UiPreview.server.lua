@@ -2,10 +2,10 @@
 -- screenshotted and compared with the UI handoff mockups. Run through tools/preview/preview.sh, which sets
 -- SCREEN / STAGE below, launches Studio headless-style with run-in-roblox and captures the window.
 -- Data shown is a DESIGN FIXTURE (fake balances / pets), clearly not game data.
-local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks | Showroom | Heroes
+local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks | Showroom | Heroes | Kick | SackShop
 local STAGE = "desktop" -- desktop (1600x900) | phone (844x390)
 local HOLD = 30
-local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row); Heroes: 1 = eggs, 2 = pets, 3 = both, 10 + n = pair n close-up
+local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row); Heroes: 1 = eggs, 2 = pets, 3 = both, 10 + n = pair n close-up; Kick: 1 idle, 2 timing, 3 Perfect, 4 Great, 5 Miss
 local STANDIN = true -- build GLB stand-ins (needs the KTE_Dev folder: preview.sh with STANDIN=1)
 local CAMERA: CFrame? = nil -- 3D modes: the shot (re-applied every frame)
 
@@ -135,7 +135,7 @@ for _, name in { "TrainingShop", "Shop", "PetIndex", "PetInventory", "Rebirth" }
 	end
 end
 
-if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" then
+if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kick" then
 	Kit.setPreview(size, touch)
 	local hud = Instance.new("Frame")
 	hud.Name = "HUD"
@@ -144,13 +144,36 @@ if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" then
 	hud.Parent = stage
 	local quest = require(UI.Hud.QuestBar).new(hud)
 	quest.update(Data.state)
-	Modal.setToastAnchor(hud:FindFirstChild("Quest"))
 	local rail = require(UI.Hud.Rail).new(hud)
 	local counters = require(UI.Hud.Counters).new(hud)
 	local drawers = require(UI.Hud.Drawers).new(hud)
-	pcall(function() -- A's kick panel + the SACK box need a LocalPlayer for input; draw what they can
-		require(UI.Hud.KickPanel).new(hud)
-		require(UI.Hud.SackButton).new(hud:FindFirstChild("KickPanel") or hud).update(Data.state)
+	-- settings + sound (top right), the zone progress bar (pinned to a zone) and the contextual kick controls:
+	-- on the HUD screen as on the kick pad (idle), on the Kick screen in the state FROM picks
+	if not pcall(require(UI.Menus).new, hud, { tiles = false }) then
+		-- A's Settings window needs a LocalPlayer: draw just its gear button like Menus does
+		local gear = Kit.panel({ name = "SettingsButton", size = UDim2.fromOffset(58, 58), parent = hud })
+		Kit.autoScale(gear)
+		Kit.onLayout(function(compact: boolean)
+			gear.AnchorPoint = Vector2.new(1, if compact then 0.5 else 0)
+			gear.Size = if compact then UDim2.fromOffset(96, 96) else UDim2.fromOffset(58, 58)
+			gear.Position = if compact then UDim2.new(1, -10, 0.5, 30) else UDim2.new(1, -96, 0, 22)
+		end)
+		local gb = Kit.roundButton(gear, "Button", function() end)
+		local art = require(UI.System.Ui).art(gb, "hud_settings", UDim2.fromScale(0.86, 0.86))
+		art.Position = UDim2.fromScale(0.07, 0.07)
+		art.ZIndex = 3
+		require(UI.System.IconMotion).attach(art, "settings")
+	end
+	require(UI.Hud.SoundToggle).new(hud)
+	local zone = require(UI.Hud.ZoneProgress).new(hud)
+	Modal.setToastAnchor(hud:FindFirstChild("ZoneProgress"))
+	zone.pin(if SCREEN == "Kick" then 9 else 6, if SCREEN == "Kick" then 0.15 else 0.55)
+	local kick = require(UI.Hud.KickPanel).new(hud)
+	local kickModes = { "idle", "timing", "result", "result", "result" }
+	local kickLevels = { 0.5, 0.72, 0.95, 0.75, 0.1 }
+	local k = if SCREEN == "Kick" then math.clamp(FROM, 1, 5) else 1
+	task.delay(1, function()
+		kick.pin(kickModes[k] :: any, kickLevels[k])
 	end)
 	Kit.watchViewport()
 	rail.update()
@@ -164,7 +187,7 @@ if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" then
 			end
 		end)
 	end
-	if SCREEN ~= "HUD" then
+	if SCREEN == "Eggs" or SCREEN == "Pets" then
 		drawers.open(SCREEN)
 	end
 elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" then
@@ -250,6 +273,31 @@ elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" the
 		end
 		CAMERA = CFrame.lookAt(origin + Vector3.new(0, 6.5, 30), origin + Vector3.new(0, 5, 0))
 	end
+elseif SCREEN == "SackShop" then
+	-- the physical Boxing Sack Shop in the real map (FROM 1 = outside, 2 = inside at the counter), with the
+	-- display sacks' idle VFX as clients show them (MapLife -> SackAura)
+	stage.BackgroundTransparency = 1
+	stage.AnchorPoint = Vector2.new(0.5, 0.5)
+	stage.Position = UDim2.fromScale(0.5, 0.5)
+	stage.ClipsDescendants = false
+	local MapBuilder = require(ReplicatedStorage.Shared.Builders.Map.MapBuilder)
+	local Sacks = require(ReplicatedStorage.Shared.Builders.Models.Sacks)
+	local SackAura = require(ReplicatedStorage.Shared.VFX.SackAura)
+	local map = workspace:FindFirstChild("Map") or MapBuilder.build()
+	local shop = map:FindFirstChild("BoxingSackShop", true) :: Model
+	for _, d in shop:GetDescendants() do
+		if d:IsA("Model") and d.Name == "Sack" then
+			local tier = d:GetAttribute("Tier") :: number
+			pcall(SackAura.Apply, d, tier, d:GetPivot() * Sacks.vfxRoot(tier), Sacks.SCALE, false)
+		end
+	end
+	local bcf, bsize = shop:GetBoundingBox()
+	local sign = shop:FindFirstChild("Sign") :: BasePart
+	local counter = shop:FindFirstChild("Counter") :: BasePart
+	print("SHOP bbox", bcf.Position, bsize, "sign", sign.Position, "counter", counter.Position)
+	CAMERA = if FROM == 2
+		then CFrame.lookAt(counter.Position + Vector3.new(7, 6, 7), counter.Position + Vector3.new(-2, 3, -9))
+		else CFrame.lookAt(sign.Position + Vector3.new(-12, -9, 34), sign.Position + Vector3.new(0, -9, -4))
 elseif SCREEN == "Heroes" then
 	-- the 7 hero egg/pet pairs of the 79-pair art plan (docs/EggPetPlan.md), Common -> Secret, with their effects
 	stage.BackgroundTransparency = 1
@@ -412,7 +460,13 @@ marker.BorderSizePixel = 0
 marker.ZIndex = 1000
 marker.Parent = stage -- top-left of the stage (centred on the viewport in the 3D modes)
 
-if SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" or SCREEN == "Heroes" then
+if
+	SCREEN == "Showcase"
+	or SCREEN == "GameSacks"
+	or SCREEN == "Showroom"
+	or SCREEN == "Heroes"
+	or SCREEN == "SackShop"
+then
 	HOLD = 50 -- 3D previews take longer to build; keep the window up for the capture
 	-- Studio's camera controller fights script moves: make it scriptable and keep re-asserting the shot
 	local camera = workspace.CurrentCamera

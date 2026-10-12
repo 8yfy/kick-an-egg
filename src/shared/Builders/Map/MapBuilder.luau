@@ -4,7 +4,8 @@
 -- Layout (Config/Chase axes): a compact grass plaza (the safe zone, Z < SafeLineZ) on a cliff above the
 -- ocean, walled on three sides by plain studded dirt walls; the runway canyon leaves the plaza's wall at
 -- the kick pad (origin) and runs +Z through the 20 zones. 8 fenced pens in two rows face a middle avenue
--- (fountain), each with a kick-training station beside its entrance; Shop/Index stalls by the spawn.
+-- (fountain), each with a kick-training station beside its entrance; the Boxing Sack Shop and the Index
+-- stall by the spawn.
 -- No zone signs: the HUD's zone bar names zones. Every part butts against its neighbours (no coplanar
 -- overlaps), so nothing z-fights.
 -- Map v3 (Partner B, at A's request): the plaza and launch hub (arch, tiers, egg statues, braziers)
@@ -25,7 +26,7 @@
 --     .SackStand                                  Model: gallows with the next Kick Sack hanging ("Sack", Spin)
 --   workspace.Map.Runway.Zone<id>                 Folder per zone
 -- ProximityPrompts carry an "Action" attribute the client UI handles:
---   "UpgradePen" | "UpgradeTraining" | "OpenMenu:Store" | "OpenMenu:Index"
+--   "UpgradePen" | "UpgradeTraining" | "EquipSack" | "OpenMenu:Store" (Boxing Sack Shop) | "OpenMenu:Index"
 local Lighting = game:GetService("Lighting")
 local PhysicsService = game:GetService("PhysicsService")
 local Builder = require(script.Parent.Parent.BlockBuilder)
@@ -721,6 +722,137 @@ local function stall(
 	prompt(counter, action, "Open", title)
 end
 
+-- A Kick Sack hanging from its chain with its hub at `hang` (stands, the Boxing Sack Shop): the original
+-- imported GLB sack when available (Builders/SackGeometry), else the part-built remodel. Anchored, no physics;
+-- named "Sack" with a Tier attribute so MapLife spins it (`spin` deg/s) and shows its idle VFX.
+local function hangSack(parent: Instance, tier: number, hang: CFrame, spin: number): Model
+	local sack = SackGeometry.build(tier)
+	sack:PivotTo(hang)
+	for _, d in sack:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanTouch = false
+			d.CanQuery = false
+		elseif d:IsA("WeldConstraint") or d:IsA("Motor6D") then
+			d:Destroy()
+		end
+	end
+	if sack.PrimaryPart then
+		sack.PrimaryPart:Destroy()
+	end
+	sack.Name = "Sack"
+	sack.Parent = parent
+	local pivot = Instance.new("Part")
+	pivot.Name = "Pivot"
+	pivot.Size = Vector3.one * 0.2
+	pivot.Transparency = 1
+	pivot.Anchored = true
+	pivot.CanCollide = false
+	pivot.CanQuery = false
+	pivot.CanTouch = false
+	pivot.CFrame = hang
+	pivot.Parent = sack
+	sack.PrimaryPart = pivot
+	sack:SetAttribute("Tier", tier)
+	sack:SetAttribute("Spin", spin)
+	return sack
+end
+
+-- The Boxing Sack Shop (replaces the old Training menu button): a studded red-and-white hall with a big sign
+-- over an open entrance, six of the 20 Kick Sacks hanging on a display rack (their real models + idle VFX via
+-- MapLife), lanterns and display lights, and the Coach behind the counter. The counter's prompt
+-- ("OpenMenu:Store") opens the existing sack purchasing screen (UI/Screens/TrainingShop); nothing is bought
+-- here. `dir` = +1 faces +Z, -1 faces -Z.
+local SHOP_TIERS = { 1, 5, 9, 14, 18, 20 } -- display picks across the 20 sacks (burlap -> rainbow god)
+local function sackShop(parent: Instance, x: number, z: number, dir: number)
+	local m = Instance.new("Model")
+	m.Name = "BoxingSackShop"
+	m.Parent = parent
+	local origin = Vector3.new(x, 0, z)
+	local frame = CFrame.lookAt(origin, origin + Vector3.new(0, 0, dir))
+	local function at(lx: number, ly: number, lz: number): CFrame
+		return frame * CFrame.new(lx, ly, lz)
+	end
+	local red, redDark, white = rgb(215, 45, 50), rgb(160, 30, 36), rgb(250, 248, 244)
+	local gold, wood, mat = rgb(255, 200, 60), rgb(150, 98, 60), rgb(40, 110, 210)
+	local H = 14 -- wall height
+	-- floor: a blue boxing-ring mat with a white rope line, plus the wooden walkway in front of the counter
+	block(m, "Floor", Vector3.new(30, 0.6, 20), at(0, 0.3, 0), mat)
+	block(m, "MatLine", Vector3.new(26, 0.1, 0.4), at(0, 0.65, 3.4), white, { studs = false })
+	block(m, "Walkway", Vector3.new(12, 0.62, 8), at(0, 0.31, -6), wood)
+	-- walls: back, sides, and a front facade with a 12-wide entrance in the middle
+	block(m, "BackWall", Vector3.new(30, H, 1), at(0, H / 2 + 0.6, 9.5), red, { sideStuds = true })
+	for _, sx in { -14.5, 14.5 } do
+		block(m, "SideWall", Vector3.new(1, H, 18), at(sx, H / 2 + 0.6, 0.5), white, { sideStuds = true })
+		block(m, "Facade", Vector3.new(8, H, 1), at(sx * 0.69, H / 2 + 0.6, -9.5), red, { sideStuds = true })
+		block(m, "FacadeTrim", Vector3.new(8.2, 0.8, 1.2), at(sx * 0.69, 3.2, -9.6), white)
+		-- entrance posts with lanterns
+		block(m, "EntrancePost", Vector3.new(1.6, H + 1, 1.6), at(sx * 0.42, (H + 1) / 2 + 0.6, -10), gold)
+		local lantern = Bricks.glow(
+			m,
+			"Lantern",
+			Vector3.new(1.6, 1.6, 1.6),
+			at(sx * 0.42, H - 2, -11.2),
+			rgb(255, 220, 140),
+			"Ball"
+		)
+		Bricks.light(lantern, rgb(255, 210, 140), 18, 1.3)
+	end
+	block(m, "EntranceHeader", Vector3.new(14, 2, 1.4), at(0, H - 0.4, -10), white)
+	-- flat studded roof with a gold rim and crenellations
+	block(m, "Roof", Vector3.new(31, 1, 21), at(0, H + 1.1, 0), redDark)
+	for i = 0, 7 do
+		block(m, "Merlon", Vector3.new(2, 1.2, 1.2), at(-13 + i * 3.7, H + 2.2, -10), gold)
+	end
+	-- the big sign over the entrance
+	local board = block(m, "Sign", Vector3.new(26, 5.6, 0.8), at(0, H + 5, -10.2), red, { sideStuds = true })
+	block(m, "SignFrame", Vector3.new(27, 6.6, 0.6), at(0, H + 5, -9.7), gold)
+	local signGui = surface(board, Enum.NormalId.Front, {
+		{ "Title", "BOXING SACK SHOP", 0.08, 0.6, white },
+		{ "Sub", "TRAIN STRONGER - KICK FARTHER", 0.68, 0.24, rgb(255, 225, 120) },
+	}, 24)
+	signGui.Name = "SignGui"
+	Bricks.light(board, rgb(255, 120, 110), 22, 1.1)
+	-- boxing gloves hanging on the side walls
+	for _, sx in { -13.6, 13.6 } do
+		for _, lz in { -3, 4 } do
+			Bricks.ball(m, "Glove", 1.7, at(sx, 8.5, lz), rgb(230, 40, 40))
+			block(m, "GloveCuff", Vector3.new(0.9, 0.9, 0.9), at(sx, 9.6, lz), white)
+		end
+	end
+	-- display rack along the back wall: one long beam, six hanging sacks, a nameplate and a light each
+	local hubY = Sacks.HANG + 0.9
+	local beamY = hubY + Sacks.CHAIN_TOP + 0.45
+	block(m, "RackBeam", Vector3.new(28, 0.9, 1.2), at(0, beamY, 6.6), wood)
+	for _, rx in { -13.4, 0, 13.4 } do
+		block(m, "RackPost", Vector3.new(0.9, beamY - 0.15, 0.9), at(rx, (beamY + 0.75) / 2, 6.6), wood)
+	end
+	local displays = folder(m, "Displays")
+	for i, tier in SHOP_TIERS do
+		local lx = -11.25 + (i - 1) * 4.5
+		local d = Instance.new("Model")
+		d.Name = "Display" .. i
+		d:SetAttribute("Tier", tier)
+		d.Parent = displays
+		hangSack(d, tier, at(lx, hubY, 6.6), 20)
+		local plate = block(d, "Plate", Vector3.new(3.8, 1.2, 0.4), at(lx, 1.5, 4.4), rgb(32, 38, 52))
+		surface(plate, Enum.NormalId.Front, {
+			{ "Name", string.upper(Upgrades.Sack.tiers[tier].name), 0.1, 0.8 },
+		}, 30)
+		local spot = anchor(d, "Spot", Vector3.new(0.4, 0.4, 0.4), at(lx, beamY + 1.5, 4).Position)
+		Bricks.light(spot, rgb(255, 240, 220), 9, 0.9)
+	end
+	-- counter + the Coach; its prompt opens the existing sack purchasing screen
+	local counter = block(m, "Counter", Vector3.new(12, 3.4, 2.4), at(0, 2.3, -0.6), wood)
+	block(m, "CounterTop", Vector3.new(12.6, 0.4, 3), at(0, 4.2, -0.6), white)
+	block(m, "CounterStripe", Vector3.new(12.1, 0.6, 0.1), at(0, 3, -1.85), red, { studs = false })
+	MapFx.emit(anchor(m, "GoodsFx", Vector3.new(10, 1, 2), at(0, 5.4, -0.6).Position), "StallSparkle")
+	Merchants.build("Coach", m, at(0, 0.6, 1.8))
+	local p = prompt(counter, "OpenMenu:Store", "Browse sacks", "Boxing Sack Shop")
+	p.MaxActivationDistance = 14
+end
+
 -- Octagonal studded basin, water, tiered centre column, and VFX: water jet, splashes, sparkles, light.
 local function fountain(parent: Instance, c: Vector3)
 	local f = folder(parent, "Fountain")
@@ -774,7 +906,11 @@ local function refreshRack(base: Model, slot: CFrame)
 		local m = Instance.new("Model")
 		m.Name = "SackStand"
 		local wood, dark = rgb(150, 98, 60), rgb(96, 62, 40)
-		block(m, "Plinth", Vector3.new(7.6, 0.6, 4), slot * CFrame.new(0, 0.3, 0), rgb(120, 124, 138))
+		local plinth = block(m, "Plinth", Vector3.new(7.6, 0.6, 4), slot * CFrame.new(0, 0.3, 0), rgb(120, 124, 138))
+		-- "Train": takes your Kick Sack out / puts it away (UI/Interact; replaces the old HUD SACK slot)
+		local train = prompt(plinth, "EquipSack", "Train", "Kick Sack")
+		train.KeyboardKeyCode = Enum.KeyCode.F
+		train.UIOffset = Vector2.new(0, 40)
 		for _, x in { -3, 3 } do
 			block(m, "Post", Vector3.new(0.9, beamY - 0.15, 0.9), slot * CFrame.new(x, (beamY + 0.75) / 2, 0), wood)
 			block(m, "PostFoot", Vector3.new(1.5, 0.6, 1.5), slot * CFrame.new(x, 0.9, 0), dark)
@@ -797,41 +933,7 @@ local function refreshRack(base: Model, slot: CFrame)
 		if current then
 			current:Destroy()
 		end
-		local hang = slot * CFrame.new(0, hubY, 0)
-		-- the original imported GLB sack when available (Builders/SackGeometry), else the part-built remodel
-		local sack = SackGeometry.build(show)
-		sack:PivotTo(hang)
-		for _, d in sack:GetDescendants() do
-			if d:IsA("BasePart") then
-				d.Anchored = true
-				d.CanCollide = false
-				d.CanTouch = false
-			elseif d:IsA("WeldConstraint") or d:IsA("Motor6D") then
-				d:Destroy()
-			end
-		end
-		if sack.PrimaryPart then
-			sack.PrimaryPart:Destroy()
-		end
-		sack.Parent = stand
-		local pivot = Instance.new("Part")
-		pivot.Name = "Pivot"
-		pivot.Size = Vector3.one * 0.2
-		pivot.Transparency = 1
-		pivot.Anchored = true
-		pivot.CanCollide = false
-		pivot.CanQuery = false
-		pivot.CanTouch = false
-		pivot.CFrame = hang
-		pivot.Parent = sack
-		sack.PrimaryPart = pivot
-		sack:SetAttribute("Tier", show)
-		sack:SetAttribute("Spin", 30)
-		for _, d in sack:GetDescendants() do
-			if d:IsA("BasePart") then
-				d.CanQuery = false
-			end
-		end
+		hangSack(stand, show, slot * CFrame.new(0, hubY, 0), 30)
 	end
 	local sign = base:FindFirstChild("RackSign")
 	local sgui = sign and sign:FindFirstChildOfClass("SurfaceGui")
@@ -1106,7 +1208,7 @@ local function buildSafeZone(map: Instance)
 	spawn.Duration = 0
 	spawn.Parent = zone
 
-	stall(zone, -40, -170, 1, "Shop", { rgb(70, 190, 255), rgb(250, 250, 255) }, "OpenMenu:Store", "Coach")
+	sackShop(zone, -42, -168, 1)
 	stall(zone, 40, -170, 1, "Index", { rgb(255, 210, 60), rgb(250, 250, 255) }, "OpenMenu:Index", "Professor")
 
 	local decor = folder(zone, "Decor")
