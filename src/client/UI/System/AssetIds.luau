@@ -1,8 +1,9 @@
 --!strict
 -- The UI's art registry (UI handoff v2: 05-Claude/AssetMap.template.luau + 00-REBUILD-FIRST/ACTIVE-ASSET-MAP.md).
 -- One entry per supplied PNG, keyed by the manifest key. `id` is the REAL uploaded Roblox image id
--- ("rbxassetid://<n>"); never invent one. All 59 are uploaded (Krono808, 2026-10-12, Creator Hub > Development
--- items > Images; these are the IMAGE ids, asset type 1, not the Decal ids the upload panel shows).
+-- ("rbxassetid://<n>"); never invent one. All 109 are uploaded (Krono808, Creator Hub > Development items >
+-- Images: 59 on 2026-10-12, the 50 HUD / kick / rating / zone-bar / zone-label / sparkle images on 2026-10-13;
+-- these are the IMAGE ids, asset type 1, not the Decal ids the upload panel shows).
 --
 -- To replace one: upload assets/ui-upload/<key>.png and paste the new Image id into its `id`.
 --
@@ -120,63 +121,183 @@ local A: { [string]: Entry } = {
 	zone_art_galaxy_void = { source = "02-Assets/Zone-Art/galaxy-void.png", id = "rbxassetid://116152121647212" },
 	zone_art_rainbow_heaven = { source = "02-Assets/Zone-Art/rainbow-heaven.png", id = "rbxassetid://139335812344018" },
 	-- Final approved HUD icons (Kick_An_Egg_Final_Approved_Icons_NoToolUI; they replace the older nav/currency icons)
-	hud_shop = { source = "Approved-Icons/Shop.png", id = "" },
-	hud_index = { source = "Approved-Icons/Index.png", id = "" },
-	hud_rebirth = { source = "Approved-Icons/Rebirth.png", id = "" },
-	hud_eggs = { source = "Approved-Icons/Eggs.png", id = "" },
-	hud_pets = { source = "Approved-Icons/Pets.png", id = "" },
-	hud_settings = { source = "Approved-Icons/Settings.png", id = "" },
-	hud_sound = { source = "Approved-Icons/Sound.png", id = "" },
-	hud_money = { source = "Approved-Icons/Money.png", id = "" },
-	hud_power = { source = "Approved-Icons/Power.png", id = "" },
+	hud_shop = { source = "Approved-Icons/Shop.png", id = "rbxassetid://124063885519959" },
+	hud_index = { source = "Approved-Icons/Index.png", id = "rbxassetid://129632301300395" },
+	hud_rebirth = { source = "Approved-Icons/Rebirth.png", id = "rbxassetid://114455910779142" },
+	hud_eggs = { source = "Approved-Icons/Eggs.png", id = "rbxassetid://90997219081318" },
+	hud_pets = { source = "Approved-Icons/Pets.png", id = "rbxassetid://84890738919357" },
+	hud_settings = { source = "Approved-Icons/Settings.png", id = "rbxassetid://121688620921925" },
+	hud_sound = { source = "Approved-Icons/Sound.png", id = "rbxassetid://102220234745257" },
+	hud_money = { source = "Approved-Icons/Money.png", id = "rbxassetid://97122527077619" },
+	hud_power = { source = "Approved-Icons/Power.png", id = "rbxassetid://100350848236207" },
 	-- Contextual kick UI (Master handoff v2: KICK / AUTO KICK buttons, strength meter states)
-	kick_button = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Kick_Button.png", id = "" },
-	kick_auto = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Auto_Kick_Button.png", id = "" },
-	kick_meter_idle = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Idle.png", id = "" },
-	kick_meter_low = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Low.png", id = "" },
-	kick_meter_mid = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Mid.png", id = "" },
-	kick_meter_high = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_High.png", id = "" },
-	kick_meter_full = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Full.png", id = "" },
+	kick_button = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Kick_Button.png",
+		id = "rbxassetid://110480185583493",
+	},
+	kick_auto = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Auto_Kick_Button.png",
+		id = "rbxassetid://83337555069915",
+	},
+	kick_meter_idle = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Idle.png",
+		id = "rbxassetid://136550503602655",
+	},
+	kick_meter_low = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Low.png",
+		id = "rbxassetid://120053828564741",
+	},
+	kick_meter_mid = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Mid.png",
+		id = "rbxassetid://109599021858372",
+	},
+	kick_meter_high = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_High.png",
+		id = "rbxassetid://138183036684293",
+	},
+	kick_meter_full = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Full.png",
+		id = "rbxassetid://99229129863864",
+	},
 	-- Kick ratings (Master handoff v2: Perfect / Excellent / Great / Good / Okay / Miss)
-	rating_perfect = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Perfect.png", id = "" },
-	rating_excellent = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Excellent.png", id = "" },
-	rating_great = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Great.png", id = "" },
-	rating_good = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Good.png", id = "" },
-	rating_okay = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Okay.png", id = "" },
-	rating_miss = { source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Miss.png", id = "" },
+	rating_perfect = {
+		source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Perfect.png",
+		id = "rbxassetid://105064803687403",
+	},
+	rating_excellent = {
+		source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Excellent.png",
+		id = "rbxassetid://134027495906114",
+	},
+	rating_great = {
+		source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Great.png",
+		id = "rbxassetid://87569717537397",
+	},
+	rating_good = {
+		source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Good.png",
+		id = "rbxassetid://106254352632431",
+	},
+	rating_okay = {
+		source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Okay.png",
+		id = "rbxassetid://81341228109524",
+	},
+	rating_miss = {
+		source = "Master-v2/01_Final_UI_Assets/03_UI_Text_Assets/Rating_Miss.png",
+		id = "rbxassetid://89504865537074",
+	},
 	-- Zone progress bar frames (frame 1 = empty) and zone name labels (Master handoff v2)
-	zone_bar_empty = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Empty.png", id = "" },
-	zone_bar_quarter = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Quarter.png", id = "" },
-	zone_bar_half = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Half.png", id = "" },
+	zone_bar_empty = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Empty.png",
+		id = "rbxassetid://109070858959652",
+	},
+	zone_bar_quarter = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Quarter.png",
+		id = "rbxassetid://111273665799579",
+	},
+	zone_bar_half = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Half.png",
+		id = "rbxassetid://104816659335936",
+	},
 	zone_bar_three_quarter = {
 		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Three_Quarter.png",
-		id = "",
+		id = "rbxassetid://103103494095218",
 	},
-	zone_bar_full = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Full.png", id = "" },
-	zone_bar_rainbow = { source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Rainbow.png", id = "" },
-	zone_label_empty = { source = "Master-v2/02_Zone_Progress/Zone_Name_Panel_Empty.png", id = "" },
-	zone_label_01 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/01_Meadow.png", id = "" },
-	zone_label_02 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/02_Sandy_Beach.png", id = "" },
-	zone_label_03 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/03_Autumn_Forest.png", id = "" },
-	zone_label_04 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/04_Mushroom_Grove.png", id = "" },
-	zone_label_05 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/05_Desert_Dunes.png", id = "" },
-	zone_label_06 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/06_Snowy_Peaks.png", id = "" },
-	zone_label_07 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/07_Candy_Land.png", id = "" },
-	zone_label_08 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/08_Coral_Reef.png", id = "" },
-	zone_label_09 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/09_Volcano.png", id = "" },
-	zone_label_10 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/10_Crystal_Caves.png", id = "" },
-	zone_label_11 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/11_Jungle_Ruins.png", id = "" },
-	zone_label_12 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/12_Neon_City.png", id = "" },
-	zone_label_13 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/13_Haunted_Graveyard.png", id = "" },
-	zone_label_14 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/14_Sky_Islands.png", id = "" },
-	zone_label_15 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/15_Toxic_Swamp.png", id = "" },
-	zone_label_16 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/16_Clockwork_Factory.png", id = "" },
-	zone_label_17 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/17_Frozen_Aurora.png", id = "" },
-	zone_label_18 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/18_Lava_Core.png", id = "" },
-	zone_label_19 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/19_Galaxy_Void.png", id = "" },
-	zone_label_20 = { source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/20_Rainbow_Heaven.png", id = "" },
+	zone_bar_full = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Full.png",
+		id = "rbxassetid://93093238813279",
+	},
+	zone_bar_rainbow = {
+		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Distance_Progress_Bar_Rainbow.png",
+		id = "rbxassetid://104645132263398",
+	},
+	zone_label_empty = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Panel_Empty.png",
+		id = "rbxassetid://135166278948704",
+	},
+	zone_label_01 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/01_Meadow.png",
+		id = "rbxassetid://91530334895234",
+	},
+	zone_label_02 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/02_Sandy_Beach.png",
+		id = "rbxassetid://117311157014450",
+	},
+	zone_label_03 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/03_Autumn_Forest.png",
+		id = "rbxassetid://72765603290181",
+	},
+	zone_label_04 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/04_Mushroom_Grove.png",
+		id = "rbxassetid://77174297300239",
+	},
+	zone_label_05 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/05_Desert_Dunes.png",
+		id = "rbxassetid://86262392682469",
+	},
+	zone_label_06 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/06_Snowy_Peaks.png",
+		id = "rbxassetid://123570735147640",
+	},
+	zone_label_07 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/07_Candy_Land.png",
+		id = "rbxassetid://127765974854596",
+	},
+	zone_label_08 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/08_Coral_Reef.png",
+		id = "rbxassetid://126380424438136",
+	},
+	zone_label_09 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/09_Volcano.png",
+		id = "rbxassetid://89752997315055",
+	},
+	zone_label_10 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/10_Crystal_Caves.png",
+		id = "rbxassetid://89264134040943",
+	},
+	zone_label_11 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/11_Jungle_Ruins.png",
+		id = "rbxassetid://117212562093442",
+	},
+	zone_label_12 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/12_Neon_City.png",
+		id = "rbxassetid://131186297807590",
+	},
+	zone_label_13 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/13_Haunted_Graveyard.png",
+		id = "rbxassetid://79578745646199",
+	},
+	zone_label_14 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/14_Sky_Islands.png",
+		id = "rbxassetid://130131237424956",
+	},
+	zone_label_15 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/15_Toxic_Swamp.png",
+		id = "rbxassetid://134208222406486",
+	},
+	zone_label_16 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/16_Clockwork_Factory.png",
+		id = "rbxassetid://84909515109343",
+	},
+	zone_label_17 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/17_Frozen_Aurora.png",
+		id = "rbxassetid://109707900514670",
+	},
+	zone_label_18 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/18_Lava_Core.png",
+		id = "rbxassetid://70877785211814",
+	},
+	zone_label_19 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/19_Galaxy_Void.png",
+		id = "rbxassetid://102923501057160",
+	},
+	zone_label_20 = {
+		source = "Master-v2/02_Zone_Progress/Zone_Name_Previews/20_Rainbow_Heaven.png",
+		id = "rbxassetid://119757409558363",
+	},
 	-- UI sparkle overlay (Master handoff v2)
-	fx_ui_sparkle = { source = "Master-v2/08_New_Icons/UI_Sparkle_Transparent.png", id = "" },
+	fx_ui_sparkle = {
+		source = "Master-v2/08_New_Icons/UI_Sparkle_Transparent.png",
+		id = "rbxassetid://129791085225899",
+	},
 }
 
 -- Config/Upgrades.Sack.tiers[].name -> sack art (by the sack's name, never by list position).
