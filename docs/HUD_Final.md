@@ -124,12 +124,8 @@ drives the player, then reports back. Frames: `docs/art/hud/playtest_*.jpg`.
 
 ## Manual / account steps left
 
-1. **Upload the 50 new images and paste their Image IDs** into `UI/System/AssetIds` (`id = ""` → `rbxassetid://…`).
-   Until then Studio shows local copies, and live servers show missing-art markers for:
-   - 9 icons: `hud_*`;
-   - 13 kick-UI images: `kick_button`, `kick_auto`, `kick_meter_*` ×5, `zone_bar_*` ×6;
-   - 6 ratings: `rating_*`;
-   - 21 zone labels: `zone_label_*` ×20 + `zone_label_empty`;
-   - `fx_ui_sparkle`.
+1. ~~Upload the 50 new images~~ **Done (2026-10-13):** all 50 are uploaded to Krono808 and their Image IDs are in
+   `UI/System/AssetIds`. All 109 UI images now load from Roblox everywhere: Studio, live servers and phones. A Studio
+   fetch gives 109/109 Success, and the thumbnails API reports all 109 as moderation "Completed".
 2. **Developer products** for the Shop's cash packs (need the game published).
 3. **Partner A review:** this touches A's UI, VFX and map folders.
