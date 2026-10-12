@@ -13,7 +13,8 @@
 -- Parts sharing a `joint` are welded together; each joint group is attached to Root with a
 -- Motor6D named after the group, so animators tween `Motor6D.C0` per group.
 
-local STUD_TEXTURE = "rbxassetid://6372755229" -- generic studs; swap if needed
+-- Classic Roblox studs: real Studs surfaces only render on the Plastic material, so default
+-- (SmoothPlastic) blocks/wedges with studs ~= false become Plastic with a studded top and inlet bottom.
 local Builder = {}
 
 export type PartSpec = {
@@ -58,13 +59,11 @@ local function makePart(p: PartSpec, s: number): BasePart
 	part.CanCollide = false
 	part.Anchored = false
 	part.CastShadow = true
-	if p.studs ~= false and part.Material == Enum.Material.SmoothPlastic then
-		local tex = Instance.new("Texture")
-		tex.Texture = STUD_TEXTURE
-		tex.Face = Enum.NormalId.Top
-		tex.StudsPerTileU, tex.StudsPerTileV = 1, 1
-		tex.Transparency = 0.55
-		tex.Parent = part
+	local round = p.shape == "Ball" or p.shape == "Cylinder"
+	if p.studs ~= false and not round and part.Material == Enum.Material.SmoothPlastic then
+		part.Material = Enum.Material.Plastic
+		part.TopSurface = Enum.SurfaceType.Studs
+		part.BottomSurface = Enum.SurfaceType.Inlet
 	end
 	if p.light then
 		local l = Instance.new("PointLight")

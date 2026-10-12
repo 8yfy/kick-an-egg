@@ -2,6 +2,7 @@
 -- Settings (client-side, this session): Sound, Music, Camera Shake, Low Detail effects.
 -- Sound/Music drive SoundService.Master / SoundService.Music groups. Camera Shake and Low Detail set
 -- LocalPlayer attributes "ShakeOff" / "LowDetail", which VFX reads.
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local Kit = require(script.Parent.Parent.Kit)
@@ -90,6 +91,15 @@ function SettingsMenu.new(parent: Instance): Menu
 	toggle("Low detail effects", me:GetAttribute("LowDetail") == true, function(on)
 		me:SetAttribute("LowDetail", on)
 	end)
+	-- UI/System/Motion reads "ReducedMotion": no overshoot, loops, floating art or bursts; short fades only.
+	local reduced = me:GetAttribute("ReducedMotion")
+	toggle(
+		"Reduced motion",
+		if typeof(reduced) == "boolean" then reduced else (GuiService :: any).ReducedMotionEnabled == true,
+		function(on)
+			me:SetAttribute("ReducedMotion", on)
+		end
+	)
 
 	return { window = window, update = function(_data: { [string]: any }) end }
 end

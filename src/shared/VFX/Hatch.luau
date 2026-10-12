@@ -224,6 +224,25 @@ function Hatch.PetReveal(target: Instance?, params: { [string]: any })
 	end
 end
 
+-- Training kick: yellow sparks off the bag and a "+0.3 Kick Power" pop. params {gain}
+function Hatch.TrainHit(target: Instance?, params: { [string]: any })
+	local pos = Fx.posOf(target)
+	if not pos then
+		return
+	end
+	Burst.play(
+		pos,
+		6,
+		{ Color3.fromRGB(255, 230, 80), Color3.new(1, 1, 1) },
+		NumberRange.new(0.2, 0.45),
+		16,
+		0.5,
+		false,
+		true
+	)
+	Hatch.MoneyPop(target, { text = `+{params.gain or 0} Power`, color = Color3.fromRGB(255, 220, 70) })
+end
+
 function Hatch.MoneyPop(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target)
 	if not pos then
@@ -240,8 +259,8 @@ function Hatch.MoneyPop(target: Instance?, params: { [string]: any })
 	l.Size = UDim2.fromScale(1, 1)
 	l.Font = Enum.Font.FredokaOne
 	l.TextScaled = true
-	l.Text = "+$" .. Fx.formatNumber(params.amount or 0)
-	l.TextColor3 = Color3.fromRGB(120, 255, 110)
+	l.Text = params.text or ("+$" .. Fx.formatNumber(params.amount or 0))
+	l.TextColor3 = params.color or Color3.fromRGB(120, 255, 110)
 	local s = Instance.new("UIStroke")
 	s.Thickness = 3
 	s.Color = Color3.fromRGB(20, 60, 20)

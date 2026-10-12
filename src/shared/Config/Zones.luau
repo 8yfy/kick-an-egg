@@ -13,7 +13,7 @@ export type Zone = {
 	weather: string?, -- default weather mutation that can roll here
 }
 
-local LEN = 120
+local LEN = 100 -- studs per zone (was 120; shorter zones keep the run in reach)
 local function z(id: number, name: string, ground: Color3, accent: Color3, ambient: string, weather: string?): Zone
 	return { id = id, name = name, start = (id - 1) * LEN, length = LEN, ground = ground, accent = accent, ambient = ambient, weather = weather }
 end

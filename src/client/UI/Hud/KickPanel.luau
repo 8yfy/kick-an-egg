@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Kit = require(script.Parent.Parent.Kit)
+local Fx = require(script.Parent.Parent.Fx)
 local Economy = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Economy"))
 
 -- Bands match KickService's timingBonus (perfect >= 0.9, good >= 0.6) unless Economy defines them.
@@ -37,7 +38,7 @@ end
 function KickPanel.new(parent: Instance): KickPanel
 	local root = Kit.panel({
 		name = "KickPanel",
-		size = UDim2.fromOffset(460, 200),
+		size = UDim2.fromOffset(600, 250),
 		position = UDim2.new(0.5, 0, 1, -20),
 		anchor = Vector2.new(0.5, 1),
 		parent = parent,
@@ -47,8 +48,8 @@ function KickPanel.new(parent: Instance): KickPanel
 	-- Timing meter: miss / good / perfect bands and a swinging needle.
 	local meter = Kit.panel({
 		name = "Meter",
-		size = UDim2.fromOffset(440, 46),
-		position = UDim2.fromOffset(10, 48),
+		size = UDim2.fromOffset(560, 42),
+		position = UDim2.fromOffset(20, 46),
 		parent = root,
 		colors = Kit.Colors.dark,
 		radius = 12,
@@ -85,7 +86,7 @@ function KickPanel.new(parent: Instance): KickPanel
 	})
 	local needle = Kit.panel({
 		name = "Needle",
-		size = UDim2.fromOffset(10, 62),
+		size = UDim2.fromOffset(12, 60),
 		position = UDim2.fromScale(0, 0.5),
 		anchor = Vector2.new(0.5, 0.5),
 		parent = track,
@@ -129,6 +130,8 @@ function KickPanel.new(parent: Instance): KickPanel
 		state.pendingUntil = os.clock() + PENDING_TIMEOUT
 		if t >= PERFECT_AT then
 			flash("PERFECT!", Kit.Colors.green[1])
+			Fx.flash(Color3.fromRGB(255, 250, 200), 0.35)
+			Fx.callout("PERFECT!", Color3.fromRGB(255, 250, 150), Color3.fromRGB(80, 220, 60))
 		elseif t >= GOOD_AT then
 			flash("GOOD!", Kit.Colors.yellow[1])
 		else
@@ -145,15 +148,33 @@ function KickPanel.new(parent: Instance): KickPanel
 	button, gradient = Kit.button({
 		name = "Kick",
 		text = "KICK!",
-		size = UDim2.fromOffset(180, 80),
+		size = UDim2.fromOffset(440, 144),
 		position = UDim2.new(0.5, 0, 1, 0),
 		anchor = Vector2.new(0.5, 1),
 		parent = root,
-		colors = Kit.Colors.red,
-		radius = 20,
+		colors = { Color3.fromRGB(135, 245, 70), Color3.fromRGB(60, 190, 40) },
+		radius = 30,
 		onClick = kick,
 	})
+	local stroke = button:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Thickness = 4
+	end
 	local buttonLabel = button:FindFirstChild("Label") :: TextLabel
+	buttonLabel.Size = UDim2.fromScale(0.8, 0.66)
+	buttonLabel.ZIndex = 3
+	local gloss = Instance.new("Frame") -- glossy top band
+	gloss.Name = "Gloss"
+	gloss.BackgroundColor3 = Color3.new(1, 1, 1)
+	gloss.BackgroundTransparency = 0.72
+	gloss.BorderSizePixel = 0
+	gloss.Size = UDim2.new(1, -28, 0, 48)
+	gloss.Position = UDim2.fromOffset(14, 8)
+	gloss.ZIndex = 2
+	Kit.corner(gloss, 22)
+	gloss.Parent = button
+	Fx.shine(button, 2.8)
+	local stopBounce: (() -> ())? = nil
 
 	local function setMode(m: string)
 		if m == mode then
@@ -162,7 +183,15 @@ function KickPanel.new(parent: Instance): KickPanel
 		mode = m
 		local ready = m == "ready"
 		button.Active = ready
-		gradient.Color = ColorSequence.new(table.unpack(if ready then Kit.Colors.red else Kit.Colors.grey))
+		gradient.Color = if ready
+			then ColorSequence.new(Color3.fromRGB(135, 245, 70), Color3.fromRGB(60, 190, 40))
+			else ColorSequence.new(table.unpack(Kit.Colors.grey))
+		if ready and not stopBounce then
+			stopBounce = Kit.pulse(buttonLabel, 1.07) -- idle bounce while you can kick
+		elseif not ready and stopBounce then
+			stopBounce()
+			stopBounce = nil
+		end
 		buttonLabel.Text = if m == "busy" then "CHASE!" else "KICK!"
 		meter.Visible = ready
 		if m == "far" then

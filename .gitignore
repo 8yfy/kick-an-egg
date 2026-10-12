@@ -7,3 +7,14 @@ sourcemap.json
 Thumbs.db
 .vscode/
 node_modules/
+
+# UI handoff PNGs staged for upload to Roblox (66 MB; the uploaded ids live in UI/System/AssetIds.luau)
+assets/ui-upload/
+
+# Original Kick Sack GLBs (7 MB, import them in Studio: tools/sacks/IMPORT.md) and the dev-only
+# EditableMesh stand-in data generated from them (tools/sacks/glb2luau.py)
+assets/sacks/glb/
+tools/sacks/standin/
+preview.project.json
+assets/sacks/*.glb
+dist/
