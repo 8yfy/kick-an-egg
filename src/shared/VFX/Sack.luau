@@ -12,6 +12,9 @@
 --   SackHit     {tier, at: Vector3, dir: Vector3, floor: Vector3, own?, super?, gain?}  one kick lands
 --   SackUpgrade {tier, floor?, own?}                         a new sack was bought
 -- Sack.legTrail(character, tier) returns a remover. (The idle auras are VFX/SackAura, the remodel's.)
+-- Culling (VFX/SackLod's view test): other players' hits and drops far away (> FAR) or off screen play at most
+-- the thud; comic words only start within their BillboardGui's 70-stud MaxDistance and on screen; ring waves
+-- (Lua-moved every frame) only on screen within WAVE_RANGE. Your own sack's effects always play in full.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -25,6 +28,7 @@ local Burst = require(script.Parent.Burst)
 local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Hatch = require(script.Parent.Hatch)
+local SackLod = require(script.Parent.SackLod)
 
 local Sack = {}
 
@@ -32,6 +36,10 @@ local SMOKE = "rbxasset://textures/particles/smoke_main.dds"
 local SPARK = "rbxasset://textures/particles/sparkles_main.dds"
 local FIRE = "rbxasset://textures/particles/fire_main.dds"
 local STEPS = { Basics = 1, Comic = 2, Champion = 3, Elemental = 4, Mythic = 5, God = 6 }
+local FAR = 160 -- studs: other players' sack effects beyond this are skipped
+local WAVE_RANGE = 140
+local WORD_RANGE = 70 -- = the words' BillboardGui MaxDistance
+local HEAR_RANGE = 120 -- = the sounds' RollOffMaxDistance
 local rng = Random.new()
 
 -- Built-in engine sounds, retuned per use. Swap `id` for uploaded SFX later without touching callers.
@@ -86,9 +94,37 @@ local function stepOf(tier: number): number
 	return STEPS[info.fx] or 1
 end
 
+-- Whether something `radius` studs around `pos` can be seen within `range` studs of the camera (conservative).
+local function seen(pos: Vector3, radius: number, range: number): boolean
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return true
+	end
+	local d = (pos - cam.CFrame.Position).Magnitude
+	if d > range then
+		return false
+	end
+	if d < SackLod.CULL_MIN then
+		return true
+	end
+	local vp = cam.ViewportSize
+	return SackLod.inView(
+		cam.CFrame,
+		math.tan(math.rad(cam.FieldOfView) / 2),
+		if vp.Y > 0 then vp.X / vp.Y else 16 / 9,
+		pos,
+		radius * SackLod.CULL_MARGIN
+	)
+end
+
+local function heard(pos: Vector3): boolean
+	local cam = workspace.CurrentCamera
+	return cam == nil or (pos - cam.CFrame.Position).Magnitude < HEAR_RANGE
+end
+
 local function play(name: string, pos: Vector3, pitchJitter: number?)
 	local s = SFX[name]
-	if not s then
+	if not s or not heard(pos) then
 		return
 	end
 	local anchor = Pool.anchor(CFrame.new(pos))
@@ -140,6 +176,9 @@ local function ringWave(
 	count: number,
 	thick: number?
 )
+	if not seen(center, r1, WAVE_RANGE) then
+		return
+	end
 	local base = if math.abs(up.Unit.Y) > 0.99
 		then CFrame.new(center)
 		else CFrame.lookAt(center, center + up) * CFrame.Angles(math.rad(-90), 0, 0) -- local Y = up
@@ -175,6 +214,9 @@ end
 
 -- Comic word that pops in with a bounce, drifts up and fades.
 local function word(pos: Vector3, text: string, color: Color3, scale: number)
+	if not seen(pos, 4, WORD_RANGE) then
+		return
+	end
 	local anchor = Pool.anchor(CFrame.new(pos))
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(math.floor(150 * scale), math.floor(60 * scale))
@@ -258,6 +300,10 @@ function Sack.SackDrop(target: Instance?, params: { [string]: any })
 	local floor: Vector3 = params.floor or (Fx.posOf(target) or Vector3.zero)
 	local b = body(target)
 	local center = if b then b.Position else floor + Vector3.new(0, 3.4, 0)
+	if not params.own and not seen(center, 14, FAR) then
+		play("thud", center)
+		return
+	end
 	-- Basics: dust ring on the floor, BONK
 	puff(floor + Vector3.new(0, 0.4, 0), SMOKE, { Color3.fromRGB(230, 222, 205) }, 14, 1.2, 14)
 	ringWave(floor + Vector3.new(0, 0.2, 0), Vector3.yAxis, { Color3.fromRGB(240, 232, 215) }, 1.5, 6, 0.4, 14, 0.3)
@@ -312,6 +358,10 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 	local super = params.super == true and step >= 5
 	local own = params.own == true
 	local mult = if super then 1.8 else 1
+	if not own and not seen(at, 10, FAR) then
+		play("thud", at)
+		return
+	end
 	local b = body(target)
 	local cloth = if b then { b.Color, look.fx[1] } else look.fx
 	-- Basics: dust puff off the impact, cloth bits, thud; theme extras for the first sacks

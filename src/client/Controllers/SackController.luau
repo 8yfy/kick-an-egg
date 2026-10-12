@@ -13,7 +13,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Upgrades = require(Shared:WaitForChild("Config"):WaitForChild("Upgrades"))
@@ -38,13 +37,14 @@ local SQUASH_K, SQUASH_C = 320, 15 -- kick squash spring
 local DROP_K, DROP_C = 190, 9 -- drop squash spring
 local PLACE_DIST = Sacks.KICK_DIST -- matches SackService: root to sack axis
 local FAR = 220 -- beyond this many studs from the camera, idle sacks stop animating
-local FX_RANGE = 140 -- idle VFX (SackAura) only run within this many studs of the camera
+-- The idle VFX (SackAura) are stepped every frame; VFX/SackLod decides how much of them runs (distance bands,
+-- view culling, quality profile), so a far or off-screen sack's step returns almost at once.
 local CLICK_BUFFER = 0.45 -- seconds a click made mid-kick is kept for the next kick
 
 type Piece = { part: BasePart, rel: CFrame, size: Vector3, squash: boolean, scaled: boolean }
 type Sack = {
 	model: Model,
-	fx: any, -- SackAura context (the tier's idle VFX), stepped after the sack moves
+	fx: any, -- SackAura context (the tier's idle VFX, level of detail by VFX/SackLod), stepped after the sack moves
 	pieces: { Piece },
 	parts: { BasePart },
 	at: CFrame,
@@ -161,8 +161,9 @@ local function build(tier: number, at: CFrame, own: boolean): Sack
 	local pieces: { Piece } = {}
 	local parts: { BasePart } = {}
 	for _, d in model:GetDescendants() do
-		-- parts the VFX poses itself (wings, arms) stay out: it re-poses them from its root every step
-		if d:IsA("BasePart") and d:GetAttribute("SackVFX_Rest") == nil then
+		-- parts the VFX places itself (wings, arms, rings, orbiters, turning frames) stay out: it re-places them
+		-- from its root whenever it updates (every frame up close, less often further out)
+		if d:IsA("BasePart") and d:GetAttribute("SackVFX_Rest") == nil and d:GetAttribute("SackVFX_Placed") == nil then
 			local rel = d.CFrame
 			local squash = rel.Y < -1 and not d:IsDescendantOf(fx.folder)
 			table.insert(pieces, { part = d, rel = rel, size = d.Size, squash = squash, scaled = false })
@@ -278,9 +279,7 @@ local function stepSack(s: Sack, now: number, dt: number, camPos: Vector3): bool
 		cframes[i] = hang * rel
 	end
 	workspace:BulkMoveTo(s.parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
-	if (s.at.Position - camPos).Magnitude < FX_RANGE then
-		s.fx:step(dt) -- after the move: orbits, wings and particles follow the swinging sack
-	end
+	s.fx:step(dt) -- after the move: orbits, wings and particles follow the swinging sack
 	return true
 end
 
@@ -485,9 +484,8 @@ local function standing(c: Char): boolean
 end
 
 function SackController:Start()
-	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-		SackAura.Quality = 0.6 -- fewer custom particles on phones
-	end
+	-- (no blanket "touch = weak device" cut any more: VFX/SackLod picks the quality from the graphics level and
+	-- the real frame rate, so a fast phone keeps full effects)
 	local function added(player: Player)
 		player.CharacterAdded:Connect(function(character)
 			track(player, character)
