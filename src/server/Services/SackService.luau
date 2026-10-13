@@ -28,6 +28,7 @@ local Analytics = require(script.Parent.Parent.Util.Analytics)
 local DataService = require(script.Parent.DataService)
 local KickService = require(script.Parent.KickService)
 local PlotService = require(script.Parent.PlotService)
+local ChaseService = require(script.Parent.ChaseService)
 
 local TOOL_ATTR = "KickSack"
 local PLACE_DIST = Sacks.KICK_DIST -- studs from the player's root to the sack's axis (the kicking foot meets its front)
@@ -136,10 +137,24 @@ local function clear(player: Player)
 	end
 end
 
--- The player's sack tools, in the backpack and in hand.
+-- Where the sack tool waits while it is put away: Player.SackGear, NOT the Backpack (the Roblox hotbar lists
+-- the Backpack: eggs + pets; the sack has its own bottom quickslot, UI/Hud/SackSlot).
+local function gearOf(player: Player): Folder
+	local folder = player:FindFirstChild("SackGear")
+	if folder and folder:IsA("Folder") then
+		return folder
+	end
+	local created = Instance.new("Folder")
+	created.Name = "SackGear"
+	created.Parent = player
+	return created
+end
+
+-- The player's sack tools, put away, in the backpack (briefly) and in hand.
 local function toolsOf(player: Player): { Tool }
 	local tools = {}
-	local holders: { Instance? } = { player:FindFirstChildOfClass("Backpack"), player.Character }
+	local holders: { Instance? } =
+		{ player:FindFirstChild("SackGear"), player:FindFirstChildOfClass("Backpack"), player.Character }
 	for _, holder in holders do
 		if holder then
 			for _, child in holder:GetChildren() do
@@ -167,16 +182,49 @@ local function refreshTools(player: Player)
 end
 
 local function giveTool(player: Player)
-	local backpack = player:WaitForChild("Backpack", 10)
-	if not backpack or #toolsOf(player) > 0 then
+	if #toolsOf(player) > 0 then
 		return
 	end
 	local tool = Instance.new("Tool")
 	tool.RequiresHandle = false
 	tool.CanBeDropped = false
 	tool:SetAttribute(TOOL_ATTR, true)
-	tool.Parent = backpack
+	tool.Parent = gearOf(player)
 	refreshTools(player)
+end
+
+-- A put-away sack (unequipped, or swapped for an egg / pet from the hotbar) goes back out of the Backpack.
+local function watchBackpack(player: Player, backpack: Instance)
+	backpack.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") and child:GetAttribute(TOOL_ATTR) then
+			task.defer(function()
+				if child.Parent == backpack then
+					child.Parent = gearOf(player)
+				end
+			end)
+		end
+	end)
+end
+
+-- EquipSack(on): the server takes the sack out of SackGear into the hand, or puts it away.
+local function onEquipSack(player: Player, on: any)
+	if not limiter:allow(player) or typeof(on) ~= "boolean" then
+		return
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	local held = equipped(player)
+	if on and not held then
+		local tool = toolsOf(player)[1]
+		if tool then
+			humanoid:EquipTool(tool)
+		end
+	elseif not on and held then
+		held.Parent = gearOf(player)
+	end
 end
 
 local function onCharacter(player: Player, character: Model)
@@ -336,9 +384,9 @@ function SackService.showcase(player: Player, variant: string?)
 	end
 end
 
--- Studio-only playtest commands: /sack <1-20> switches your sack, /cash <amount> adds money, /showroom opens the
--- one-at-a-time sack showroom, /showcase [game|basic]
--- toggles the 20-sack showroom. One handler for both chat systems; a repeat of the same message within half a
+-- Studio-only playtest commands: /sack <1-20> switches your sack, /cash <amount> adds money, /power <n> sets Kick
+-- Power (reach farther zones), /speed <level> sets the Run Speed level, /hatch hatches your placed eggs now,
+-- /showroom opens the one-at-a-time sack showroom, /showcase [game|basic] toggles the 20-sack showroom. One handler for both chat systems; a repeat of the same message within half a
 -- second is ignored so nothing runs twice.
 local lastCommand: { [Player]: { text: string, at: number } } = {}
 function SackService.command(player: Player, message: string)
@@ -357,9 +405,21 @@ function SackService.command(player: Player, message: string)
 		SackService.showcase(player, variant)
 		return
 	end
+	local data = DataService:Get(player)
+	if data and string.match(text, "^/hatch%s*$") then -- every egg in your pen hatches on the next tick
+		local plots = table.clone(data.plots)
+		local now = workspace:GetServerTimeNow()
+		for uid, egg in plots do
+			local hurried = table.clone(egg :: any)
+			hurried.hatchAt = now
+			plots[uid] = hurried
+		end
+		DataService:Set(player, { plots = plots })
+		print(`[studio] {player.Name}: hatching now`)
+		return
+	end
 	local cmd, arg = string.match(text, "^/(%a+)%s+(%S+)")
 	local n = tonumber(arg)
-	local data = DataService:Get(player)
 	if not data or not n then
 		return
 	end
@@ -371,6 +431,17 @@ function SackService.command(player: Player, message: string)
 	elseif cmd == "cash" then
 		DataService:Set(player, { money = data.money + math.max(0, n) })
 		print(`[studio] {player.Name}: +{math.max(0, n)} cash`)
+	elseif cmd == "power" then -- Kick Power (strength), up to the cap for your rebirths
+		local power = math.clamp(n, Economy.KickPower.base, Economy.maxKickPower(data.rebirths))
+		DataService:Set(player, { kickPower = power })
+		print(`[studio] {player.Name}: kick power {power}`)
+	elseif cmd == "speed" then -- Run Speed level (egg + walk speed = Economy.runSpeedAt(level))
+		local level = math.max(0, math.floor(n))
+		DataService:Set(player, { speedLevel = level, runSpeed = Economy.runSpeedAt(level) })
+		ChaseService:RefreshWalkSpeed(player)
+		print(
+			`[studio] {player.Name}: Run Speed level {level} ({math.floor(Economy.runSpeedAt(level) * 10) / 10} studs/s)`
+		)
 	end
 end
 
@@ -384,7 +455,7 @@ local function registerStudioCommands()
 		folder.Name = "TextChatCommands"
 		folder.Parent = TextChatService
 	end
-	for _, alias in { "sack", "cash", "showcase", "showroom" } do
+	for _, alias in { "sack", "cash", "power", "speed", "hatch", "showcase", "showroom" } do
 		local command = Instance.new("TextChatCommand")
 		command.Name = "KTE_" .. alias
 		command.PrimaryAlias = "/" .. alias
@@ -401,10 +472,21 @@ end
 function SackService:Start()
 	Remotes.get("Train").OnServerEvent:Connect(onTrain)
 	Remotes.get("UpgradeTraining").OnServerEvent:Connect(onUpgradeTraining)
+	Remotes.get("EquipSack").OnServerEvent:Connect(onEquipSack)
 	if RunService:IsStudio() then
 		registerStudioCommands()
 	end
 	local function added(player: Player)
+		gearOf(player)
+		player.ChildAdded:Connect(function(child)
+			if child:IsA("Backpack") then
+				watchBackpack(player, child)
+			end
+		end)
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		if backpack then
+			watchBackpack(player, backpack)
+		end
 		player.CharacterAdded:Connect(function(character)
 			onCharacter(player, character)
 		end)

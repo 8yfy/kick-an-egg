@@ -1101,6 +1101,11 @@ step("inventory after a respawn", function()
 		end
 		return eggs, pets
 	end
+	local before = #(Data.state.eggs or {})
+	hook:FireServer("giveEgg") -- something to carry over
+	waitFor(function()
+		return #(Data.state.eggs or {}) > before
+	end, 4)
 	local wantEggs = #(Data.state.eggs or {})
 	local wantPets = 0
 	for _, pet in Data.state.pets or {} do
@@ -1118,7 +1123,7 @@ step("inventory after a respawn", function()
 	local e, p = count()
 	check(
 		"after a respawn the Backpack holds every egg and stored pet once",
-		ok ~= nil,
+		ok ~= nil and wantEggs >= 1,
 		`eggs {e}/{wantEggs}, pets {p}/{wantPets}`
 	)
 	check("after a respawn the sack is still on its quickslot (not in the Backpack)", waitFor(function()
