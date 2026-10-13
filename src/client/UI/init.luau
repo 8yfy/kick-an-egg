@@ -23,6 +23,7 @@ local Drawers = require(script.Hud.Drawers)
 local Menus = require(script.Menus)
 local ZoneProgress = require(script.Hud.ZoneProgress)
 local SackGear = require(script.SackGear)
+local SackSlot = require(script.Hud.SackSlot)
 local Interact = require(script.Interact)
 local AssetIds = require(script.System.AssetIds)
 local Data = require(script.System.Data)
@@ -96,13 +97,17 @@ function UI:Init()
 	quest = QuestBar.new(root)
 	SoundToggle.new(root)
 	kick = KickPanel.new(root)
-	SackGear.start(root) -- no SACK slot: the Train prompt / key 1 take the sack out
+	SackGear.start(root) -- key 1 / gamepad Y, the "click to kick" hint
+	local sackSlot = SackSlot.new(root, root:FindFirstChild("KickPanel") :: GuiObject?) -- bottom Kick Sack quickslot
 	overlay = ChaseOverlay.new(root)
 	zoneBar = ZoneProgress.new(root)
 	rail = Rail.new(root)
 	counters = Counters.new(root)
 	drawers = Drawers.new(root)
 	Drawers.openTrade = function()
+		menus.open("Trade")
+	end
+	Rail.openTrade = function() -- the TRADE button on the left rail (no Trade button in the Pets drawer any more)
 		menus.open("Trade")
 	end
 	-- toasts stay below the quest bar, and below the zone progress bar while it shows
@@ -122,6 +127,7 @@ function UI:Init()
 		rail.update()
 		counters.update()
 		drawers.update()
+		sackSlot.update()
 		Modal.refresh()
 	end)
 	gui.Parent = playerGui

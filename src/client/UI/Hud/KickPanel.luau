@@ -3,8 +3,10 @@
 --   hidden  : off the kick pad, in flight / chase, no character. Nothing kick-related is on screen.
 --   idle    : on the pad (KickPad.SHOW_RADIUS; the server re-checks with KickPad.ACCEPT_RADIUS). KICK and
 --             AUTO KICK pop in with their supplied art; "Press KICK!".
---   timing  : KICK pressed. The vertical strength meter (supplied art, frame per fill level) appears with a
---             sweeping indicator and "Tap to Kick!"; the next tap / click / E / Enter / gamepad R2 or X locks it.
+--   timing  : KICK pressed. ONE vertical strength meter (the supplied meter art) fills up and down; the fill is
+--             the same art clipped to the level and coloured by the timing band (red Miss, orange Okay, yellow
+--             Good, light green Great, bright green Excellent, cyan Perfect), blending smoothly. No second bar
+--             slides over it. "Tap to Kick!"; the next tap / click / E / Enter / gamepad R2 or X locks it.
 --   result  : the rating art (Perfect / Excellent / Great / Good / Okay / Miss) plays, the kick is sent
 --             (Shared.KickPressed(timing) -> KickController -> RequestKick), then the controls hide while the
 --             chase runs (setBusy) and come back only when you're on the pad and free again.
@@ -42,14 +44,23 @@ local RATINGS: { { at: number, key: string, band: string, color: Color3 } } = {
 	{ at = 0, key = "rating_miss", band = "weak", color = Color3.fromRGB(230, 80, 80) },
 }
 
--- Meter art frame for a fill level (Full only inside the perfect band).
-local function meterKey(level: number): string
-	return if level >= 0.9
-		then "kick_meter_full"
-		elseif level >= 0.6 then "kick_meter_high"
-		elseif level >= 0.4 then "kick_meter_mid"
-		elseif level >= 0.15 then "kick_meter_low"
-		else "kick_meter_idle"
+-- The meter fill's colour per display band (top first; same bands as RATINGS). Configurable.
+local METER_COLORS: { { at: number, color: Color3 } } = {
+	{ at = 0.9, color = Color3.fromRGB(70, 235, 255) }, -- Perfect: cyan
+	{ at = 0.8, color = Color3.fromRGB(60, 235, 90) }, -- Excellent: bright green
+	{ at = 0.7, color = Color3.fromRGB(160, 245, 100) }, -- Great: light green
+	{ at = 0.6, color = Color3.fromRGB(255, 225, 60) }, -- Good: yellow
+	{ at = 0.3, color = Color3.fromRGB(255, 150, 40) }, -- Okay: orange
+	{ at = 0, color = Color3.fromRGB(240, 60, 60) }, -- Miss: red
+}
+
+local function meterColor(level: number): Color3
+	for _, band in METER_COLORS do
+		if level >= band.at then
+			return band.color
+		end
+	end
+	return METER_COLORS[#METER_COLORS].color
 end
 
 export type KickPanel = {
@@ -123,20 +134,34 @@ function KickPanel.new(parent: Instance): KickPanel
 	meter.Size = UDim2.fromOffset(70, 252)
 	meter.Visible = false
 	meter.Parent = root
-	local meterArt = Ui.art(meter, "kick_meter_idle")
+	local meterArt = Ui.art(meter, "kick_meter_idle") -- the empty meter (frame + grey segments)
 	meterArt.ZIndex = 2
-	local indicator = Instance.new("Frame") -- the moving marker (a real frame, not a static picture)
-	indicator.Name = "Indicator"
-	indicator.AnchorPoint = Vector2.new(0.5, 0.5)
-	indicator.Size = UDim2.new(1, 22, 0, 9)
-	indicator.BackgroundColor3 = Color3.new(1, 1, 1)
-	indicator.BorderSizePixel = 0
-	indicator.ZIndex = 4
-	Kit.corner(indicator, 4)
-	local indStroke = Instance.new("UIStroke")
-	indStroke.Thickness = 3
-	indStroke.Parent = indicator
-	indicator.Parent = meter
+	-- the fill: the same art, clipped from the bottom to the level and tinted by the band colour
+	local fillClip = Instance.new("Frame")
+	fillClip.Name = "Fill"
+	fillClip.BackgroundTransparency = 1
+	fillClip.ClipsDescendants = true
+	fillClip.AnchorPoint = Vector2.new(0, 1)
+	fillClip.Position = UDim2.fromScale(0, 1)
+	fillClip.Size = UDim2.fromScale(1, 0)
+	fillClip.ZIndex = 3
+	fillClip.Parent = meter
+	local fillArt = Ui.art(fillClip, "kick_meter_idle")
+	fillArt.AnchorPoint = Vector2.new(0, 1)
+	fillArt.Position = UDim2.fromScale(0, 1)
+	fillArt.Size = UDim2.fromOffset(70, 252) -- the meter's own size: stays bottom-aligned while the clip moves
+	fillArt.ZIndex = 3
+	local fillColor = meterColor(0)
+	local function setFill(level: number, dt: number?)
+		fillClip.Size = UDim2.fromScale(1, math.clamp(level, 0, 1))
+		local target = meterColor(level)
+		fillColor = if dt then fillColor:Lerp(target, math.min(1, dt * 14)) else target
+		fillArt.ImageColor3 = Color3.new(
+			math.min(1, fillColor.R * 1.45),
+			math.min(1, fillColor.G * 1.45),
+			math.min(1, fillColor.B * 1.45)
+		)
+	end
 	local perfectTag = Kit.label({
 		name = "PerfectTag",
 		text = "PERFECT",
@@ -398,15 +423,7 @@ function KickPanel.new(parent: Instance): KickPanel
 			end
 			local level = 0.5 - 0.5 * math.cos(2 * math.pi * SWING_HZ * (now - state.timingSince))
 			state.level = level
-			indicator.Position = UDim2.new(0.5, 0, 0.06 + (1 - level) * 0.88, 0)
-			local key = meterKey(level)
-			if meterArt:GetAttribute("ArtKey") ~= key then
-				meterArt:SetAttribute("ArtKey", key)
-				local id = AssetIds.get(key)
-				if id then
-					meterArt.Image = id
-				end
-			end
+			setFill(level, 1 / 60)
 			if auto and now >= state.autoReleaseAt then
 				release()
 			end
@@ -432,11 +449,7 @@ function KickPanel.new(parent: Instance): KickPanel
 			if mode == "timing" or mode == "result" then
 				enter("timing")
 				state.level = level or 0.5
-				indicator.Position = UDim2.new(0.5, 0, 0.06 + (1 - state.level) * 0.88, 0)
-				local id = AssetIds.get(meterKey(state.level))
-				if id then
-					meterArt.Image = id
-				end
+				setFill(state.level)
 			end
 			if mode == "result" then
 				enter("result")

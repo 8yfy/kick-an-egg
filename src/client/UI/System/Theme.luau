@@ -57,6 +57,7 @@ Theme.Nav = {
 	Training = { hex("9B5CFF"), hex("5A2BD8") },
 	Eggs = { hex("FFD43A"), hex("F59A00") },
 	Pets = { hex("FFAA3A"), hex("F06A00") },
+	Trade = { hex("4AF0D0"), hex("0FA58A") },
 } :: { [string]: Pair }
 
 -- Rarity card backgrounds (Config/Rarities names). Secret is drawn as a rainbow.

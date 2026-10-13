@@ -1,6 +1,7 @@
 --!strict
 -- Partner A. Egg flight + landing effects (client). B moves the egg; these only decorate it.
---   KickImpact {power}                    target = egg/pad: star burst + thump
+--   KickImpact {power, cutscene?, own?}   target = egg/pad/foot: star burst + thump; with `cutscene` (the kick
+--              line's kick, KickLineController) also a ground shockwave ring, spark spray and a layered kick sound
 --   ZoneEnter  {zone}                     target = egg: ring of sparks in the zone's accent colour
 --   EggSpin    {zone, keys, finalKey?, seconds}  target = flying egg: slot-machine spin. The egg's own
 --              parts are hidden locally and a visual egg (built from Models.egg(key)) rides on a
@@ -31,9 +32,90 @@ local SWAP_FAST, SWAP_SLOW = 0.07, 0.18
 
 local LEG_COLOR, FOOT_COLOR = Color3.fromRGB(255, 165, 50), Color3.fromRGB(255, 130, 40)
 
+-- Ground shockwave: `n` neon pieces in a ring flying out from r0 to r1 and fading (one connection while alive).
+local function shockwave(center: Vector3, color: Color3, r0: number, r1: number, seconds: number, n: number)
+	local pieces = {}
+	for i = 1, n do
+		local p = Pool.get("Block")
+		p.Material = Enum.Material.Neon
+		p.Color = color
+		pieces[i] = p
+	end
+	local t0 = os.clock()
+	local conn: RBXScriptConnection
+	conn = RunService.RenderStepped:Connect(function()
+		local k = (os.clock() - t0) / seconds
+		if k >= 1 then
+			conn:Disconnect()
+			for _, p in pieces do
+				Pool.release(p)
+			end
+			return
+		end
+		local e = 1 - (1 - k) ^ 3
+		local r = r0 + (r1 - r0) * e
+		for i, p in pieces do
+			local a = (i / n) * math.pi * 2
+			p.Size = Vector3.new(0.3, 0.25, 2 * math.pi * r / n + 0.2)
+			p.CFrame = CFrame.new(center) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -r)
+			p.Transparency = k
+		end
+	end)
+end
+
+local KICK_SOUNDS: { { id: string, pitch: number, volume: number } } = {
+	{ id = "rbxasset://sounds/impact_explosion_03.mp3", pitch = 1.35, volume = 0.32 },
+	{ id = "rbxasset://sounds/action_jump.mp3", pitch = 0.7, volume = 0.45 },
+	{ id = "rbxasset://sounds/action_jump_land.mp3", pitch = 0.8, volume = 0.6 },
+}
+
+local function kickSound(pos: Vector3, own: boolean)
+	local cam = workspace.CurrentCamera
+	if cam and (pos - cam.CFrame.Position).Magnitude > 90 then
+		return
+	end
+	local group = game:GetService("SoundService"):FindFirstChild("Master")
+	for _, layer in KICK_SOUNDS do
+		local anchor = Pool.anchor(CFrame.new(pos))
+		local s = Instance.new("Sound")
+		s.SoundId = layer.id
+		s.PlaybackSpeed = layer.pitch
+		s.Volume = layer.volume * (if own then 1 else 0.6)
+		s.RollOffMinDistance, s.RollOffMaxDistance = 10, 90
+		s.SoundGroup = if group and group:IsA("SoundGroup") then group else nil
+		s.Parent = anchor
+		s:Play()
+		task.delay(2.5, function()
+			s:Destroy()
+			Pool.release(anchor)
+		end)
+	end
+end
+
 function Egg.KickImpact(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target) or Vector3.new(0, 1, 0)
 	local power = math.clamp((params.power or 1) / 25, 0.3, 1)
+	if params.cutscene then
+		local me = game:GetService("Players").LocalPlayer
+		local reduced = me ~= nil and me:GetAttribute("ReducedMotion") == true
+		kickSound(pos, params.own == true)
+		Burst.play(
+			pos,
+			14,
+			{ Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 120, 40), Color3.new(1, 1, 1) },
+			NumberRange.new(0.15, 0.35),
+			34 * (0.6 + power),
+			0.45,
+			false,
+			true
+		)
+		if not reduced then
+			shockwave(pos - Vector3.new(0, 1.2, 0), Color3.fromRGB(255, 220, 90), 1, 9 + 5 * power, 0.45, 18)
+		end
+		if params.own ~= true then
+			return -- other players' kicks: sparks, ring and sound only (no flash / shake on your screen)
+		end
+	end
 	Burst.play(
 		pos + Vector3.new(0, 1, 0),
 		10,
