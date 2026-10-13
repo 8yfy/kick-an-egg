@@ -414,6 +414,12 @@ function Ctx:find(match)
 			out[#out + 1] = d
 		end
 	end
+	-- parity checks (tools/perf/SackParity): how many named parts this tier's effects found on this model
+	self.found = (self.found or 0) + #out
+	self.lookups = (self.lookups or 0) + 1
+	if #out == 0 then
+		self.missed = (self.missed or 0) + 1
+	end
 	return out
 end
 

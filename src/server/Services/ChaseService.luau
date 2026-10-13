@@ -5,6 +5,9 @@
 -- owner, whose client drives it (like a vehicle). The owner's character is frozen meanwhile.
 -- Every 0.1 s the server validates the egg's position (speed limit, snap-back on teleports) and
 -- decides EggCaught / EggSecured / ChaseEnded. Egg speed = the player's Run Speed (bought in the shop).
+-- Finish line (the safe line): the egg is removed and the avalanche ended at once (EggSecured then ChaseEnded in
+-- the same tick, never twice: `finished`); the secured egg goes into the inventory (an "Egg" Tool to place).
+-- The avalanche appears at Chase.avalancheStartZ (inside the landing zone / map, never past the end wall).
 
 local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
@@ -21,7 +24,6 @@ local Remotes = require(Shared.Remotes)
 local DataService = require(script.Parent.DataService)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
 local KickService = require(script.Parent.KickService)
-local PlotService = require(script.Parent.PlotService)
 
 export type ChaseState = {
 	owner: Player,
@@ -38,7 +40,8 @@ export type ChaseState = {
 	egg: Model?,
 	hitbox: BasePart?,
 	controlling: boolean,
-	resolved: boolean, -- secured; the avalanche keeps rolling to despawnAtZ
+	resolved: boolean, -- secured or lost: no more outcomes
+	finished: boolean, -- ended and cleaned up (idempotent)
 	validPos: Vector3, -- last plausible egg position
 	validAt: number,
 	flags: number,
@@ -51,7 +54,7 @@ local SPEED_SLACK_MULT = 1.6
 local SPEED_SLACK_ADD = 10
 local FALL_LIMIT = 40 -- studs below the landing point = fell off the map
 local OWNER_RESTORE_DELAY = 0.25 -- after a server snap-back
-local EGG_CLEANUP_DELAY = 1.5 -- lets EggSecured / EggCaught VFX play on the egg
+local EGG_CLEANUP_DELAY = 1.5 -- lets the EggCaught VFX play on the egg (a secured egg goes at once)
 local STEER_FORCE = 1e6
 local EGGS_GROUP = "Eggs" -- map v3 collision group (MapBuilder registers it)
 
@@ -255,7 +258,13 @@ end
 
 -- Outcomes -----------------------------------------------------------------
 
+-- Ends the chase once: forgets it and lets the player kick again. Safe to call more than once.
 local function finish(chase: ChaseState)
+	if chase.finished then
+		return
+	end
+	chase.finished = true
+	chase.resolved = true
 	if chases[chase.owner] == chase then
 		chases[chase.owner] = nil
 	end
@@ -272,6 +281,10 @@ local function bumpStat(player: Player, key: string)
 end
 
 local function lose(chase: ChaseState, reason: "EggCaught" | "Left")
+	if chase.resolved then
+		return
+	end
+	chase.resolved = true
 	remotes.EggLost:FireAllClients({ eggUid = chase.eggUid, reason = reason })
 	Analytics.custom(chase.owner, "EggLost", 1, reason, chase.petId)
 	if reason ~= "Left" then
@@ -283,19 +296,31 @@ local function lose(chase: ChaseState, reason: "EggCaught" | "Left")
 	finish(chase)
 end
 
+-- The egg crossed the finish (safe) line: stop the flight egg and the avalanche right away, then award the egg.
 local function secure(chase: ChaseState)
+	if chase.resolved then
+		return
+	end
 	chase.resolved = true
 	local player = chase.owner
+	local at = if chase.egg then chase.egg:GetPivot().Position else chase.validPos
+	releaseEgg(chase, 0) -- the running egg leaves now: clients play the "SECURED!" burst where it was
+	remotes.EggSecured:FireAllClients({ eggUid = chase.eggUid, position = at })
+	remotes.ChaseEnded:FireAllClients({ eggUid = chase.eggUid }) -- the avalanche stops and crumbles at once
+	finish(chase)
 	local data = DataService:Get(player)
 	if data then
-		local eggs = table.clone(data.eggs)
-		table.insert(eggs, { uid = chase.eggUid, petId = chase.petId, size = chase.size, weather = chase.weather })
-		DataService:Set(player, { eggs = eggs })
-		bumpStat(player, "secured")
-		PlotService:PlaceWaitingEggs(player) -- straight onto a free pedestal; it waits if none is free
+		local already = false
+		for _, egg in data.eggs do
+			already = already or egg.uid == chase.eggUid
+		end
+		if not already then -- one egg per chase, whatever happens
+			local eggs = table.clone(data.eggs)
+			table.insert(eggs, { uid = chase.eggUid, petId = chase.petId, size = chase.size, weather = chase.weather })
+			DataService:Set(player, { eggs = eggs })
+			bumpStat(player, "secured")
+		end
 	end
-	remotes.EggSecured:FireAllClients({ eggUid = chase.eggUid })
-	releaseEgg(chase, EGG_CLEANUP_DELAY)
 	Analytics.custom(player, "EggSecured", 1, chase.petId)
 	Analytics.funnel(player, Analytics.Funnel.FirstSecure, "FirstSecure")
 end
@@ -323,6 +348,9 @@ local function sampleEgg(chase: ChaseState, now: number): Vector3
 end
 
 local function tick(chase: ChaseState)
+	if chase.finished then
+		return
+	end
 	local now = workspace:GetServerTimeNow()
 	if not chase.controlling and not chase.resolved and now >= chase.controlStart then
 		giveControl(chase)
@@ -352,7 +380,7 @@ local function startChase(pending: KickService.PendingChase)
 		size = pending.size,
 		weather = pending.weather,
 		landPos = pending.landPos,
-		startZ = pending.landPos.Z + Avalanche.spawnBehindLanding,
+		startZ = Chase.avalancheStartZ(pending.landPos.Z, pending.landZone),
 		startTime = touchdown + Avalanche.warnSeconds,
 		speed = Chase.avalancheSpeed(pending.landZone),
 		controlStart = touchdown + Egg.runDelay,
@@ -361,6 +389,7 @@ local function startChase(pending: KickService.PendingChase)
 		hitbox = nil,
 		controlling = false,
 		resolved = false,
+		finished = false,
 		validPos = pending.landPos,
 		validAt = workspace:GetServerTimeNow(),
 		flags = 0,

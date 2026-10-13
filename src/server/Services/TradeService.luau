@@ -14,7 +14,7 @@
 --                  confirmed: { [string(userId)]: boolean }, confirmAfter: number }
 --   Any offer change clears both confirmations; confirming is allowed only from
 --   `confirmAfter` (server time, 2 s after the last change) so offers can't be swapped at the last moment.
---   Received pets go onto free pedestals (PlotService:PlaceUnplacedPets), or stay in the inventory.
+--   Received pets arrive stored (in the inventory); the new owner places them from the Pets screen.
 --
 --   C->S SellPet(petUid: string) → money += base income x size x weather x Economy.SellIncomeSeconds,
 --        plus the pet's uncollected cash. Traded pets keep their uncollected cash.
@@ -75,13 +75,13 @@ function TradeService.swap(
 	local newA, newB = table.clone(petsA), table.clone(petsB)
 	for _, uid in offerA do
 		local pet = table.clone(petsA[uid])
-		pet.slot = nil
+		pet.placed, pet.x, pet.z, pet.slot = nil, nil, nil, nil
 		newA[uid] = nil
 		newB[uid] = pet
 	end
 	for _, uid in offerB do
 		local pet = table.clone(petsB[uid])
-		pet.slot = nil
+		pet.placed, pet.x, pet.z, pet.slot = nil, nil, nil, nil
 		newB[uid] = nil
 		newA[uid] = pet
 	end
@@ -153,8 +153,7 @@ local function complete(trade: Trade)
 		Analytics.custom(player, "TradeCompleted", #trade.offers[partnerOf(trade, player)])
 	end
 	for _, player in { trade.a, trade.b } do
-		PlotService:PlaceUnplacedPets(player)
-		PlotService:PlaceWaitingEggs(player) -- pedestals freed by pets traded away
+		PlotService:PlaceUnplacedPets(player) -- redraws the pen: pets traded away leave it
 		task.spawn(function()
 			DataService:SaveNow(player)
 		end)
@@ -264,11 +263,10 @@ local function onSellPet(player: Player, petUid: any)
 	end
 	local pets = table.clone(data.pets)
 	pets[petUid] = nil
-	local value = TradeService.sellValue(pet) + math.floor(pet.stored or 0) -- uncollected cash too
+	local value = TradeService.sellValue(pet)
 	DataService:Set(player, { pets = pets, money = data.money + value })
 	Analytics.money(player, "Source", value, "Gameplay", "SellPet")
-	PlotService:Refresh(player)
-	PlotService:PlaceWaitingEggs(player) -- its pedestal is free now
+	PlotService:ForgetPet(player, petUid) -- its model leaves the pen
 end
 
 -- Sells every listed pet the player owns and isn't offering in a trade, in one data write, and
@@ -291,7 +289,7 @@ local function onSellPets(player: Player, petUids: any)
 			seen[petUid] = true
 			local pet = pets[petUid]
 			if pet and not TradeService:IsOffered(player, petUid) then
-				total += TradeService.sellValue(pet) + math.floor(pet.stored or 0)
+				total += TradeService.sellValue(pet)
 				pets[petUid] = nil
 				table.insert(sold, petUid)
 			end
@@ -300,8 +298,9 @@ local function onSellPets(player: Player, petUids: any)
 	if #sold > 0 then
 		DataService:Set(player, { pets = pets, money = data.money + total })
 		Analytics.money(player, "Source", total, "Gameplay", "SellPet")
-		PlotService:Refresh(player)
-		PlotService:PlaceWaitingEggs(player)
+		for _, petUid in sold do
+			PlotService:ForgetPet(player, petUid)
+		end
 	end
 	Remotes.get("PetsSold"):FireClient(player, { count = #sold, total = total, petUids = sold })
 end

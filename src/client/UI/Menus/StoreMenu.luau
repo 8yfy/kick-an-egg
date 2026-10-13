@@ -225,20 +225,12 @@ function StoreMenu.new(parent: Instance): Menu
 		)}`
 		power.pill.Text = "Kick your sack"
 		power.label.Text = "TRAIN"
-		for _, pair in { { speed, "RunSpeed", "runSpeed" } } do
-			local c = pair[1] :: Card
-			local cfg = (Economy :: any)[pair[2]]
-			local value = data[pair[3]]
-			if typeof(value) == "number" and cfg then
-				local maxed = value >= cfg.max
-				c.subtitle.Text = `{Kit.formatNumber(value)} / {Kit.formatNumber(cfg.max)}`
-				c.pill.Text = if maxed then "MAXED" else gain("+1", if pair[2] == "KickPower" then "Power" else "Speed")
-				setPrice(
-					c,
-					if maxed then nil else math.floor(cfg.costBase * cfg.costGrowth ^ (value - cfg.base)),
-					money
-				)
-			end
+		do -- Run Speed: unlimited levels (Economy.speedCost / runSpeedAt)
+			local level = if typeof(data.speedLevel) == "number" then data.speedLevel else 0
+			local speedNow = Economy.runSpeedAt(level)
+			speed.subtitle.Text = `{Kit.formatNumber(math.floor(speedNow * 10) / 10)} (level {level})`
+			speed.pill.Text = gain(`+{math.floor((Economy.runSpeedAt(level + 1) - speedNow) * 10 + 0.5) / 10}`, "Speed")
+			setPrice(speed, Economy.speedCost(level), money)
 		end
 		local plvl = math.max(1, MyBase.level("PenLevel", data, "penLevel"))
 		local slots = math.min(Economy.PlotSlots.base + (plvl - 1) * Upgrades.Pen.slotsPerLevel, Economy.PlotSlots.max)

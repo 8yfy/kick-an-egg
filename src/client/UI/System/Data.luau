@@ -101,7 +101,15 @@ end
 -- Training: boxing sacks ---------------------------------------------------------------------------------
 
 export type SackState = "Equipped" | "Owned" | "Buy" | "Insufficient" | "Locked"
-export type SackRow = { tier: number, name: string, gain: number, cost: number, fx: string, state: SackState }
+export type SackRow = {
+	tier: number,
+	name: string,
+	gain: number,
+	cap: number, -- trains kick power up to this (Economy.sackCap: grows with rebirths)
+	cost: number,
+	fx: string,
+	state: SackState,
+}
 
 -- The sack ladder (Config/Upgrades.Sack): your tier is the one you train with; lower tiers are owned and
 -- superseded (there is no equip-a-lower-sack rule); only the next tier can be bought; later ones are locked.
@@ -115,25 +123,42 @@ function Data.sacks(): { SackRow }
 			elseif i < tier then "Owned"
 			elseif i == tier + 1 then (if money >= t.cost then "Buy" else "Insufficient")
 			else "Locked"
-		table.insert(rows, { tier = i, name = t.name, gain = t.gain, cost = t.cost, fx = t.fx, state = state })
+		local cap = math.floor(Economy.sackCap(t.cap, num("rebirths", 0)) * 10 + 0.5) / 10
+		table.insert(
+			rows,
+			{ tier = i, name = t.name, gain = t.gain, cap = cap, cost = t.cost, fx = t.fx, state = state }
+		)
 	end
 	return rows
 end
 
 -- Training: run speed --------------------------------------------------------------------------------------
 
-export type SpeedInfo = { current: number, base: number, max: number, cost: number?, maxed: boolean }
+export type SpeedInfo = {
+	current: number, -- studs/s now (1 decimal)
+	nextSpeed: number, -- studs/s after one more level
+	level: number,
+	base: number,
+	max: number, -- the speed every level approaches (never reached)
+	cost: number?,
+	maxed: boolean, -- always false: Run Speed has no level cap
+}
+
+local function oneDecimal(x: number): number
+	return math.floor(x * 10 + 0.5) / 10
+end
 
 function Data.speed(): SpeedInfo
 	local rs = Economy.RunSpeed
-	local current = num("runSpeed", rs.base)
-	local maxed = current >= rs.max
+	local level = num("speedLevel", 0)
 	return {
-		current = current,
+		current = oneDecimal(Economy.runSpeedAt(level)),
+		nextSpeed = oneDecimal(Economy.runSpeedAt(level + 1)),
+		level = level,
 		base = rs.base,
 		max = rs.max,
-		cost = if maxed then nil else Economy.upgradeCost("RunSpeed", current),
-		maxed = maxed,
+		cost = Economy.speedCost(level),
+		maxed = false,
 	}
 end
 
@@ -231,19 +256,16 @@ local function plotsFolder(): Instance?
 	return base and base:FindFirstChild("Plots") or nil
 end
 
--- petUid -> {income, stored} from the pedestal models.
-local function liveStats(): { [string]: { income: number, stored: number } }
+-- petUid -> {income} from the placed pets' models (the server's exact income, all multipliers included).
+local function liveStats(): { [string]: { income: number } }
 	local out = {}
 	local folder = plotsFolder()
 	if folder then
 		for _, model in folder:GetChildren() do
 			local uid = model:GetAttribute("PetUid")
 			if typeof(uid) == "string" then
-				local income, stored = model:GetAttribute("Income"), model:GetAttribute("Stored")
-				out[uid] = {
-					income = if typeof(income) == "number" then income else 0,
-					stored = if typeof(stored) == "number" then stored else 0,
-				}
+				local income = model:GetAttribute("Income")
+				out[uid] = { income = if typeof(income) == "number" then income else 0 }
 			end
 		end
 	end
@@ -258,27 +280,29 @@ export type EggRow = {
 	name: string, -- egg name ("<Pet> Egg")
 	rarity: string,
 	model: string,
-	slot: number?, -- on a pedestal (hatching); nil = waiting for a free pedestal
+	slot: number?, -- 1 = placed in the pen (hatching); nil = in the inventory (hold it, then place it)
+	placed: boolean,
 	placedAt: number?,
 	hatchAt: number?,
 }
 
--- Hatching eggs (on pedestals, soonest first) then eggs waiting for a free pedestal (oldest first).
--- Eggs hatch by themselves on the server at hatchAt; the client never hatches anything.
+-- Hatching eggs (placed in the pen, soonest first) then inventory eggs (oldest first): hold one (EquipEgg)
+-- and put it down in your pen. Eggs hatch by themselves on the server at hatchAt; the client never hatches.
 function Data.eggs(): { EggRow }
 	local rows: { EggRow } = {}
 	local plots = Data.state.plots
 	if typeof(plots) == "table" then
-		for slotKey, egg in plots do
+		for uidKey, egg in plots do
 			if typeof(egg) == "table" and typeof(egg.petId) == "string" then
 				local config = petsById[egg.petId]
 				table.insert(rows, {
-					uid = tostring(egg.uid),
+					uid = tostring(egg.uid or uidKey),
 					petId = egg.petId,
 					name = (if config then config.name else egg.petId) .. " Egg",
 					rarity = if config then config.rarity else "Common",
 					model = if config then config.model else "",
-					slot = tonumber(slotKey),
+					slot = 1,
+					placed = true,
 					placedAt = egg.placedAt,
 					hatchAt = egg.hatchAt,
 				})
@@ -299,6 +323,7 @@ function Data.eggs(): { EggRow }
 					name = (if config then config.name else egg.petId) .. " Egg",
 					rarity = if config then config.rarity else "Common",
 					model = if config then config.model else "",
+					placed = false,
 				})
 			end
 		end
@@ -318,10 +343,11 @@ export type PetRow = {
 	model: string,
 	size: string?,
 	weather: string?,
-	slot: number?, -- on a pedestal (earning); protected from bulk sell by default
-	income: number, -- $/s
-	stored: number, -- uncollected cash on its pedestal (paid out when sold)
-	sellValue: number, -- what SellPet(s) pays: Economy.SellIncomeSeconds of base income x size x weather + stored
+	slot: number?, -- 1 = placed (roaming the pen, earning); nil = stored. Placed pets are protected from bulk sell
+	placed: boolean,
+	income: number, -- money per second (paid straight into money while placed)
+	stored: number, -- always 0 (no pedestal cash any more); kept for older screens
+	sellValue: number, -- what SellPet(s) pays: Economy.SellIncomeSeconds of base income x size x weather
 }
 
 local function mutationIncome(size: string?, weather: string?): number
@@ -344,7 +370,6 @@ function Data.pets(): { PetRow }
 			local base = if config then config.income else 0
 			local mult = mutationIncome(pet.size, pet.weather)
 			local stats = live[uid]
-			local stored = math.floor(if stats then stats.stored else (tonumber(pet.stored) or 0))
 			local rarity = if config then config.rarity else "Common"
 			table.insert(rows, {
 				uid = uid,
@@ -356,10 +381,11 @@ function Data.pets(): { PetRow }
 				model = if config then config.model else "",
 				size = pet.size,
 				weather = pet.weather,
-				slot = tonumber(pet.slot),
+				slot = if pet.placed == true then 1 else nil,
+				placed = pet.placed == true,
 				income = if stats then stats.income else base * mult * rebirthMult,
-				stored = stored,
-				sellValue = math.floor(base * mult * Economy.SellIncomeSeconds) + stored,
+				stored = 0,
+				sellValue = math.floor(base * mult * Economy.SellIncomeSeconds),
 			})
 		end
 	end
@@ -368,7 +394,7 @@ end
 
 export type Capacity = { slots: number, eggs: number, pets: number, waitingEggs: number, unplacedPets: number }
 
--- Pedestals: hatching eggs and placed pets share them (PlotService); everything else waits.
+-- Pen capacity: placed eggs and placed pets share it (PlotService); everything else is in the inventory.
 function Data.capacity(): Capacity
 	local eggs, pets, waiting, unplaced = 0, 0, 0, 0
 	if typeof(Data.state.plots) == "table" then
@@ -378,7 +404,7 @@ function Data.capacity(): Capacity
 	end
 	if typeof(Data.state.pets) == "table" then
 		for _, pet in Data.state.pets do
-			if typeof(pet) == "table" and pet.slot ~= nil then
+			if typeof(pet) == "table" and pet.placed == true then
 				pets += 1
 			else
 				unplaced += 1
@@ -389,6 +415,50 @@ function Data.capacity(): Capacity
 		waiting = #Data.state.eggs
 	end
 	return { slots = Data.pen().slots, eggs = eggs, pets = pets, waitingEggs = waiting, unplacedPets = unplaced }
+end
+
+-- Pet Index completion milestones (Economy.IndexMilestones; claimed on the server, IndexService) -----------
+
+export type Milestone = {
+	count: number,
+	money: number,
+	incomeBonus: number?,
+	state: "Claimed" | "Claim" | "Locked",
+}
+
+-- Different pets discovered (Pet Index), all of them, and the milestone rows.
+function Data.milestones(): (number, number, { Milestone })
+	local discovered = Data.state.discovered
+	local found, all = 0, 0
+	for _, pet in PetsConfig do
+		all += 1
+		if typeof(discovered) == "table" and discovered[pet.id] then
+			found += 1
+		end
+	end
+	local claimed = Data.state.indexMilestones
+	local rows: { Milestone } = {}
+	for _, m in Economy.IndexMilestones do
+		local done = typeof(claimed) == "table" and claimed[tostring(m.count)] == true
+		table.insert(rows, {
+			count = m.count,
+			money = m.money,
+			incomeBonus = m.incomeBonus,
+			state = if done then "Claimed" elseif found >= m.count then "Claim" else "Locked",
+		})
+	end
+	return found, all, rows
+end
+
+function Data.claimableMilestones(): number
+	local _, _, rows = Data.milestones()
+	local n = 0
+	for _, r in rows do
+		if r.state == "Claim" then
+			n += 1
+		end
+	end
+	return n
 end
 
 -- Pet Index ------------------------------------------------------------------------------------------------

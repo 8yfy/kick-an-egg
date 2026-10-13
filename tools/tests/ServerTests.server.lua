@@ -1,6 +1,6 @@
 --!strict
 -- Headless server tests (Partner B). Run from the repo root with Studio installed:
---   sh tools/run-tests.sh            (or: tools/run-tests.sh tools/tests/Balance.server.lua)
+--   sh tools/run-tests.sh            (or: tools/run-tests.sh tools/tests/Progression.server.lua)
 -- Uses run-in-roblox, which runs this script inside Studio as a plugin: services are required
 -- directly (their Init/Start don't run), so only pure logic is tested here.
 
@@ -101,18 +101,82 @@ section("PlotService.petIncome", function()
 end)
 
 section("Economy", function()
-	check("RunSpeed cost 17", Economy.upgradeCost("RunSpeed", 17) == 62)
 	check("power cap after 2 rebirths", Economy.maxKickPower(2) == 150)
+	-- Run Speed: unlimited levels, speed approaches the max, costs grow and never overflow
+	check("speed level 0 = base", Economy.runSpeedAt(0) == Economy.RunSpeed.base)
+	local last, lastCost, rising, cheaper = -1, -1, true, true
+	for level = 0, 400 do
+		local v, c = Economy.runSpeedAt(level), Economy.speedCost(level)
+		rising = rising and v > last and v < Economy.RunSpeed.max
+		cheaper = cheaper and c > lastCost and c == c and c < math.huge
+		last, lastCost = v, c
+	end
+	check("speed rises every level and stays under the max", rising)
+	check("speed cost rises every level, finite", cheaper)
+	for _, level in { 1e6, 1e12, 0 / 0, -5 } do
+		local v, c = Economy.runSpeedAt(level), Economy.speedCost(level)
+		check(`speed at level {level} is safe`, v == v and v <= Economy.RunSpeed.max and c == c and c < math.huge)
+	end
+	for _, old in { 16, 17, 25, 40 } do
+		local level = Economy.speedLevelFor(old)
+		check(`old speed {old} keeps its speed`, Economy.runSpeedAt(level) >= old - 1e-6)
+	end
+	check("upgradeCost(RunSpeed) = speedCost(level)", Economy.upgradeCost("RunSpeed", 7) == Economy.speedCost(7))
+	-- avalanche speed: smooth, faster later, always below the top egg speed
+	local Chase = require(Shared.Config.Chase) :: any
+	local prev, smooth, escapable = 0, true, true
+	for zone = 1, 20 do
+		local v = Chase.avalancheSpeed(zone)
+		smooth = smooth and v > prev and (zone == 1 or v - prev < 3)
+		escapable = escapable and v < Economy.RunSpeed.max - 6
+		prev = v
+	end
+	check("avalanche faster in every later zone, no big jumps", smooth)
+	check("a fully upgraded egg can outrun every avalanche", escapable)
+	-- avalanche start: inside the landing zone, a fair gap behind the egg, never past the end wall
+	local Zones = require(Shared.Config.Zones) :: any
+	local A = Chase.Avalanche
+	local inside, gap, onMap = true, true, true
+	for zone = 1, 20 do
+		local z = Zones[zone]
+		for _, wanted in { z.start + 1, z.start + z.length / 2, z.start + z.length - 1 } do
+			-- real landings stop Chase.Landing.endMargin before the end wall (KickService.landingPoint)
+			local landZ = math.min(wanted, Chase.trackEnd() - Chase.Landing.endMargin)
+			local start = Chase.avalancheStartZ(landZ, zone)
+			gap = gap and start - landZ >= A.spawnMinBehind - 1e-6
+			onMap = onMap and start <= Chase.trackEnd() - A.endMargin + 1e-6
+			if landZ + A.spawnMinBehind <= z.start + z.length then
+				inside = inside and start <= z.start + z.length + 1e-6
+			end
+		end
+	end
+	check("avalanche starts inside the landing zone when there is room", inside)
+	check("avalanche never closer than the minimum gap", gap)
+	check("avalanche never past the map's end wall", onMap)
+	-- sack training caps: power follows the sack ladder
+	local Upgrades = require(Shared.Config.Upgrades) :: any
+	local capsUp = true
+	for i = 2, #Upgrades.Sack.tiers do
+		capsUp = capsUp and Upgrades.Sack.tiers[i].cap > Upgrades.Sack.tiers[i - 1].cap
+	end
+	check("every sack trains further than the one before", capsUp)
+	check(
+		"the last sack trains to the absolute cap",
+		Upgrades.Sack.tiers[#Upgrades.Sack.tiers].cap == Economy.KickPower.max
+	)
+	check("sack caps grow with rebirths", Economy.sackCap(10, 1) == 12.5)
+	check("rebirths add a little kick distance", Economy.distanceMultiplier(2) == 1.2)
 end)
 
 section("TradeService", function()
 	local T = require(Services.TradeService) :: any
-	local a = { p1 = { petId = "sprout_pup", slot = 1 }, p2 = { petId = "bumble_bloc", slot = 2 } }
-	local b = { q1 = { petId = "meadow_stag", slot = 1 } }
+	local a =
+		{ p1 = { petId = "sprout_pup", placed = true, x = 1, z = 2 }, p2 = { petId = "bumble_bloc", placed = true } }
+	local b = { q1 = { petId = "meadow_stag", placed = true } }
 	local na, nb = T.swap(a, b, { "p1" }, { "q1" })
-	check("A receives q1 unplaced", na and na.q1 and na.q1.slot == nil and na.p1 == nil and na.p2.slot == 2)
-	check("B receives p1 unplaced", nb and nb.p1 and nb.p1.slot == nil and nb.q1 == nil)
-	check("inputs untouched", a.p1.slot == 1 and b.q1 ~= nil)
+	check("A receives q1 stored", na and na.q1 and na.q1.placed == nil and na.p1 == nil and na.p2.placed == true)
+	check("B receives p1 stored", nb and nb.p1 and nb.p1.placed == nil and nb.p1.x == nil and nb.q1 == nil)
+	check("inputs untouched", a.p1.placed == true and b.q1 ~= nil)
 	check("missing pet rejects", T.swap(a, b, { "zzz" }, {}) == nil)
 	check("sell value", T.sellValue({ petId = "meadow_stag", size = "Huge", weather = "Sunny" }) == 2160)
 end)
@@ -167,7 +231,17 @@ section("SackService + pens + collecting", function()
 	check("sack 1 adds its gain", SS.trained(1, 1, 0) == 1 + levels[1].gain)
 	check("better sack trains faster", SS.trained(1, 5, 0) > SS.trained(1, 1, 0))
 	check("strength capped", SS.trained(Economy.maxKickPower(0), #levels, 0) == Economy.maxKickPower(0))
-	check("rebirth raises the cap", SS.trained(Economy.maxKickPower(0), 1, 1) > Economy.maxKickPower(0))
+	check("rebirth raises the cap", SS.trained(Economy.maxKickPower(0), #levels, 1) > Economy.maxKickPower(0))
+	check("a sack stops at its cap", SS.trained(levels[1].cap - 0.01, 1, 0) == levels[1].cap)
+	check("past a sack's cap only a better sack helps", SS.trained(levels[1].cap, 1, 0) == levels[1].cap)
+	check("power above the cap is never lowered", SS.trained(50, 1, 0) == 50)
+	local kicks = 0
+	local power = Economy.KickPower.base
+	while power < levels[1].cap and kicks < 10000 do
+		power = SS.trained(power, 1, 0)
+		kicks += 1
+	end
+	check(`the first sack takes real training ({kicks} kicks to its cap)`, kicks >= 30 and kicks <= 80)
 	check("next sack cost", SS.sackCost(1) == levels[2].cost)
 	check("no sack after the top", SS.sackCost(#levels) == nil)
 	local root = CFrame.lookAt(Vector3.new(30, 3, -40), Vector3.new(30, 3, -50))
@@ -305,13 +379,84 @@ section("SackService + pens + collecting", function()
 		end
 		check("boxing sack shop opens the existing sack screen", opens)
 		check("boxing sack shop shows 6 sack models", sacks == 6)
-		local trainPrompts = 0
+		local trainPrompts, stands, rackSigns = 0, 0, 0
 		for _, d in map:GetDescendants() do
 			if d:IsA("ProximityPrompt") and d:GetAttribute("Action") == "EquipSack" then
 				trainPrompts += 1
+			elseif d.Name == "SackStand" then
+				stands += 1
+			elseif d.Name == "RackSign" then
+				rackSigns += 1
 			end
 		end
-		check("every base's sack stand has a Train prompt", trainPrompts == 8)
+		check("old sack stands, Train prompts and sack signs are gone", trainPrompts + stands + rackSigns == 0)
+		local bases = map.SafeZone.Bases:GetChildren()
+		check("six pens", #bases == 6)
+		local areas = 0
+		for _, base in bases do
+			local area = base:FindFirstChild("PenArea")
+			if
+				area
+				and area:IsA("BasePart")
+				and base:FindFirstChild("OwnerAnchor")
+				and not base:FindFirstChild("Pedestals")
+			then
+				areas += 1
+			end
+		end
+		check("every pen has its floor frame and owner anchor, no pedestals", areas == 6)
+		local CollectionService = game:GetService("CollectionService")
+		check("lanes + ramp are the landing surfaces", #CollectionService:GetTagged("LandingSurface") == 21)
+		local Physics = game:GetService("PhysicsService")
+		check(
+			"steered eggs pass through characters (the kicker waits on the pad, on the way home)",
+			not Physics:CollisionGroupsAreCollidable("Eggs", "Players")
+				and not Physics:CollisionGroupsAreCollidable("Eggs", "PlayerBarrier")
+				and Physics:CollisionGroupsAreCollidable("Eggs", "Default")
+		)
+		-- landings only on the track: never past the end wall, never on top of walls / props / eggs
+		local KS = require(Services.KickService) :: any
+		local Chase = require(Shared.Config.Chase) :: any
+		local okLand = true
+		for _, dist in { 21, 150, 999.5, 1000, 1900, 1990, 2050, 5000 } do
+			for _, x in { -30, 0, 17 } do
+				local p = KS.landingPoint(x, dist)
+				okLand = okLand
+					and p.Z <= Chase.trackEnd() - Chase.Landing.endMargin + 1e-6
+					and math.abs(p.X) <= Chase.RunwayWidth / 2 - Chase.Landing.edgeMargin + 1e-6
+					and p.Y > -1
+					and p.Y < 14
+			end
+		end
+		check("eggs land only on the track, inside the lane, before the end wall", okLand)
+		-- pen geometry (PlotService): pen-local coordinates, egg spots
+		local base1 = map.SafeZone.Bases:FindFirstChild("Base1") :: Model
+		local area = base1:FindFirstChild("PenArea") :: BasePart
+		local inside = PS.toWorld(area, 3, -4)
+		local lx, lz, ok = PS.toLocal(area, inside)
+		check("pen local <-> world round trip", ok and math.abs(lx - 3) < 1e-3 and math.abs(lz + 4) < 1e-3)
+		local _, _, outside = PS.toLocal(area, PS.toWorld(area, area.Size.X / 2 + 2, 0))
+		check("past the fence is outside the pen", not outside)
+		local penData = {
+			plots = { e1 = { uid = "e1", petId = "sprout_pup", x = 0, z = 0, hatchAt = 1 } },
+			pets = {},
+			penLevel = 1,
+		}
+		check("egg spot: free spot is fine", PS.eggSpotProblem(area, penData, PS.toWorld(area, 10, 5)) == nil)
+		check("egg spot: too close to an egg", PS.eggSpotProblem(area, penData, PS.toWorld(area, 1, 1)) ~= nil)
+		check("egg spot: outside the pen", PS.eggSpotProblem(area, penData, PS.toWorld(area, 100, 0)) ~= nil)
+		local full = { plots = {}, pets = {}, penLevel = 1 }
+		for i = 1, PS.slotsForPen(1) do
+			full.pets["p" .. i] = { petId = "sprout_pup", placed = true }
+		end
+		check("egg spot: a full pen", PS.eggSpotProblem(area, full, PS.toWorld(area, 10, 5)) ~= nil)
+		local hx, hz = PS.penHalf(area)
+		local spots = true
+		for _ = 1, 50 do
+			local spot = PS.pickSpot(hx, hz, { Vector3.zero }, Vector3.zero)
+			spots = spots and math.abs(spot.X) <= hx and math.abs(spot.Z) <= hz
+		end
+		check("roaming targets stay inside the pen", spots)
 	end
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)
@@ -319,12 +464,6 @@ section("SackService + pens + collecting", function()
 	check("pen 1 -> 2 cost", RS.penCost(1) == Upgrades.Pen.costBase)
 	check("pen 2 -> 3 cost", RS.penCost(2) == Upgrades.Pen.costBase * Upgrades.Pen.costGrowth)
 	check("no pen upgrade at max slots", RS.penCost(99) == nil)
-	local top = Instance.new("Part")
-	top.Size = Vector3.new(2.8, 0.3, 2.8)
-	top.Position = Vector3.new(10, 1.35, -30)
-	check("standing on the pedestal collects", PS.onPedestal(top, Vector3.new(11, 4, -30)))
-	check("next to the pedestal doesn't", not PS.onPedestal(top, Vector3.new(16, 4, -30)))
-	top:Destroy()
 	local D = require(Services.DataService) :: any
 	local d = {
 		money = 0,
@@ -358,15 +497,94 @@ section("SackService + pens + collecting", function()
 		discovered = { maple_fox = true, junk = 5, [7] = true },
 		indexClaims = "nope",
 	}
+	D.migrate(d2)
 	D.sanitize(d2)
 	check("owned pets count as discovered", d2.discovered.sprout_pup == true and d2.discovered.gull_bloc == true)
 	check("discovered keeps earlier finds", d2.discovered.maple_fox == true)
 	check("discovered drops junk", d2.discovered.junk == nil and d2.discovered[7] == nil)
 	check("bad indexClaims reset", typeof(d2.indexClaims) == "table" and next(d2.indexClaims) == nil)
+	-- v1 -> v2 save migration: pedestals -> placed pets / eggs at their old spots, cash paid out, speed kept
+	local old = {
+		version = 1,
+		money = 100,
+		kickPower = 12,
+		runSpeed = 25,
+		rebirths = 0,
+		eggs = { { uid = "w1", petId = "sprout_pup" } },
+		pets = {
+			a = { petId = "sprout_pup", slot = 1, stored = 40.7 },
+			b = { petId = "bumble_bloc", slot = 7, stored = 0 },
+			c = { petId = "meadow_stag" },
+		},
+		plots = { ["3"] = { uid = "e3", petId = "sprout_pup", placedAt = 5, hatchAt = 15 } },
+		stats = {},
+		receipts = {},
+	}
+	D.migrate(old)
+	D.sanitize(old)
+	local ax, az = D.slotSpot(1)
+	check("migration: version 2", old.version == D.VERSION)
+	check(
+		"migration: pedestal pets are placed at their spots",
+		old.pets.a.placed == true and old.pets.a.x == ax and old.pets.a.z == az
+	)
+	check("migration: unplaced pets stay stored", old.pets.c.placed == nil)
+	check("migration: no pedestal fields left", old.pets.a.slot == nil and old.pets.a.stored == nil)
+	check("migration: pedestal cash paid out", old.money == 140)
+	check(
+		"migration: placed eggs keyed by uid with a spot",
+		old.plots.e3 ~= nil and old.plots["3"] == nil and typeof(old.plots.e3.x) == "number"
+	)
+	check("migration: inventory eggs untouched", #old.eggs == 1 and old.eggs[1].uid == "w1")
+	check("migration: run speed kept", old.runSpeed >= 25 - 1e-6 and old.speedLevel == Economy.speedLevelFor(25))
+	check("migration: power kept", old.kickPower == 12)
+	local again = table.clone(old)
+	D.migrate(again)
+	check("migration runs once", again.money == 140)
+	check("new fields defaulted", typeof(old.tutorial) == "table" and typeof(old.indexMilestones) == "table")
+	local slotSpotsInPen = true
+	for slot = 1, 20 do
+		local x, z = D.slotSpot(slot)
+		slotSpotsInPen = slotSpotsInPen and math.abs(x) <= 52 / 2 - 3.5 and math.abs(z) <= 44 / 2 - 3.5
+	end
+	check("every old pedestal spot is inside the new pens", slotSpotsInPen)
+end)
+
+section("Pets and eggs: all 79 build (hatching never fails on a model)", function()
+	local Pets = require(Shared.Config.Pets) :: any
+	local Models = require(Shared.Builders.Models) :: any
+	local bad = {}
+	for _, pet in Pets do
+		for _, kind in { "pet", "egg" } do
+			local ok, model = pcall(Models[kind], pet.model)
+			if not ok or typeof(model) ~= "Instance" or not model.PrimaryPart then
+				table.insert(bad, `{kind} {pet.model}: {model}`)
+			else
+				model:Destroy()
+			end
+		end
+	end
+	check(`all {#Pets} pets and their eggs build`, #bad == 0)
+	for _, b in bad do
+		warn("  " .. b)
+	end
+	check("79 pets configured", #Pets == 79)
 end)
 
 section("Pet Index + rebirth rules", function()
 	local IS = require(Services.IndexService) :: any
+	local allPets = require(Shared.Config.Pets) :: any
+	local all = {}
+	for _, pet in allPets do
+		all[pet.id] = true
+	end
+	check("discovered count", IS.discoveredCount(all) == #allPets and IS.discoveredCount({}) == 0)
+	local counts = {}
+	for _, m in Economy.IndexMilestones do
+		table.insert(counts, m.count)
+	end
+	check("index milestones 10/25/40/60/79", table.concat(counts, ",") == "10,25,40,60,79")
+	check("the last milestone is the whole index", Economy.IndexMilestones[#Economy.IndexMilestones].count == #allPets)
 	local Pets = require(Shared.Config.Pets) :: any
 	local zone1 = {}
 	for _, pet in Pets do
@@ -538,6 +756,338 @@ section("Kick Sack VFX: levels of detail, quality profiles, no leaks", function(
 	check("sack vfx: Apply registers the effect for LOD", SackLod.count() == before + 1)
 	model:Destroy()
 	check("sack vfx: destroying the sack unregisters and frees its effect", SackLod.count() == before)
+end)
+
+section("Tutorial, sack sounds, mystery egg, merchants", function()
+	local TS = require(Services.TutorialService) :: any
+	local St = TS.Steps
+	local fresh = { stats = { kicks = 0, secured = 0, lost = 0 }, pets = {}, plots = {}, eggs = {}, tutorial = {} }
+	check("tutorial: a new player starts at the kick line", TS.stepFor(fresh, false, false) == St.KICK_LINE)
+	check("tutorial: on the pad -> press KICK", TS.stepFor(fresh, true, false) == St.PRESS_KICK)
+	local kicked = table.clone(fresh)
+	kicked.stats = { kicks = 1, secured = 0, lost = 0 }
+	check("tutorial: kicked -> watch the egg", TS.stepFor(kicked, true, false) == St.WATCH_EGG)
+	local lost = table.clone(kicked)
+	lost.stats = { kicks = 1, secured = 0, lost = 1 }
+	check("tutorial: lost the first egg -> bring one home (never stuck)", TS.stepFor(lost, true, false) == St.COLLECT)
+	local secured = table.clone(kicked)
+	secured.stats = { kicks = 1, secured = 1, lost = 0 }
+	secured.eggs = { { uid = "e", petId = "sprout_pup" } }
+	check("tutorial: secured -> place the egg", TS.stepFor(secured, true, false) == St.PLACE_EGG)
+	local placed = table.clone(secured)
+	placed.eggs, placed.plots = {}, { e = { uid = "e" } }
+	check("tutorial: placed -> hatch", TS.stepFor(placed, true, false) == St.HATCH)
+	local hatched = table.clone(placed)
+	hatched.plots, hatched.pets = {}, { p = { petId = "sprout_pup", placed = true } }
+	check("tutorial: hatched -> income", TS.stepFor(hatched, true, false) == St.INCOME)
+	check("tutorial: earning -> upgrade", TS.stepFor(hatched, true, true) == St.UPGRADE)
+	local upgraded = table.clone(hatched)
+	upgraded.speedLevel = 1
+	check("tutorial: upgraded -> done", TS.stepFor(upgraded, true, true) == St.DONE)
+	local veteran = table.clone(upgraded)
+	veteran.tutorial = { done = true }
+	check("tutorial: finished stays finished", TS.stepFor(veteran, false, false) == 0)
+	local skipped = table.clone(fresh)
+	skipped.tutorial = { skipped = true }
+	check("tutorial: skipped never shows", TS.stepFor(skipped, false, false) == 0)
+	-- every sack has its own sounds for every moment; only built-in or uploaded ids, never invented ones
+	local SackSfx = require(Shared.VFX.SackSfx) :: any
+	local soundsOk, distinct = true, {}
+	for tier = 1, 20 do
+		for _, moment in { "equip", "impact", "special", "upgrade" } do
+			local layers = SackSfx.layers(tier, moment)
+			soundsOk = soundsOk and #layers > 0
+			for _, l in layers do
+				soundsOk = soundsOk and l.pitch > 0 and l.volume > 0 and l.volume <= 1
+			end
+		end
+		local sig = {}
+		for _, l in SackSfx.layers(tier, "impact") do
+			table.insert(sig, l.src .. l.pitch)
+		end
+		distinct[table.concat(sig, ",")] = true
+	end
+	local kinds = 0
+	for _ in distinct do
+		kinds += 1
+	end
+	check("every sack has equip / impact / special / upgrade sounds", soundsOk)
+	check(`sack impacts sound different ({kinds} distinct sets)`, kinds >= 15)
+	check("premium sacks have an ambient loop", #SackSfx.layers(18, "idle") > 0 and #SackSfx.layers(20, "idle") > 0)
+	check("basic sacks stay quiet when idle", #SackSfx.layers(1, "idle") == 0)
+	-- the black "?" mystery egg
+	local MysteryEgg = require(Shared.Builders.Models.MysteryEgg) :: any
+	local egg = MysteryEgg.build()
+	local marks = 0
+	for _, d in egg:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "Mark" then
+			marks += 1
+		end
+	end
+	check("mystery egg builds with its ? mark", egg.PrimaryPart ~= nil and marks == 9)
+	egg:Destroy()
+	-- merchants: no invented UserIds
+	local MerchantConfig = require(SSS.Server.Data.MerchantConfig) :: any
+	local merchantsOk = true
+	for _, m in MerchantConfig do
+		merchantsOk = merchantsOk and typeof(m.UserId) == "number" and typeof(m.DisplayName) == "string"
+	end
+	check("merchant config is well formed (UserIds come from the owner, 0 = not provided)", merchantsOk)
+end)
+
+section("Audio: no thunder on ordinary sounds, tiers, landings, contacts, the 10 scenarios", function()
+	local Audio = require(Shared.Audio) :: any
+	local B = require(Shared.Audio.SoundBank) :: any
+	local SackSfx = require(Shared.VFX.SackSfx) :: any
+	local Zones = require(Shared.Config.Zones) :: any
+	local KickService = require(Services.KickService) :: any
+	local BUILTIN = {}
+	for _, n in
+		{
+			"action_falling.ogg",
+			"action_footsteps_plastic.mp3",
+			"action_get_up.mp3",
+			"action_jump.mp3",
+			"action_jump_land.mp3",
+			"action_swim.mp3",
+			"impact_explosion_03.mp3",
+			"impact_water.mp3",
+			"volume_slider.ogg",
+		}
+	do
+		BUILTIN["rbxasset://sounds/" .. n] = true
+	end
+	local sourcesOk = true
+	for _, src in B.Sources do
+		sourcesOk = sourcesOk and BUILTIN[src.id] == true and src.gain > 0 and src.gain <= 12
+	end
+	check("audio: every source is a sound that ships with Roblox (no invented ids)", sourcesOk)
+	check("audio: no custom ids configured yet", next(B.CUSTOM) == nil)
+
+	local function hasBoom(layers): boolean
+		for _, l in layers do
+			if l.src == "boom" then
+				return true
+			end
+		end
+		return false
+	end
+	-- 1. thunder (the explosion) only for storms / electricity
+	local eventsClean = true
+	for name, def in B.Events do
+		for _, variant in def.variants do
+			if hasBoom(variant) then
+				eventsClean = false
+				warn("boom in " .. name)
+			end
+		end
+	end
+	check("audio: no event uses the thunder / explosion sound", eventsClean)
+	local landingClean, stormy = true, false
+	for surface in B.Surfaces do
+		for _, i in { 0, 0.5, 1 } do
+			for _, bounce in { false, true } do
+				landingClean = landingClean and not hasBoom((B.landing(surface, i, bounce, nil)))
+				for mutation in B.MutationAccent do
+					local m = B.landing(surface, i, bounce, mutation)
+					if mutation == "Stormy" then
+						stormy = hasBoom(m)
+					else
+						landingClean = landingClean and not hasBoom(m)
+					end
+				end
+			end
+		end
+	end
+	check("audio: egg landings never thunder (any surface, speed, bounce, mutation but Stormy)", landingClean)
+	check("audio: a Stormy egg may add a quiet far-off crack (storm = thunder is right)", stormy)
+	local sacksClean, thunderSpecial = true, nil
+	for tier = 1, 20 do
+		for _, moment in { "equip", "impact", "upgrade", "idle" } do
+			sacksClean = sacksClean and not hasBoom((SackSfx.layers(tier, moment)))
+		end
+		if hasBoom((SackSfx.layers(tier, "special"))) then
+			thunderSpecial = if thunderSpecial == nil then tier else -1
+		end
+	end
+	check("audio: no Kick Sack punch, drop or upgrade uses thunder", sacksClean)
+	check("audio: only Thunder Cell's (electric) super hit cracks", thunderSpecial == 14)
+
+	-- 2. every recipe fits its tier; the tiers really are a hierarchy
+	local fits, uiFlat, spatialOk, categoriesOk = true, true, true, true
+	local byTier = { {}, {}, {}, {} }
+	for name, def in B.Events do
+		for _, variant in def.variants do
+			if B.tierFor(variant, def.tier) ~= def.tier then
+				fits = false
+				warn(`{name} does not fit tier {def.tier}`)
+			end
+			local length, _, sum = B.measure(variant)
+			table.insert(byTier[def.tier], { length = length, sum = sum })
+		end
+		if def.category == "UI" then
+			uiFlat = uiFlat and not def.spatial
+		else
+			spatialOk = spatialOk and def.spatial
+		end
+		categoriesOk = categoriesOk and table.find(B.Categories, def.category) ~= nil
+	end
+	check("audio: every event fits its tier's caps (length, layers, loudness)", fits)
+	check("audio: every event is in a real category (SoundGroup)", categoriesOk)
+	check("audio: UI sounds are 2D, world sounds are 3D", uiFlat and spatialOk)
+	local means = {}
+	for t = 1, 4 do
+		local l, v = 0, 0
+		for _, m in byTier[t] do
+			l += m.length
+			v += m.sum
+		end
+		means[t] = { length = l / math.max(1, #byTier[t]), sum = v / math.max(1, #byTier[t]) }
+	end
+	check(
+		"audio: tier 1 < 2 < 3 < 4 in length and loudness",
+		means[1].length < means[2].length
+			and means[2].length < means[3].length
+			and means[3].length < means[4].length
+			and means[1].sum < means[2].sum
+			and means[2].sum < means[3].sum
+			and means[3].sum < means[4].sum
+	)
+	for _, name in { "UIClick", "EggStep", "HatchCrack", "MoneyChime" } do
+		local def = B.Events[name]
+		check(`audio: {name} (repeated often) has variations`, #def.variants >= 2 and (def.jitter or 0) > 0)
+	end
+
+	-- 3. landings: surface, speed, bounce, mutation
+	check(
+		"audio: a soft touch is silent",
+		B.landingIntensity(3) == nil and B.landingIntensity(B.Landing.minSpeed) ~= nil
+	)
+	local _, _, soft = B.measure((B.landing("grass", 0.1, false, nil)))
+	local _, _, hard = B.measure((B.landing("grass", 1, false, nil)))
+	local bounceLayers, bounceTier = B.landing("grass", 0.5, true, nil)
+	local landLayers = B.landing("grass", 0.5, false, nil)
+	local bl, _, bs = B.measure(bounceLayers)
+	local ll, _, ls = B.measure(landLayers)
+	check("audio: a faster landing is louder", hard > soft)
+	check("audio: a bounce is a short, lighter pop", bounceTier == 1 and bl <= ll and bs < ls)
+	local _, hardTier = B.landing("stone", 1, false, nil)
+	check("audio: even the hardest plain landing stays a tier 2 physical impact", hardTier <= 2)
+	local void = B.landing("stone", 0.5, false, "Starfall")
+	local fxCount = 0
+	for _, l in void do
+		fxCount += if l.fx then 1 else 0
+	end
+	check("audio: a cosmic (Starfall) egg adds a quiet resonance on top of the thump", fxCount >= 1 and fxCount < #void)
+	check(
+		"audio: surfaces follow the zone (plaza grass, Meadow grass, Volcano stone, Snowy Peaks snow)",
+		B.surfaceAt(Vector3.new(0, 11, -20), Zones, Chase.SafeLineZ) == "grass"
+			and B.surfaceAt(Vector3.new(0, 0, 50), Zones, Chase.SafeLineZ) == "grass"
+			and B.surfaceAt(Vector3.new(0, 0, 850), Zones, Chase.SafeLineZ) == "stone"
+			and B.surfaceAt(Vector3.new(0, 0, 550), Zones, Chase.SafeLineZ) == "snow"
+	)
+
+	-- 4. contacts come from the egg's velocity, with a minimum speed and a cooldown (never from Touched)
+	local function run(samples: { number }, dt: number): { string }
+		local st, out, t = B.newContact(), {}, 0
+		for _, vy in samples do
+			t += dt
+			local kind = B.contactStep(st, dt, vy, t)
+			if kind then
+				table.insert(out, kind)
+			end
+		end
+		return out
+	end
+	local fall = {}
+	for _ = 1, 30 do
+		table.insert(fall, -30)
+	end
+	for _ = 1, 10 do
+		table.insert(fall, 0)
+	end
+	local fallKinds = run(fall, 1 / 60)
+	check("audio: a long fall that stops = one landing", #fallKinds == 1 and fallKinds[1] == "land")
+	check("audio: contact chatter can't stack sounds (cooldown)", #run({ -12, 0, -12, 0, -12, 0, -12, 0 }, 1 / 60) <= 1)
+	local slope = {}
+	for _ = 1, 60 do
+		table.insert(slope, -3)
+	end
+	check("audio: running down a slope makes no impact sounds", #run(slope, 1 / 60) == 0)
+	local bounceKinds = run({ -20, -24, 12, 6, 0, -6, -12, -14, 0, 0 }, 1 / 20) -- hits, flies up, lands again
+	check(
+		"audio: a contact that flies back up = a bounce, the one that stays = the landing",
+		#bounceKinds == 2 and bounceKinds[1] == "bounce" and bounceKinds[2] == "land"
+	)
+
+	-- 5. kicks: the server's timing band picks the sound
+	check(
+		"audio: kick band from the timing",
+		KickService.band(0.95) == "perfect" and KickService.band(0.7) == "good" and KickService.band(0.2) == "weak"
+	)
+	local hasWhoosh, hasFx, hasImpact = false, false, false
+	for _, l in B.Events[B.kickEvent("perfect")].variants[1] do
+		hasWhoosh = hasWhoosh or l.src == "wind"
+		hasFx = hasFx or l.fx == true
+		hasImpact = hasImpact or l.src == "thump"
+	end
+	check("audio: Perfect Kick = whoosh + punchy impact + bright flourish", hasWhoosh and hasImpact and hasFx)
+	local goodFx = false
+	for _, l in B.Events[B.kickEvent("good")].variants[1] do
+		goodFx = goodFx or l.fx == true
+	end
+	check(
+		"audio: a normal kick is a controlled physical impact (no flourish)",
+		not goodFx and B.Events.KickGood.tier == 2
+	)
+
+	-- 6. the 10 required scenarios
+	local function physical(layers): boolean
+		for _, l in layers do
+			if l.src == "thump" or string.sub(l.src, 1, 3) == "tap" then
+				return true
+			end
+		end
+		return false
+	end
+	local grass, grassTier = B.landing("grass", 0.2, false, nil)
+	local stone = B.landing("stone", 0.6, false, nil)
+	local bounce = B.landing("grass", 0.4, true, nil)
+	local basic, basicTier = SackSfx.layers(1, "impact")
+	local premium = SackSfx.layers(20, "impact")
+	local premiumFx, basicFx = 0, false
+	for _, l in premium do
+		premiumFx += if l.fx then 1 else 0
+	end
+	for _, l in basic do
+		basicFx = basicFx or l.fx == true
+	end
+	check("scenario 1: a gentle drop on grass = a soft tier 1 thump", grassTier == 1 and grass[1].src == "thump")
+	check("scenario 2: a drop on stone = a short solid tap", stone[1].src == "tap3" and (B.measure(stone)) < 0.5)
+	check("scenario 3: bounces = short pops", (B.measure(bounce)) < 0.4)
+	check(
+		"scenario 4: the running egg = very quiet steps",
+		B.Events.EggStep.tier == 1 and B.Events.EggStep.variants[1][1].volume <= 0.1
+	)
+	check("scenario 5: a normal kick = KickGood", B.kickEvent("good") == "KickGood")
+	check("scenario 6: a Perfect Kick = KickPerfect (tier 3)", B.Events.KickPerfect.tier == 3)
+	check(
+		"scenario 7: a basic sack punch = a dry tier 1 thud, no magic",
+		basicTier == 1 and not basicFx and physical(basic)
+	)
+	check(
+		"scenario 8: a premium sack punch = physical hit + short sparkle",
+		physical(premium) and premiumFx >= 1 and premiumFx <= 3
+	)
+	check(
+		"scenario 9: a Common hatch = crack + pop (tier 2)",
+		B.hatchEvent("Common") == "HatchCommon" and B.Events.HatchCommon.tier == 2
+	)
+	check(
+		"scenario 10: a Secret hatch = the spectacular one (tier 4)",
+		B.hatchEvent("Secret") == "HatchSecret" and B.Events.HatchSecret.tier == 4
+	)
+	check("audio: an unknown event is ignored", Audio.play("NoSuchSound") == false)
 end)
 
 section("every service loads", function()

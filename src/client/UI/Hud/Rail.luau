@@ -1,7 +1,9 @@
 --!strict
 -- HUD navigation (UI handoff v2 01-Mockups/01-Gameplay-HUD.png). Left edge: SHOP (green), INDEX (cyan),
--- REBIRTH (purple) as horizontal icon + label buttons with the final approved icons (Shop = egg basket,
--- Index = open egg book; UI/System/AssetIds "hud_*"), animated by UI/System/IconMotion. No TRAINING button:
+-- REBIRTH (purple), TRADE (teal) as horizontal icon + label buttons with the final approved icons (Shop = egg
+-- basket, Index = open egg book; UI/System/AssetIds "hud_*"), animated by UI/System/IconMotion. TRADE has no
+-- approved icon yet, so it draws one in the same chunky style (two swap arrows; see Rail.tradeIcon) until a PNG
+-- is provided; it opens the existing trade window (Rail.openTrade, set by UI/init). No TRAINING button:
 -- sacks are bought at the physical Boxing Sack Shop in the world (MapBuilder sackShop -> the same screen).
 -- Phones (Kit.compact) shrink them to icon-only squares in the top-left corner, clear of the thumbstick (each
 -- keeps its Name for accessibility). Badges only when something is true: Index = a zone reward to claim,
@@ -20,7 +22,7 @@ local C = Theme.Colors
 local Rail = {}
 
 local NAV = Vector2.new(250, 86)
-local NAV_COMPACT = 92
+local NAV_COMPACT = 80 -- four icon-only squares fit a phone's height
 local GAP = 12
 
 export type RailButton = {
@@ -102,8 +104,12 @@ function Rail.nav(
 	local holder = Ui.frame(b, "Icon", UDim2.fromOffset(80, 80))
 	holder.AnchorPoint = Vector2.new(0, 0.5)
 	holder.ZIndex = 2
-	art = Ui.art(holder, icon)
-	art.ZIndex = 2
+	if icon == "drawn:trade" then
+		art = Rail.tradeIcon(holder)
+	else
+		art = Ui.art(holder, icon)
+		art.ZIndex = 2
+	end
 	if style then
 		IconMotion.attach(art, style)
 	end
@@ -177,10 +183,62 @@ function Rail.tile(
 	}
 end
 
+-- The TRADE icon, drawn in the HUD's chunky style (no approved PNG for it yet): two thick swap arrows, gold on top
+-- pointing right, white below pointing left, each with the dark outline the approved icons use. Returns an
+-- invisible ImageLabel holder (so IconMotion / ZIndex code treats it like the other icons).
+function Rail.tradeIcon(holder: Frame): ImageLabel
+	local art = Instance.new("ImageLabel")
+	art.Name = "TradeIcon"
+	art.BackgroundTransparency = 1
+	art.Size = UDim2.fromScale(1, 1)
+	art.ZIndex = 2
+	art.Parent = holder
+	local function arrow(y: number, dir: number, color: Color3)
+		local shaft = Instance.new("Frame")
+		shaft.Name = "Shaft"
+		shaft.AnchorPoint = Vector2.new(0.5, 0.5)
+		shaft.Position = UDim2.fromScale(0.5 - dir * 0.08, y)
+		shaft.Size = UDim2.fromScale(0.5, 0.17)
+		shaft.BackgroundColor3 = color
+		shaft.ZIndex = 3
+		Ui.corner(shaft, 6)
+		Ui.stroke(shaft, 3, C.border)
+		shaft.Parent = art
+		local head = Instance.new("Frame")
+		head.Name = "Head"
+		head.AnchorPoint = Vector2.new(0.5, 0.5)
+		head.Position = UDim2.fromScale(0.5 + dir * 0.2, y)
+		head.Size = UDim2.fromScale(0.3, 0.3)
+		head.SizeConstraint = Enum.SizeConstraint.RelativeYY
+		head.Rotation = 45
+		head.BackgroundColor3 = color
+		head.ZIndex = 4
+		Ui.corner(head, 4)
+		Ui.stroke(head, 3, C.border)
+		head.Parent = art
+		-- hide the head's back corner so it reads as an arrow tip
+		local cover = Instance.new("Frame")
+		cover.Name = "Cover"
+		cover.AnchorPoint = Vector2.new(0.5, 0.5)
+		cover.Position = UDim2.fromScale(0.5 + dir * 0.05, y)
+		cover.Size = UDim2.fromScale(0.16, 0.13)
+		cover.BackgroundColor3 = color
+		cover.BorderSizePixel = 0
+		cover.ZIndex = 5
+		cover.Parent = art
+	end
+	arrow(0.34, 1, C.power)
+	arrow(0.68, -1, C.text)
+	return art
+end
+
+-- Set by UI/init: opens the existing trade window (UI/Menus TradeMenu, TradeService).
+function Rail.openTrade() end
+
 export type LeftRail = { update: () -> () }
 
 function Rail.new(parent: Instance): LeftRail
-	local root = Ui.frame(parent, "LeftRail", UDim2.fromOffset(NAV.X, 3 * NAV.Y + 2 * GAP))
+	local root = Ui.frame(parent, "LeftRail", UDim2.fromOffset(NAV.X, 4 * NAV.Y + 3 * GAP))
 	Kit.autoScale(root)
 	Ui.list(root, GAP)
 
@@ -189,11 +247,16 @@ function Rail.new(parent: Instance): LeftRail
 		{ "Shop", "hud_shop", "shop" },
 		{ "Index", "hud_index", "index" },
 		{ "Rebirth", "hud_rebirth", "rebirth" },
+		{ "Trade", "drawn:trade", nil },
 	}
 	for i, e in entries do
 		local screen = e[1]
 		local btn = Rail.nav(root, screen, Theme.Nav[screen], e[2], function(gui: TextButton)
-			Modal.toggle(screen, gui)
+			if screen == "Trade" then
+				Rail.openTrade()
+			else
+				Modal.toggle(screen, gui)
+			end
 		end, e[3])
 		btn.gui.LayoutOrder = i
 		buttons[screen] = btn
@@ -201,7 +264,7 @@ function Rail.new(parent: Instance): LeftRail
 
 	Kit.onLayout(function(compact: boolean)
 		local h = if compact then NAV_COMPACT else NAV.Y
-		root.Size = UDim2.fromOffset(if compact then NAV_COMPACT else NAV.X, 3 * h + 2 * GAP)
+		root.Size = UDim2.fromOffset(if compact then NAV_COMPACT else NAV.X, 4 * h + 3 * GAP)
 		root.Position = if compact then UDim2.fromOffset(10, 8) else UDim2.new(0, 24, 0.333, 0)
 		for _, btn in buttons do
 			btn.setCompact(compact)
@@ -216,7 +279,7 @@ function Rail.new(parent: Instance): LeftRail
 
 	return {
 		update = function()
-			local claimable = Data.claimableZones()
+			local claimable = Data.claimableZones() + Data.claimableMilestones()
 			buttons.Index.setBadge(if claimable > 0 then tostring(claimable) else nil)
 			local rebirth = Data.rebirth()
 			buttons.Rebirth.setBadge(if rebirth.available and rebirth.ready and not rebirth.inChase then "!" else nil)

@@ -16,6 +16,7 @@ local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local Audio = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Audio")) :: any
 local AssetIds = require(script.Parent.AssetIds)
 local Motion = require(script.Parent.Motion)
 local Theme = require(script.Parent.Theme)
@@ -476,6 +477,11 @@ function Modal.toast(text: string, kind: ("info" | "good" | "error")?)
 		else C.border
 	Ui.padding(t, 20, 10)
 	local label = Ui.text(t, text, 26, { autoX = true, stroke = 3 })
+	if kind == "good" then
+		Audio.play("UISuccess") -- (masked right after a bigger fanfare)
+	elseif kind == "error" then
+		Audio.play("UIError")
+	end
 	t.Parent = toastLayer
 	table.insert(toasts, t)
 	local inner = Motion.scaleOf(t)

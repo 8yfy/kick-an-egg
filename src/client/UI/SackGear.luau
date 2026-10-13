@@ -1,8 +1,7 @@
 --!strict
--- Kick Sack gear without a HUD slot (the numbered SACK box is gone: no Tool UI in the HUD). SackService gives
--- every character a sack Tool; this takes it out / puts it away:
---   * the "Train" prompt on every base's sack stand (UI/Interact, action "EquipSack": E/F, tap, gamepad),
---   * key 1 on keyboards.
+-- Kick Sack gear. SackService gives every character a sack Tool; this takes it out / puts it away:
+--   * the bottom Kick Sack quickslot (UI/Hud/SackSlot: click / tap),
+--   * key 1 on keyboards, Y on gamepads.
 -- With the sack out, SackController turns clicks / taps into kicks; a small contextual hint says so (it only
 -- shows while the sack is out). Roblox's own backpack hotbar stays hidden.
 local Players = game:GetService("Players")
@@ -15,6 +14,9 @@ local SackGear = {}
 -- The sack Tool and whether it is in hand.
 function SackGear.tool(): (Tool?, boolean)
 	local player = Players.LocalPlayer
+	if not player then
+		return nil, false -- (Studio previews / headless tests)
+	end
 	local held = player.Character and player.Character:FindFirstChildOfClass("Tool")
 	if held and held:GetAttribute("KickSack") then
 		return held, true
@@ -29,7 +31,8 @@ function SackGear.tool(): (Tool?, boolean)
 end
 
 function SackGear.toggle()
-	local character = Players.LocalPlayer.Character
+	local me = Players.LocalPlayer
+	local character = me and me.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local tool, out = SackGear.tool()
 	if not humanoid or not tool or humanoid.Health <= 0 then
@@ -51,7 +54,7 @@ function SackGear.start(parent: Instance)
 		name = "SackHint",
 		text = if touch then "Tap to kick the sack!" else "Click to kick the sack!  (1 to put it away)",
 		size = UDim2.fromOffset(520, 34),
-		position = UDim2.new(0.5, 0, 1, -40),
+		position = UDim2.new(0.5, 0, 1, -150), -- above the quickslot
 		anchor = Vector2.new(0.5, 1),
 		parent = parent,
 		color = Color3.fromRGB(135, 245, 70),
@@ -84,7 +87,7 @@ function SackGear.start(parent: Instance)
 		watch(Players.LocalPlayer.Character)
 	end
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if not processed and input.KeyCode == Enum.KeyCode.One then
+		if not processed and (input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.ButtonY) then
 			SackGear.toggle()
 		end
 	end)

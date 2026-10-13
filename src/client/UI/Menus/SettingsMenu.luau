@@ -1,34 +1,36 @@
 --!strict
--- Settings (client-side, this session): Sound, Music, Camera Shake, Low Detail effects, Sack effects.
--- Sound/Music drive SoundService.Master / SoundService.Music groups. Camera Shake and Low Detail set
+-- Settings (client-side, this session): Sound, a volume per sound category, Camera Shake, Low Detail effects,
+-- Sack effects. Sound mutes SoundService.Master; UI / Gameplay / Ambience / Music / Special effects set the volume
+-- of that category's SoundGroup (Audio.setVolume; magic layers on top of hits, kicks and hatches are Special
+-- effects, so they can be turned down on their own). Camera Shake and Low Detail set
 -- LocalPlayer attributes "ShakeOff" / "LowDetail", which VFX reads. Sack effects sets "SackVfxQuality"
 -- (nil = AUTO), the Kick Sack effects' quality profile (VFX/SackLod).
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
-local SoundService = game:GetService("SoundService")
 local Kit = require(script.Parent.Parent.Kit)
 local Window = require(script.Parent.Window)
 local SoundToggle = require(script.Parent.Parent.Hud.SoundToggle)
+local Audio = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Audio")) :: any
 
 export type Menu = { window: Window.Window, update: (data: { [string]: any }) -> () }
 
 local SettingsMenu = {}
 
-local function group(name: string, volume: number): SoundGroup
-	local g = SoundService:FindFirstChild(name)
-	if g and g:IsA("SoundGroup") then
-		return g
-	end
-	local ng = Instance.new("SoundGroup")
-	ng.Name = name
-	ng.Volume = volume
-	ng.Parent = SoundService
-	return ng
-end
+local VOLUMES = { 1, 0.75, 0.5, 0.25, 0 }
+local VOLUME_LABELS = { "100%", "75%", "50%", "25%", "OFF" }
 
 function SettingsMenu.new(parent: Instance): Menu
 	local window = Window.new(parent, "Settings", Kit.Colors.grey)
-	local body = window.body
+	local body = Instance.new("ScrollingFrame") -- more rows than fit on a phone: scroll
+	body.Name = "Rows"
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.Size = UDim2.fromScale(1, 1)
+	body.CanvasSize = UDim2.new()
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.ScrollingDirection = Enum.ScrollingDirection.Y
+	body.ScrollBarThickness = 8
+	body.Parent = window.body
 	local list = Instance.new("UIListLayout")
 	list.Padding = UDim.new(0, 14)
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -120,10 +122,26 @@ function SettingsMenu.new(parent: Instance): Menu
 		master.Volume = if on then 0.5 else 0
 		me:SetAttribute("SoundOn", on)
 	end)
-	local music = group("Music", 0.35)
-	toggle("Music", music.Volume > 0, function(on)
-		music.Volume = if on then 0.35 else 0
-	end)
+	for _, category in
+		{
+			{ "UI", "UI sounds" },
+			{ "Gameplay", "Gameplay" },
+			{ "Ambience", "Ambience" },
+			{ "Music", "Music" },
+			{ "SpecialEffects", "Special effects" },
+		}
+	do
+		local now = Audio.volume(category[1])
+		local index = 1
+		for i, v in VOLUMES do
+			if math.abs(v - now) < math.abs(VOLUMES[index] - now) then
+				index = i
+			end
+		end
+		choice(category[2], VOLUME_LABELS, index, function(i)
+			Audio.setVolume(category[1], VOLUMES[i])
+		end)
+	end
 	toggle("Camera shake", me:GetAttribute("ShakeOff") ~= true, function(on)
 		me:SetAttribute("ShakeOff", not on)
 	end)

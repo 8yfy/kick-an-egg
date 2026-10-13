@@ -16,6 +16,8 @@
 -- effect assumes it belongs to the local player; with it, other players get the low-detail version
 -- (half the boulders, no camera shake, no banners).
 -- Implementations live in submodules (Egg, Hatch, Avalanche, ChaseFx, ...); unknown names are a no-op.
+-- Every effect is also forwarded to Audio.vfx, which plays its sound (Audio/SoundBank): the sound design lives
+-- in one place and stays in sync with the visual.
 local RunService = game:GetService("RunService")
 
 type Handler = (target: Instance?, params: { [string]: any }) -> ()
@@ -70,6 +72,11 @@ function VFX.play(name: string, target: Instance?, params: { [string]: any }?): 
 		if not ok then
 			warn(`[VFX] {name} failed: {err}`)
 		end
+	end
+	local Audio = require(script.Parent.Audio) :: any
+	local ok, err = pcall(Audio.vfx, name, target, params or {})
+	if not ok then
+		warn(`[Audio] {name} failed: {err}`)
 	end
 end
 

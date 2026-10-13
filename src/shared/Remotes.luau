@@ -16,11 +16,14 @@
 --                     -- from eggRunStart (attribute Speed = studs/s, Hitbox has SteerVelocity/SteerAlign).
 -- C->S  PickupEgg(eggUid: string)                  -- UNUSED since the player steers the egg (drained)
 -- S->C  EggPickedUp({ eggUid: string, userId: number }) -- UNUSED since the player steers the egg
--- S->C  EggSecured({ eggUid: string })             -- the egg crossed SafeLineZ
+-- S->C  EggSecured({ eggUid: string, position: Vector3 }) -- the egg crossed SafeLineZ (followed by ChaseEnded at once)
 -- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" }) -- "Caught" is no longer sent
 -- S->C  ChaseEnded({ eggUid: string })             -- avalanche crumbles at the safe line
--- C->S  PlaceEgg(eggUid: string, slot: number)
--- S->C  EggHatched({ eggUid: string, slot: number, petUid: string })
+-- C->S  EquipEgg(eggUid: string?)                 -- hold an inventory egg (an "Egg" Tool); nil puts it away
+-- C->S  PlaceEgg(eggUid: string, position: Vector3) -- put the held egg down anywhere valid in your own pen
+-- S->C  EggHatched({ eggUid: string, petUid: string, position: Vector3 })
+-- C->S  PickupPet(petUid: string)                  -- your placed pet back into your inventory (stops its income)
+-- C->S  PlacePet(petUid: string, position: Vector3?) -- a stored pet into your pen (nil = a free spot)
 -- C->S  BuyUpgrade(kind: "RunSpeed")                -- shop: +1 Run Speed ("KickPower" is not sold:
 --                                                  -- strength is trained on the Kick Sack, see Train)
 -- C->S  Rebirth()
@@ -28,6 +31,8 @@
 -- C->S  SellPets(petUids: {string})                -- sell several at once (max 100); the server skips any it can't sell
 -- S->C  PetsSold({ count: number, total: number, petUids: {string} }) -- reply to SellPets: what was actually sold
 -- C->S  ClaimIndexReward(zone: number)            -- Pet Index: claim a fully discovered zone's reward (Economy.IndexRewards)
+-- C->S  ClaimIndexMilestone(count: number)       -- Pet Index: claim the reward for `count` discovered pets (Economy.IndexMilestones)
+-- C->S  SkipTutorial()                           -- ends the tutorial (data.tutorial.skipped)
 -- S->C  DataChanged(partial: {[string]: any})
 -- S->C  WeatherChanged(weather: string?, endsAt: number?)
 -- S->C  Announce(text: string, rarity: string)
@@ -66,6 +71,11 @@ local EVENTS = {
 	"Train",
 	"UpgradeTraining",
 	"UpgradePen",
+	"EquipEgg",
+	"PickupPet",
+	"PlacePet",
+	"ClaimIndexMilestone",
+	"SkipTutorial",
 }
 
 local folder: Folder
