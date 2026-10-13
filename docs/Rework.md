@@ -99,7 +99,7 @@ How to read the table:
 | Bottom Kick Sack quickslot | **FIXED** (mouse/keyboard) / **NEEDS STUDIO TESTING** (touch, controller) | `UI/Hud/SackSlot`: the current sack's own art for all 20 sacks, key [1] or (Y), tap on touch, a gold glow when out, a pop on upgrade, and it moves beside KICK on the pad. Survives respawn. Live: out/away and the glow. |
 | Remove obsolete sack stands | **FIXED** | `SackStand`, `RackSign` and the rack refresh are removed from `MapBuilder`. Live: 0 stands. |
 | Merchants as real Roblox avatars | **BLOCKED** (UserIds) | **Built:** `MerchantService` replaces each merchant with `Players:CreateHumanoidModelFromDescription(GetHumanoidDescriptionFromUserId(id))`. A failed fetch falls back to a default HumanoidDescription, so the shop never breaks. **Missing:** `src/server/Data/MerchantConfig.luau` has `UserId = 0` for both merchants (no IDs were invented). Live: 2 Humanoid merchants. |
-| SFX overhaul | **IMPLEMENTED** / **BLOCKED** (custom sounds) | `VFX/SackSfx` gives every sack layered equip / impact / special / upgrade sounds by theme. Idle loops on the premium sacks (13, 18, 19, 20) are stopped on unequip. Sounds are pooled, use rolloff, play through the Master SoundGroup (the sound toggle) and use **only built-in `rbxasset://sounds`**. Custom per-sack sounds slot into `SackSfx.CUSTOM` once you have IDs. |
+| SFX overhaul | **REPLACED** by the sound design rework (see `docs/Audio.md`) | The first version still layered the built-in explosion (thunder) into kicks and sack punches. That is fixed: all sounds now come from `Audio/SoundBank`, are verified by unit tests, a live playtest and offline renders, and thunder is used only for storms / electricity. |
 
 ### Phase 5 — UI and polish
 
