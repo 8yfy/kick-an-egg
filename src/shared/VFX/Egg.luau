@@ -65,6 +65,31 @@ local function shockwave(center: Vector3, color: Color3, r0: number, r1: number,
 	end)
 end
 
+-- Directional speed streaks: thin neon bolts shooting off along the launch (+Z), more / longer for better kicks.
+local function streaks(pos: Vector3, count: number, length: number, color: Color3)
+	for _ = 1, count do
+		local p = Pool.get("Block")
+		p.Color = color
+		p.Material = Enum.Material.Neon
+		local off = Vector3.new((math.random() - 0.5) * 2.4, (math.random() - 0.3) * 1.8, 0)
+		local from = pos + off
+		p.CFrame = CFrame.new(from)
+		local t0, life = os.clock(), 0.22 + math.random() * 0.12
+		local conn: RBXScriptConnection
+		conn = RunService.RenderStepped:Connect(function()
+			local k = math.clamp((os.clock() - t0) / life, 0, 1)
+			local len = length * (1 - (1 - k) ^ 2)
+			p.Size = Vector3.new(0.12 * (1 - k * 0.6), 0.12 * (1 - k * 0.6), math.max(0.2, len))
+			p.CFrame = CFrame.new(from + Vector3.new(0, 0, len * 0.5 + k * length * 0.6))
+			p.Transparency = k
+			if k >= 1 then
+				conn:Disconnect()
+				Pool.release(p)
+			end
+		end)
+	end
+end
+
 function Egg.KickImpact(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target) or Vector3.new(0, 1, 0)
 	local power = math.clamp((params.power or 1) / 25, 0.3, 1)
@@ -81,8 +106,27 @@ function Egg.KickImpact(target: Instance?, params: { [string]: any })
 			false,
 			true
 		)
+		local band = params.band
 		if not reduced then
 			shockwave(pos - Vector3.new(0, 1.2, 0), Color3.fromRGB(255, 220, 90), 1, 9 + 5 * power, 0.45, 18)
+			streaks(
+				pos,
+				if band == "perfect" then 14 elseif band == "weak" then 4 else 8,
+				if band == "perfect" then 16 elseif band == "weak" then 6 else 10,
+				if band == "perfect" then Color3.fromRGB(110, 240, 255) else Color3.fromRGB(255, 235, 140)
+			)
+			if band == "perfect" then -- the exceptional one: a second, wider ring
+				task.delay(
+					0.06,
+					shockwave,
+					pos - Vector3.new(0, 1.2, 0),
+					Color3.fromRGB(110, 240, 255),
+					1,
+					18,
+					0.55,
+					24
+				)
+			end
 		end
 		if params.own ~= true then
 			return -- other players' kicks: sparks, ring and sound only (no flash / shake on your screen)

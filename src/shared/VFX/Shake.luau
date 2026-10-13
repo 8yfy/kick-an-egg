@@ -34,6 +34,9 @@ local function step()
 	for _, v in sources do
 		amount = math.max(amount, v)
 	end
+	if me and me:GetAttribute("ReducedMotion") == true then
+		amount *= 0.3 -- Settings > Reduced motion: a hint of the hit, no real shake
+	end
 	if amount <= 0.001 then
 		return
 	end

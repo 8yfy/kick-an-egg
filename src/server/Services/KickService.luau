@@ -46,7 +46,8 @@ export type PendingChase = KickRoll & {
 	touchdown: number,
 }
 
-local LAUNCH_DELAY = 0.35 -- kick animation before the egg leaves the pad
+local LAUNCH_DELAY = 1.0 -- the kick cinematic (toss, wind-up, strike) before the egg leaves the pad: the egg
+-- launches at the kick's contact frame (Anim/EggKick.CONTACT); about a second, never a long unskippable scene
 local MIN_REQUEST_GAP = 0.5
 local RAY_TOP = 500
 local RARE_ORDER = Rarities.Rare.order

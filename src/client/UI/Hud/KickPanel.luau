@@ -322,6 +322,9 @@ function KickPanel.new(parent: Instance): KickPanel
 			end)
 		end
 		setTapListener(mode == "timing")
+		if player then
+			player:SetAttribute("KickTiming", mode == "timing") -- (KickLineController: brace + camera ease-in)
+		end
 	end
 
 	local function playRating(timing: number)

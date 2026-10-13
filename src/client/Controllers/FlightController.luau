@@ -14,6 +14,7 @@ local Pets = require(Shared.Config.Pets)
 local Zones = require(Shared.Config.Zones)
 local Models = require(Shared.Builders.Models)
 local VFX = require(Shared.VFX)
+local EggKick = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"):WaitForChild("EggKick"))
 local Remotes = require(Shared.Remotes)
 
 export type KickResult = {
@@ -152,14 +153,15 @@ local function fly(result: KickResult)
 			local pos = positionAt(now)
 			local ahead = positionAt(now + 0.05)
 			local facing = if (ahead - pos).Magnitude > 0.01 then CFrame.lookAt(pos, ahead) else CFrame.new(pos)
-			egg:PivotTo(if now >= result.launchTime then facing else CFrame.new(pos))
+			-- before launch the kicker still holds the mystery egg: the flying egg waits out of sight
+			egg:PivotTo(if now >= result.launchTime then facing else CFrame.new(pos.X, -500, pos.Z))
 			enterZones(pos.Z, now >= result.launchTime)
 			if now >= touchdown then
 				land()
 			end
 		end
 
-		if egg.Parent then
+		if egg.Parent and now >= math.max(result.launchTime, EggKick.cameraBusyUntil) then
 			local target = egg:GetPivot().Position
 			local goal = CFrame.lookAt(target + CAMERA_OFFSET, target)
 			local alpha = 1 - (1 - CAMERA_LERP) ^ (dt * 60)

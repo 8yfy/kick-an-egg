@@ -911,7 +911,42 @@ section("Tutorial, sack sounds, mystery egg, merchants", function()
 			marks += 1
 		end
 	end
-	check("mystery egg builds with its ? mark", egg.PrimaryPart ~= nil and marks == 9)
+	local _, size = egg:GetBoundingBox()
+	check("mystery egg builds with a ? on both faces", egg.PrimaryPart ~= nil and marks == 18)
+	check("mystery egg is full egg size (not a small prop)", size.Y >= 3.2 and size.X >= 2.4)
+	-- the egg kick: a full-body clip (legs, hips, torso, arms) with a contact frame, as a real KeyframeSequence
+	local EggKick = require(Shared.Anim.EggKick) :: any
+	local seq = EggKick.buildKeyframeSequence()
+	local frames, contact, jointsMoved = 0, false, {}
+	for _, kf in seq:GetChildren() do
+		if kf:IsA("Keyframe") then
+			frames += 1
+			contact = contact or kf:FindFirstChild("Contact") ~= nil
+			for _, p in kf:GetDescendants() do
+				if p:IsA("Pose") and p.CFrame ~= CFrame.identity then
+					jointsMoved[p.Name] = true
+				end
+			end
+		end
+	end
+	local moved = 0
+	for _ in jointsMoved do
+		moved += 1
+	end
+	check(
+		"egg kick: a keyframed rig animation (8 keys, 13 joints, a Contact marker)",
+		frames == 8 and contact and moved >= 13
+	)
+	local contactPose = EggKick.pose(EggKick.CONTACT)
+	check(
+		"egg kick: at contact the kicking leg is straight out front",
+		contactPose.RHip[1] > 80 and contactPose.RKnee[1] > -15
+	)
+	local wind = EggKick.pose(0.5)
+	check(
+		"egg kick: wind-up draws the leg back and twists the hips",
+		wind.RHip[1] < -50 and math.abs(wind.Root[2]) > 15
+	)
 	egg:Destroy()
 	-- merchants: no invented UserIds
 	local MerchantConfig = require(SSS.Server.Data.MerchantConfig) :: any

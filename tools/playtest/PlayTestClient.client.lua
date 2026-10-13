@@ -254,7 +254,65 @@ local result
 step("kick", function()
 	tp(onPad)
 	task.wait(1.2)
+	-- A: the full-size mystery egg held between the hands with the hold animation
+	local held = waitFor(function()
+		return char:FindFirstChild("MysteryEgg")
+	end, 3)
+	if held then
+		local _, size = held:GetBoundingBox()
+		local rh, lh = char:FindFirstChild("RightHand"), char:FindFirstChild("LeftHand")
+		local centre = held:GetBoundingBox().Position
+		local gap = if rh and lh
+			then math.max((rh.Position - centre).Magnitude, (lh.Position - centre).Magnitude)
+			else 99
+		check("the mystery egg is full size", size.Y >= 3.2, string.format("%.1f studs tall", size.Y))
+		check(
+			"it is held between the hands (not at the waist)",
+			gap < 2.2,
+			string.format("hands %.2f studs from its centre", gap)
+		)
+		local shoulder = char:FindFirstChild("RightUpperArm") and char.RightUpperArm:FindFirstChild("RightShoulder")
+		local pitch = shoulder and math.deg(select(1, (shoulder :: any).Transform:ToEulerAnglesXYZ())) or 0
+		check("the hold animation poses the arms forward", pitch > 45, string.format("shoulder %.0f°", pitch))
+	end
 	kickPressed:Fire(0.95)
+	-- D / E: the kick clip on the rig at contact, your camera on the cinematic shots, the flying egg hidden
+	task.spawn(function()
+		local at = waitFor(function()
+			local v = char:GetAttribute("KickAt")
+			return typeof(v) == "number" and v
+		end, 4)
+		if not at then
+			return
+		end
+		local cam = workspace.CurrentCamera
+		local sawScriptable, camAway = false, 0
+		while workspace:GetServerTimeNow() < at - 0.1 do
+			sawScriptable = sawScriptable or cam.CameraType == Enum.CameraType.Scriptable
+			camAway = math.max(camAway, (cam.CFrame.Position - hrp.Position).Magnitude)
+			task.wait()
+		end
+		local hip = char:FindFirstChild("RightUpperLeg") and char.RightUpperLeg:FindFirstChild("RightHip")
+		local peak = -999
+		while workspace:GetServerTimeNow() < at + 0.12 do
+			if hip then
+				peak = math.max(peak, math.deg(select(1, (hip :: any).Transform:ToEulerAnglesXYZ())))
+			end
+			task.wait()
+		end
+		check(
+			"the kick animation swings the leg through the egg at contact",
+			peak > 70,
+			string.format("hip %.0f°", peak)
+		)
+		check(
+			"your camera plays the cinematic (scripted shots before launch)",
+			sawScriptable,
+			string.format("up to %.1f studs away", camAway)
+		)
+		local flying = workspace:FindFirstChild("ClientEggs") and workspace.ClientEggs:FindFirstChildWhichIsA("Model")
+		note("flying egg after launch: " .. tostring(flying and math.floor(flying:GetPivot().Position.Y)))
+	end)
 	result = waitFor(function()
 		return results[1]
 	end, 5)
