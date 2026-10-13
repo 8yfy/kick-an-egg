@@ -1,9 +1,10 @@
 --!strict
 -- The UI's art registry (UI handoff v2: 05-Claude/AssetMap.template.luau + 00-REBUILD-FIRST/ACTIVE-ASSET-MAP.md).
 -- One entry per supplied PNG, keyed by the manifest key. `id` is the REAL uploaded Roblox image id
--- ("rbxassetid://<n>"); never invent one. All 109 are uploaded (Krono808, Creator Hub > Development items >
--- Images: 59 on 2026-10-12, the 50 HUD / kick / rating / zone-bar / zone-label / sparkle images on 2026-10-13;
--- these are the IMAGE ids, asset type 1, not the Decal ids the upload panel shows).
+-- ("rbxassetid://<n>"); never invent one. All are uploaded (Krono808, Creator Hub > Development items >
+-- Images: 59 on 2026-10-12, the 50 HUD / kick / rating / zone-bar / zone-label / sparkle images on 2026-10-13,
+-- the targeted-fixes Auto Kick / Trade / 3-layer kick meter on 2026-10-13; these are the IMAGE ids, asset type
+-- 1, not the Decal ids the upload panel shows).
 --
 -- To replace one: upload assets/ui-upload/<key>.png and paste the new Image id into its `id`.
 --
@@ -135,9 +136,24 @@ local A: { [string]: Entry } = {
 		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Kick_Button.png",
 		id = "rbxassetid://110480185583493",
 	},
+	-- targeted fixes (2026-10-13): the new Auto Kick button, the Trade HUD button and the single kick meter as three
+	-- aligned layers (track behind, a tintable fill clipped to the level, the frame on top)
 	kick_auto = {
-		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Auto_Kick_Button.png",
-		id = "rbxassetid://83337555069915",
+		source = "Targeted-Fixes/PNG_Assets/Auto_Kick_Button.png",
+		id = "rbxassetid://133970296249456",
+	},
+	hud_trade = { source = "Targeted-Fixes/PNG_Assets/Trade_Button.png", id = "rbxassetid://103666995924889" },
+	kick_meter_track = {
+		source = "Targeted-Fixes/PNG_Assets/Kick_Meter_Track.png",
+		id = "rbxassetid://114311291241712",
+	},
+	kick_meter_fill = {
+		source = "Targeted-Fixes/PNG_Assets/Kick_Meter_Fill_Tintable.png",
+		id = "rbxassetid://133073599038746",
+	},
+	kick_meter_frame = {
+		source = "Targeted-Fixes/PNG_Assets/Kick_Meter_Frame.png",
+		id = "rbxassetid://109486048637563",
 	},
 	kick_meter_idle = {
 		source = "Master-v2/01_Final_UI_Assets/02_Kick_UI/Strength_Meter_Idle.png",

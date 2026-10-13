@@ -63,7 +63,7 @@ end)
 local now = workspace:GetServerTimeNow()
 Data.apply({
 	money = 5000,
-	kickPower = 42.3,
+	kickPower = 4230000,
 	runSpeed = 20,
 	rebirths = 1,
 	rackLevel = 3,
@@ -99,7 +99,10 @@ check("data views", function()
 	assert(#Data.index() > 0 and Data.claimableZones() == 0, "index")
 	local found, all, milestones = Data.milestones()
 	assert(found == 1 and all == 79 and #milestones == 5 and milestones[1].state == "Locked", "index milestones")
-	assert(Data.speed().maxed == false and Data.speed().level == 4 and Data.speed().nextSpeed > Data.speed().current, "speed levels")
+	assert(
+		Data.speed().maxed == false and Data.speed().level == 4 and Data.speed().nextSpeed > Data.speed().current,
+		"speed levels"
+	)
 	local placedPets = 0
 	for _, row in Data.pets() do
 		if row.placed then
@@ -123,7 +126,10 @@ check("asset registry binds every sack and zone", function()
 	end
 	-- 59 UI handoff PNGs + 50 from the final approved icons / master handoff v2 (HUD icons, kick UI, ratings,
 	-- zone bar frames + labels, UI sparkle)
-	assert(#AssetIds.keys() == 109, "109 supplied PNGs, got " .. #AssetIds.keys())
+	assert(
+		#AssetIds.keys() == 113,
+		"113 supplied PNGs (109 + the targeted-fixes Trade and 3 meter layers), got " .. #AssetIds.keys()
+	)
 	for _, key in
 		{
 			"hud_shop",
@@ -142,6 +148,36 @@ check("asset registry binds every sack and zone", function()
 	for id = 1, #Zones do
 		assert(AssetIds.source(AssetIds.zoneLabel(id)), "zone label missing for zone " .. id)
 	end
+end)
+
+check("kick UI: the supplied Auto Kick, Trade and 3-layer meter art, one fill only, whole-number Power", function()
+	for _, key in { "kick_auto", "hud_trade", "kick_meter_track", "kick_meter_fill", "kick_meter_frame" } do
+		local id = AssetIds.get(key)
+		assert(id and string.match(id, "^rbxassetid://%d+$"), "no uploaded id for " .. key)
+	end
+	local panel = hud:FindFirstChild("KickPanel", true) or require(UI.Hud.KickPanel).new(hud)
+	local meter = (hud:FindFirstChild("KickPanel", true) :: Instance):FindFirstChild("Meter", true)
+	assert(meter, "no meter")
+	local keys, fills = {}, 0
+	for _, d in meter:GetDescendants() do
+		if d:IsA("ImageLabel") and typeof(d:GetAttribute("ArtKey")) == "string" then
+			keys[d:GetAttribute("ArtKey")] = (keys[d:GetAttribute("ArtKey")] or 0) + 1
+		end
+		if d.Name == "Fill" then
+			fills += 1
+		end
+	end
+	assert(keys.kick_meter_track == 1 and keys.kick_meter_fill == 1 and keys.kick_meter_frame == 1, "meter layers")
+	assert(fills == 1 and not meter:FindFirstChild("Indicator", true), "one fill, no second bar")
+	local auto = (hud:FindFirstChild("KickPanel", true) :: Instance):FindFirstChild("AutoKick", true)
+	assert(auto and not auto:FindFirstChildOfClass("UIStroke", true), "Auto Kick art without an added outline")
+	local left = hud:FindFirstChild("LeftRail")
+	local trade = left and left:FindFirstChild("Trade")
+	local tradeArt = trade and trade:FindFirstChildOfClass("ImageLabel")
+	assert(tradeArt and tradeArt:GetAttribute("ArtKey") == "hud_trade", "Trade uses the supplied art")
+	assert(not trade:FindFirstChild("Label", true), "no typed label over the Trade art's own lettering")
+	assert(Data.power() % 1 == 0, "Power is shown as a whole number")
+	local _ = panel
 end)
 
 check("hud: SHOP / INDEX / REBIRTH / TRADE, no Training button, the bottom Kick Sack quickslot", function()

@@ -52,7 +52,7 @@ stage.Parent = gui
 local now = workspace:GetServerTimeNow()
 Data.apply({
 	money = 125400,
-	kickPower = 42.3,
+	kickPower = 4230000,
 	runSpeed = 20,
 	rebirths = 1,
 	rackLevel = 1,

@@ -3,10 +3,13 @@
 --   hidden  : off the kick pad, in flight / chase, no character. Nothing kick-related is on screen.
 --   idle    : on the pad (KickPad.SHOW_RADIUS; the server re-checks with KickPad.ACCEPT_RADIUS). KICK and
 --             AUTO KICK pop in with their supplied art; "Press KICK!".
---   timing  : KICK pressed. ONE vertical strength meter (the supplied meter art) fills up and down; the fill is
---             the same art clipped to the level and coloured by the timing band (red Miss, orange Okay, yellow
---             Good, light green Great, bright green Excellent, cyan Perfect), blending smoothly. No second bar
---             slides over it. "Tap to Kick!"; the next tap / click / E / Enter / gamepad R2 or X locks it.
+--   timing  : KICK pressed. ONE vertical timing meter from the supplied layers (kick_meter_track behind, the
+--             tintable kick_meter_fill clipped to the level, kick_meter_frame on top): the single fill is coloured
+--             by the timing band (red Miss, orange Okay, yellow Good, light green Great, bright green Excellent,
+--             cyan Perfect), blending smoothly. No second bar slides over it. "Tap anywhere to kick!": while (and
+--             only while) the meter waits, a click / tap ANYWHERE on the game view locks it (input a GUI took,
+--             e.g. Settings or a close button, and any open window are ignored), as do E / Enter and gamepad R2 / X.
+--             One lock per attempt; the listener is disconnected the moment the meter stops.
 --   result  : the rating art (Perfect / Excellent / Great / Good / Okay / Miss) plays, the kick is sent
 --             (Shared.KickPressed(timing) -> KickController -> RequestKick), then the controls hide while the
 --             chase runs (setBusy) and come back only when you're on the pad and free again.
@@ -18,6 +21,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local Kit = require(script.Parent.Parent.Kit)
 local Fx = require(script.Parent.Parent.Fx)
 local System = script.Parent.Parent.System
@@ -25,6 +29,7 @@ local Motion = require(System.Motion)
 local Ui = require(System.Ui)
 local UiVfx = require(System.UiVfx)
 local AssetIds = require(System.AssetIds)
+local Modal = require(System.Modal)
 local KickPad = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("KickPad"))
 
 local SWING_HZ = 1.1 -- the indicator goes bottom -> top -> bottom this many times per second
@@ -33,6 +38,10 @@ local PENDING_TIMEOUT = 3 -- unlock if the server never answers (rejected kick)
 local BUSY_TIMEOUT = 240 -- failsafe if a chase-end event is missed
 local AUTO_DELAY = 0.9 -- AUTO KICK: idle seconds before it starts the meter
 local RESULT_HOLD = 1.1
+local TAP_GUARD = 0.15 -- the click that pressed KICK never also locks the meter
+-- the fill art's opaque span on its canvas (kick_meter_fill.png): level 0 = empty, 1 = exactly full
+local FILL_BOTTOM, FILL_SPAN = 97 / 1040, 849 / 1040
+local METER = Vector2.new(102, 252) -- the meter layers' 414 x 1024 proportions
 
 -- Display ratings inside the server's bands (top first). `band` = which KickService band it belongs to.
 local RATINGS: { { at: number, key: string, band: string, color: Color3 } } = {
@@ -111,18 +120,15 @@ function KickPanel.new(parent: Instance): KickPanel
 
 	local kickBtn = artButton(root, "Kick", "kick_button", Vector2.new(400, 120))
 	kickBtn.Position = UDim2.new(0.5, 0, 1, 0)
-	local autoBtn, autoArt = artButton(root, "AutoKick", "kick_auto", Vector2.new(240, 62))
-	local autoStroke = Instance.new("UIStroke")
-	autoStroke.Thickness = 4
-	autoStroke.Color = Color3.fromRGB(255, 225, 80)
-	autoStroke.Enabled = false
-	autoStroke.Parent = autoArt
+	-- the supplied Auto Kick art (its own lettering + outline: nothing drawn over it); ON / OFF reads from its
+	-- brightness and a small chip just outside its corner
+	local autoBtn, autoArt = artButton(root, "AutoKick", "kick_auto", Vector2.new(240, 66))
 	local autoOn = Kit.label({
 		name = "State",
 		text = "OFF",
 		size = UDim2.fromOffset(60, 26),
-		position = UDim2.new(1, -6, 0, -4),
-		anchor = Vector2.new(1, 1),
+		position = UDim2.new(1, 6, 0.5, 0), -- beside the art (never over its lettering or the hint above)
+		anchor = Vector2.new(0, 0.5),
 		parent = autoBtn,
 		stroke = 3,
 	})
@@ -131,12 +137,15 @@ function KickPanel.new(parent: Instance): KickPanel
 	meter.Name = "Meter"
 	meter.BackgroundTransparency = 1
 	meter.AnchorPoint = Vector2.new(0.5, 1)
-	meter.Size = UDim2.fromOffset(70, 252)
+	meter.Size = UDim2.fromOffset(METER.X, METER.Y)
 	meter.Visible = false
 	meter.Parent = root
-	local meterArt = Ui.art(meter, "kick_meter_idle") -- the empty meter (frame + grey segments)
-	meterArt.ZIndex = 2
-	-- the fill: the same art, clipped from the bottom to the level and tinted by the band colour
+	local trackArt = Ui.art(meter, "kick_meter_track") -- back layer: the empty track
+	trackArt.ZIndex = 2
+	local frameArt = Ui.art(meter, "kick_meter_frame") -- front layer: the frame and tick marks
+	frameArt.Name = "Frame"
+	frameArt.ZIndex = 4
+	-- middle layer: the one fill, clipped from the bottom to the level and tinted by the band colour
 	local fillClip = Instance.new("Frame")
 	fillClip.Name = "Fill"
 	fillClip.BackgroundTransparency = 1
@@ -146,27 +155,25 @@ function KickPanel.new(parent: Instance): KickPanel
 	fillClip.Size = UDim2.fromScale(1, 0)
 	fillClip.ZIndex = 3
 	fillClip.Parent = meter
-	local fillArt = Ui.art(fillClip, "kick_meter_idle")
+	local fillArt = Ui.art(fillClip, "kick_meter_fill")
+	fillArt.Name = "FillArt"
 	fillArt.AnchorPoint = Vector2.new(0, 1)
 	fillArt.Position = UDim2.fromScale(0, 1)
-	fillArt.Size = UDim2.fromOffset(70, 252) -- the meter's own size: stays bottom-aligned while the clip moves
+	fillArt.Size = UDim2.fromOffset(METER.X, METER.Y) -- the meter's own size: stays aligned while the clip moves
 	fillArt.ZIndex = 3
 	local fillColor = meterColor(0)
 	local function setFill(level: number, dt: number?)
-		fillClip.Size = UDim2.fromScale(1, math.clamp(level, 0, 1))
-		local target = meterColor(level)
+		local l = math.clamp(level, 0, 1)
+		fillClip.Size = UDim2.fromScale(1, if l <= 0 then 0 else FILL_BOTTOM + l * FILL_SPAN)
+		local target = meterColor(l)
 		fillColor = if dt then fillColor:Lerp(target, math.min(1, dt * 14)) else target
-		fillArt.ImageColor3 = Color3.new(
-			math.min(1, fillColor.R * 1.45),
-			math.min(1, fillColor.G * 1.45),
-			math.min(1, fillColor.B * 1.45)
-		)
+		fillArt.ImageColor3 = fillColor
 	end
 	local perfectTag = Kit.label({
 		name = "PerfectTag",
 		text = "PERFECT",
 		size = UDim2.fromOffset(110, 22),
-		position = UDim2.new(1, 8, 0.05, 0),
+		position = UDim2.new(1, 8, 1 - (FILL_BOTTOM + 0.95 * FILL_SPAN), 0), -- the Perfect band (0.9 .. 1)
 		anchor = Vector2.new(0, 0.5),
 		parent = meter,
 		color = Color3.fromRGB(140, 255, 120),
@@ -247,6 +254,30 @@ function KickPanel.new(parent: Instance): KickPanel
 		end
 	end
 
+	-- Tap / click anywhere: a global listener that exists only while the meter waits for the tap.
+	local setTapListener: (on: boolean) -> ()
+	local tapConn: RBXScriptConnection? = nil
+	local release: () -> ()
+	setTapListener = function(on: boolean)
+		if on and not tapConn then
+			tapConn = UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+				if processed or state.mode ~= "timing" or os.clock() - state.timingSince < TAP_GUARD then
+					return -- a GUI took it (Settings, close buttons, menus), or the KICK press itself
+				end
+				if Modal.current() ~= nil or GuiService.MenuIsOpen then
+					return -- a window / the Roblox menu is open: not the game view
+				end
+				local t = input.UserInputType
+				if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+					release()
+				end
+			end)
+		elseif not on and tapConn then
+			tapConn:Disconnect()
+			tapConn = nil
+		end
+	end
+
 	local function enter(mode: Mode)
 		if state.mode == mode then
 			return
@@ -269,13 +300,28 @@ function KickPanel.new(parent: Instance): KickPanel
 			state.autoReleaseAt = now + 0.5 + math.random() * 1.3
 			meter.Visible = true
 			Motion.popIn(meter)
-			setHint("Tap to Kick!")
+			setHint(
+				if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+					then "Tap anywhere to kick!"
+					else "Click anywhere to kick!"
+			)
 		elseif mode == "result" then
 			state.resultUntil = now + RESULT_HOLD
-			meter.Visible = false
 			kickBtn.Visible, autoBtn.Visible = false, false
 			setHint("")
+			-- the locked level stays a moment with a flash on the fill (successful timing), then the meter goes
+			fillArt.ImageColor3 = Color3.new(1, 1, 1)
+			Motion.tween(fillArt, 0.25, { ImageColor3 = fillColor })
+			if not Motion.reduced() then
+				Motion.popIn(meter)
+			end
+			task.delay(0.35, function()
+				if state.mode == "result" then
+					meter.Visible = false
+				end
+			end)
 		end
+		setTapListener(mode == "timing")
 	end
 
 	local function playRating(timing: number)
@@ -311,7 +357,7 @@ function KickPanel.new(parent: Instance): KickPanel
 		end)
 	end
 
-	local function release()
+	release = function()
 		if state.mode ~= "timing" then
 			return
 		end
@@ -337,14 +383,6 @@ function KickPanel.new(parent: Instance): KickPanel
 		end
 	end
 	kickBtn.Activated:Connect(press)
-	meter.InputBegan:Connect(function(input: InputObject)
-		if
-			input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			release()
-		end
-	end)
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed or not root.Visible then
 			return
@@ -360,11 +398,19 @@ function KickPanel.new(parent: Instance): KickPanel
 		end
 	end)
 
+	local stopAutoPulse: (() -> ())? = nil
 	local function paintAuto()
-		autoStroke.Enabled = auto
-		autoArt.ImageTransparency = if auto then 0 else 0.25
+		-- ON: the art at full colour with a gentle pulse; OFF: dimmed. The chip names the state.
+		autoArt.ImageColor3 = if auto then Color3.new(1, 1, 1) else Color3.fromRGB(150, 150, 165)
+		autoArt.ImageTransparency = if auto then 0 else 0.15
 		autoOn.Text = if auto then "ON" else "OFF"
 		autoOn.TextColor3 = if auto then Color3.fromRGB(140, 255, 90) else Color3.fromRGB(220, 220, 230)
+		if auto and not stopAutoPulse and not Motion.reduced() then
+			stopAutoPulse = Kit.pulse(autoBtn, 1.04)
+		elseif not auto and stopAutoPulse then
+			stopAutoPulse()
+			stopAutoPulse = nil
+		end
 	end
 	paintAuto()
 	autoBtn.Activated:Connect(function()
@@ -373,6 +419,7 @@ function KickPanel.new(parent: Instance): KickPanel
 			player:SetAttribute("AutoKick", auto)
 		end
 		paintAuto()
+		Kit.pop(autoOn, 0.2)
 		UiVfx.clickImpact(autoBtn, if auto then Color3.fromRGB(255, 225, 80) else Color3.new(1, 1, 1))
 		if state.mode == "idle" then
 			setHint(if auto then "AUTO KICK is on" else "Press KICK!")

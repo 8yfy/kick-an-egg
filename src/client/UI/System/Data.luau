@@ -91,7 +91,7 @@ function Data.money(): number
 end
 
 function Data.power(): number
-	return num("kickPower", Economy.KickPower.base)
+	return math.floor(num("kickPower", Economy.KickPower.base)) -- whole numbers only
 end
 
 function Data.pet(petId: string): PetsConfig.Pet?
