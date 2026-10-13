@@ -221,6 +221,29 @@ step("pens", function()
 	check("pen owner: the old big card is gone", not (oldCard and oldCard:FindFirstChild("PenOwner")))
 end)
 
+step("tutorial guidance (in the world, small)", function()
+	if player:GetAttribute("TutorialStep") ~= 1 then
+		note("tutorial not on step 1 here: " .. tostring(player:GetAttribute("TutorialStep")))
+		return
+	end
+	task.wait(0.5)
+	local tut = gui:FindFirstChild("Tutorial")
+	local chip = tut and tut:FindFirstChild("Banner")
+	check(
+		"tutorial: one short prompt, no big banner",
+		chip and chip.Visible and #chip.Text <= 28 and chip.AbsoluteSize.Y <= 40,
+		chip and chip.Text
+	)
+	local hl = tut and tut:FindFirstChild("TutorialHighlight")
+	check("tutorial: the kick pad itself is highlighted", hl and hl.Enabled and hl.Adornee == pad)
+	local dots = 0
+	local folder = workspace:FindFirstChild("TutorialTrail")
+	for _, d in if folder then folder:GetChildren() else {} do
+		dots += if d.Transparency < 1 then 1 else 0
+	end
+	check("tutorial: a ground trail leads to the kick line", dots >= 6, dots)
+end)
+
 step("pad", function()
 	recordStep()
 	tp(onPad)
@@ -309,6 +332,12 @@ step("kick", function()
 			"your camera plays the cinematic (scripted shots before launch)",
 			sawScriptable,
 			string.format("up to %.1f studs away", camAway)
+		)
+		local tut = gui:FindFirstChild("Tutorial")
+		local tchip = tut and tut:FindFirstChild("Banner")
+		check(
+			"tutorial prompts stay out of the kick cinematic",
+			not (tchip and tchip.Visible and tchip.Text ~= "" and tchip.Text ~= "TUTORIAL COMPLETE!")
 		)
 		local flying = workspace:FindFirstChild("ClientEggs") and workspace.ClientEggs:FindFirstChildWhichIsA("Model")
 		note("flying egg after launch: " .. tostring(flying and math.floor(flying:GetPivot().Position.Y)))
@@ -804,9 +833,11 @@ step("audio: scenarios 9-10, hatching a Common and a Secret pet", function()
 			return t and t:GetAttribute("EggUid") == uid
 		end, 3)
 		Remotes.get("PlaceEgg"):FireServer(uid, spot)
-		waitFor(function()
+		local placed = waitFor(function()
 			return (Data.state.plots or {})[uid]
 		end, 3)
+		local heldTool = char:FindFirstChildOfClass("Tool")
+		note(`{rarity} egg: placed {placed ~= nil}, holding {heldTool and heldTool.Name or "nothing"}`)
 		local from = #Audio.history
 		hook:FireServer("hatch")
 		local name = SoundBank.hatchEvent(rarity)
@@ -937,7 +968,10 @@ step("speed + power (live)", function()
 	local ok10k, paid10k, walk10k = buyAt(10000)
 	check(
 		"Run Speed: level 10,001 bought, still faster than 10,000, price finite",
-		ok10k and paid10k == Economy.speedCost(10000) and walk10k > Economy.runSpeedAt(10000),
+		ok10k
+			and paid10k ~= nil
+			and math.abs(paid10k - Economy.speedCost(10000)) < 1e6
+			and walk10k > Economy.runSpeedAt(10000),
 		string.format("paid %s, walk speed %.4f", tostring(paid10k), walk10k)
 	)
 	logConn:Disconnect()

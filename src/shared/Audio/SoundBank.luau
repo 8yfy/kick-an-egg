@@ -207,8 +207,8 @@ SoundBank.Events = {
 	KickPerfect = ev("Gameplay", 3, true, 0.2, 2, {
 		{
 			whoosh(2.1, 0.24, 0.2),
-			L("thump", 0.62, 0.8),
-			L("tap3", 0.76, 0.5),
+			L("thump", 0.62, 0.92),
+			L("tap3", 0.76, 0.56),
 			L("tap1", 1.5, 0.22, { delay = 0.005 }),
 			chime(C6, 0.2, 0.05),
 			chime(E6, 0.21, 0.1),

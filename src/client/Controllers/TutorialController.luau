@@ -1,10 +1,13 @@
 --!strict
--- The show-don't-tell tutorial (client). TutorialService (server) decides the step from your real data and mirrors
--- it as LocalPlayer.TutorialStep; this only SHOWS it: one short banner, a bouncing arrow over the real target in
--- the world (kick pad, your pen, your egg, your pet, the Boxing Sack Shop) and a glow on the one button that
--- matters (KICK, the Eggs tile, the Power "+"). Nothing blocks input; a small SKIP button ends it.
--- Steps 2/3 (press KICK / time it) follow the kick meter; step 4 follows your flight and chase.
--- TutorialDone -> a short celebration once.
+-- The show-don't-tell tutorial (client). TutorialService (server) decides the step from your real actions (saved,
+-- so it survives rejoining; never a timer; never asks for something you can't do) and mirrors it as
+-- LocalPlayer.TutorialStep; this only SHOWS it, small and in the world:
+--   * a ground TRAIL of glowing dots from you to where to go, and a small bobbing ARROW over it (kick pad, your
+--     pen, the Boxing Sack Shop),
+--   * a soft HIGHLIGHT on the real thing (the pad, the mystery egg in your hands, your placed egg, your pet),
+--   * a gold glow on the one HUD element that matters (KICK, the meter, Power, Cash),
+--   * one short prompt chip (a few words), and a small SKIP.
+-- Nothing blocks input; it all hides during your kick cinematic. TutorialDone -> a short celebration once.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +18,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 local Upgrades = require(Shared.Config.Upgrades)
 local Remotes = require(Shared.Remotes)
+local EggKick = require(Shared.Anim.EggKick)
 
 local TutorialController = {}
 
@@ -33,6 +37,10 @@ local data: { [string]: any } = {}
 local glowOn: GuiObject? = nil
 local glowStroke: UIStroke? = nil
 local inFlight, inChase = false, false
+local TRAIL_DOTS = 12
+local trailFolder: Folder
+local trail: { Part } = {}
+local highlight: Highlight
 
 local function label(parent: Instance, name: string, size: UDim2, pos: UDim2, textSize: number): TextLabel
 	local l = Instance.new("TextLabel")
@@ -58,14 +66,15 @@ local function build()
 	gui.ResetOnSpawn = false
 	gui.DisplayOrder = 8
 	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
-	banner = label(gui, "Banner", UDim2.fromOffset(640, 52), UDim2.new(0.5, 0, 0, 178), 40)
+	banner = label(gui, "Banner", UDim2.fromOffset(420, 34), UDim2.new(0.5, 0, 0, 150), 28) -- the prompt chip
 	banner.TextColor3 = GOLD
-	sub = label(gui, "Sub", UDim2.fromOffset(640, 30), UDim2.new(0.5, 0, 0, 230), 24)
+	sub = label(gui, "Sub", UDim2.fromOffset(420, 22), UDim2.new(0.5, 0, 0, 186), 18)
+	sub.Visible = false
 	skip = Instance.new("TextButton")
 	skip.Name = "Skip"
 	skip.AnchorPoint = Vector2.new(0.5, 0)
-	skip.Position = UDim2.new(0.5, 0, 0, 266)
-	skip.Size = UDim2.fromOffset(150, 30)
+	skip.Position = UDim2.new(0.5, 0, 0, 188)
+	skip.Size = UDim2.fromOffset(110, 22)
 	skip.BackgroundColor3 = INK
 	skip.BackgroundTransparency = 0.25
 	skip.Font = Enum.Font.FredokaOne
@@ -90,7 +99,7 @@ local function build()
 	arrowPart.Parent = workspace
 	arrowGui = Instance.new("BillboardGui")
 	arrowGui.Name = "Arrow"
-	arrowGui.Size = UDim2.fromOffset(90, 120)
+	arrowGui.Size = UDim2.fromOffset(56, 76)
 	arrowGui.AlwaysOnTop = true
 	arrowGui.LightInfluence = 0
 	arrowGui.Adornee = arrowPart
@@ -130,6 +139,32 @@ local function build()
 	cover.Parent = arrowGui
 	distLabel = label(arrowGui :: any, "Distance", UDim2.fromScale(1.6, 0.22), UDim2.fromScale(0.5, 0.86), 20)
 	arrowGui.Enabled = false
+	-- the ground trail: small glowing dots from you to the target
+	trailFolder = Instance.new("Folder")
+	trailFolder.Name = "TutorialTrail"
+	trailFolder.Parent = workspace
+	for i = 1, TRAIL_DOTS do
+		local dot = Instance.new("Part")
+		dot.Name = "Dot" .. i
+		dot.Shape = Enum.PartType.Ball
+		dot.Size = Vector3.new(0.6, 0.6, 0.6)
+		dot.Material = Enum.Material.Neon
+		dot.Color = GOLD
+		dot.Anchored, dot.CanCollide, dot.CanQuery, dot.CanTouch, dot.CastShadow = true, false, false, false, false
+		dot.Transparency = 1
+		dot.Parent = trailFolder
+		table.insert(trail, dot)
+	end
+	-- the highlight on the real thing
+	highlight = Instance.new("Highlight")
+	highlight.Name = "TutorialHighlight"
+	highlight.FillColor = GOLD
+	highlight.FillTransparency = 0.82
+	highlight.OutlineColor = GOLD
+	highlight.OutlineTransparency = 0.05
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Enabled = false
+	highlight.Parent = gui
 end
 
 local function setGlow(target: GuiObject?)
@@ -198,8 +233,8 @@ local function cheapestUpgrade(): number
 	return cost
 end
 
--- What to show for a step: banner, sub line, a world target, a HUD element to glow.
-local function view(step: number): (string?, string?, Vector3?, GuiObject?)
+-- What to show for a step: a short prompt, a world spot to go to, a HUD element to glow, a world thing to highlight.
+local function view(step: number): (string?, Vector3?, GuiObject?, Instance?)
 	local map = workspace:FindFirstChild("Map")
 	local pad = map and map:FindFirstChild("KickPad")
 	local padPos = if pad and pad:IsA("BasePart") then pad.Position + Vector3.new(0, 4, 0) else nil
@@ -207,73 +242,78 @@ local function view(step: number): (string?, string?, Vector3?, GuiObject?)
 	local onPad = kick ~= nil and kick.Visible
 	local meter = hud("Meter")
 	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local character = player.Character
 	if step == 1 then
-		return "HEAD TO THE KICK LINE!", "Follow the arrow to the golden kick pad", padPos, nil
+		return "Go to the kick line", padPos, nil, pad
 	elseif step == 2 or step == 3 then
 		if not onPad then
-			return "BACK TO THE KICK LINE!", nil, padPos, nil
+			return "Back to the kick line", padPos, nil, pad
 		end
 		if meter and meter.Visible then
-			return "TIME YOUR KICK!",
-				if touch then "Tap when the meter is at the top" else "Stop the meter at the top",
-				nil,
-				meter
+			return "Stop it at the top!", nil, meter, nil
 		end
-		return "PRESS KICK!", "Your mystery egg is ready", nil, hud("Kick")
+		return "Press KICK!", nil, hud("Kick"), character and character:FindFirstChild("MysteryEgg")
 	elseif step == 4 then
 		if inFlight then
-			return "WATCH YOUR EGG!", "The bar at the top shows which zone it reaches", nil, hud("ZoneProgress")
+			return "More POWER = farther kicks", nil, hud("Power"), nil -- progression, briefly
 		elseif inChase then
-			return "RUN! STEER IT HOME!", "Beat the avalanche back to the safe zone", nil, nil
+			return "Steer it home!", nil, nil, nil
 		end
-		return "KICK AN EGG!", nil, padPos, nil
+		return "Kick an egg", padPos, nil, pad
 	elseif step == 5 then
 		if inChase then
-			return "RUN! STEER IT HOME!", "Cross the safe line to keep the egg", nil, nil
+			return "Steer it home!", nil, nil, nil
 		end
-		local lost = typeof(data.stats) == "table" and (data.stats.lost or 0) > 0
-		return "BRING AN EGG HOME!",
-			if lost then "Too slow? Get more RUN SPEED at the Boxing Sack Shop" else "Kick again and race it home",
-			padPos,
-			nil
+		return "Kick again!", padPos, nil, pad
 	elseif step == 6 then
 		local base = myBase()
 		local area = base and base:FindFirstChild("PenArea")
+		local penPos = if area and area:IsA("BasePart") then area.Position + Vector3.new(0, 6, 0) else nil
 		if holdingEgg() then
-			return "PUT IT DOWN IN YOUR PEN!",
-				if touch then "Tap a green spot in your pen" else "Click a green spot in your pen",
-				if area and area:IsA("BasePart") then area.Position + Vector3.new(0, 8, 0) else nil,
-				nil
+			return if touch then "Tap a spot in your pen" else "Click a spot in your pen", penPos, nil, nil
 		end
-		return "OPEN EGGS AND HOLD YOUR EGG", "Then carry it to your pen", nil, hud("Eggs")
+		return if touch then "Tap your egg in the hotbar" else "Press 1 to hold your egg", penPos, nil, nil
 	elseif step == 7 then
 		local egg = firstOf("Egg")
-		return "YOUR EGG IS HATCHING...",
-			"Watch it crack!",
-			if egg then egg:GetPivot().Position + Vector3.new(0, 7, 0) else nil,
-			nil
+		return "It's hatching...", nil, nil, egg
 	elseif step == 8 then
-		local pet = firstOf("Pet")
-		return "YOUR PET EARNS MONEY FOR YOU!",
-			"Pets walk around your pen and earn every second",
-			if pet then pet:GetPivot().Position + Vector3.new(0, 7, 0) else nil,
-			hud("Cash")
+		return "Your pet earns money!", nil, hud("Cash"), firstOf("Pet")
 	elseif step == 9 then
-		local money = if typeof(data.money) == "number" then data.money else 0
 		local shop = map and map:FindFirstChild("BoxingSackShop", true)
-		local shopPos = if shop and shop:IsA("Model") then shop:GetPivot().Position + Vector3.new(0, 22, 0) else nil
-		if money >= cheapestUpgrade() then
-			return "BUY AN UPGRADE!", "A better Kick Sack or more Run Speed at the Boxing Sack Shop", shopPos, nil
-		end
-		return "SAVE UP FOR AN UPGRADE", "Your pets are earning: upgrades are at the Boxing Sack Shop", shopPos, nil
+		local shopPos = if shop and shop:IsA("Model") then shop:GetPivot().Position + Vector3.new(0, 18, 0) else nil
+		local money = if typeof(data.money) == "number" then data.money else 0
+		return if money >= cheapestUpgrade() then "Buy an upgrade" else "Save up for an upgrade", shopPos, nil, shop
 	end
 	return nil, nil, nil, nil
 end
 
+-- Lays the trail dots on the ground from you towards `target` (hidden when you're close or there's none).
+local function drawTrail(target: Vector3?, t: number)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local from = if root and root:IsA("BasePart") then root.Position else nil
+	local show = target ~= nil and from ~= nil and (Vector3.new(target.X, from.Y, target.Z) - from).Magnitude > 14
+	for i, dot in trail do
+		if not show then
+			dot.Transparency = 1
+			continue
+		end
+		local a = (i - 0.5) / TRAIL_DOTS
+		local flat = (from :: Vector3):Lerp(target :: Vector3, a * 0.92)
+		local y = (from :: Vector3).Y - 2.6
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { character :: Instance, trailFolder }
+		local hit = workspace:Raycast(Vector3.new(flat.X, y + 8, flat.Z), Vector3.new(0, -30, 0), params)
+		local pos = if hit then hit.Position + Vector3.new(0, 0.35, 0) else Vector3.new(flat.X, y, flat.Z)
+		dot.CFrame = CFrame.new(pos)
+		dot.Transparency = 0.15 + 0.55 * (0.5 + 0.5 * math.sin(t * 6 - i * 0.7)) -- a pulse running along it
+	end
+end
+
 local function celebrate()
-	banner.Visible, sub.Visible, skip.Visible = true, true, false
+	banner.Visible, sub.Visible, skip.Visible = true, false, false
 	banner.Text = "TUTORIAL COMPLETE!"
-	sub.Text = "Kick farther, hatch rarer pets, fill the Index!"
 	local ok, VFX = pcall(require, Shared.VFX)
 	local character = player.Character
 	if ok and character then
@@ -317,19 +357,23 @@ function TutorialController:Start()
 	RunService.RenderStepped:Connect(function()
 		local step = player:GetAttribute("TutorialStep")
 		local active = typeof(step) == "number" and step > 0
-		if not active then
+		local cinematic = workspace:GetServerTimeNow() < EggKick.cameraBusyUntil + 0.3 -- your kick: hands off
+		if not active or cinematic then
 			arrowGui.Enabled = false
+			highlight.Enabled = false
+			drawTrail(nil, 0)
 			setGlow(nil)
-			if banner.Text ~= "TUTORIAL COMPLETE!" then
+			if banner.Text ~= "TUTORIAL COMPLETE!" or cinematic then
 				banner.Visible, sub.Visible = false, false
 			end
 			skip.Visible = false
 			return
 		end
-		local text, hint, target, glow = view(step :: number)
-		banner.Visible, sub.Visible, skip.Visible = text ~= nil, hint ~= nil, true
-		banner.Text, sub.Text = text or "", hint or ""
-		local bob = math.sin((os.clock() - t0) * 4) * 0.8
+		local text, target, glow, thing = view(step :: number)
+		banner.Visible, sub.Visible, skip.Visible = text ~= nil, false, true
+		banner.Text = text or ""
+		local t = os.clock() - t0
+		local bob = math.sin(t * 4) * 0.6
 		if target then
 			arrowPart.CFrame = CFrame.new(target + Vector3.new(0, bob, 0))
 			local character = player.Character
@@ -339,9 +383,12 @@ function TutorialController:Start()
 			end
 		end
 		arrowGui.Enabled = target ~= nil
+		drawTrail(target, t)
+		highlight.Adornee = thing
+		highlight.Enabled = thing ~= nil
 		setGlow(glow)
 		if glowStroke then
-			glowStroke.Thickness = 4 + math.abs(math.sin((os.clock() - t0) * 5)) * 4
+			glowStroke.Thickness = 3 + math.abs(math.sin(t * 5)) * 3
 		end
 	end)
 end
