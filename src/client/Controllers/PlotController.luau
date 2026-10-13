@@ -1,32 +1,72 @@
 --!strict
--- Decorates the replicated plot models (PlotService) with A's VFX/Anim: eggs wobble and crack
--- toward HatchAt, freshly hatched pets burst + reveal, pets idle and wear their weather overlay, and every
--- egg / pet wears its own idle effect (VFX/PetFx, keyed by the model's ModelKey attribute).
--- MoneyPop on income. Studio only: press P to place your next egg on the first free pedestal.
+-- Brings every pen to life on this client (PlotService models in Base<i>.Plots):
+--   * Eggs wobble and crack toward HatchAt and wear their own idle effect (VFX/PetFx).
+--   * Pets WALK their pen: the server picks each move (attributes PathFrom / PathTo / PathStart / PathEnd, server
+--     time); ONE RenderStepped here moves every pet along its path (one CFrame write on the anchored root: the
+--     rig follows), faces it where it walks, and switches Waddle (walking) / Idle (standing, with the odd hop).
+--     Level of detail (VFX/SackLod bands + view test): near and on screen = every frame with pose animation;
+--     further out every few frames without it; far away / off screen = not moved until it matters again.
+--   * Freshly hatched pets burst + reveal; weather mutations wear their overlay.
+--   * Your own pets get a "Pick Up" prompt (local; PickupPet, the server checks ownership and distance).
+--   * A small "+$" pops over your pen every few seconds while your pets earn (money goes straight in).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Economy = require(Shared.Config.Economy)
 local Mutations = require(Shared.Config.Mutations)
 local VFX = require(Shared.VFX)
 local PetFx = require(Shared.VFX.PetFx)
+local SackLod = require(Shared.VFX.SackLod)
 local Anim = require(Shared.Anim)
 local Remotes = require(Shared.Remotes)
 
 local CRACK_STEPS = 10 -- HatchCrack fires each time progress crosses a tenth
 local REVEAL_WINDOW = 5 -- seconds after HatchedAt during which a new pet plays its reveal
+local ANIM_RANGE = 90 -- studs: pose animations (waddle / idle) only this close and on screen
+local MOVE_RANGE = 220 -- studs: beyond this pets aren't moved (they jump to their spot when you come back)
+local FAR_STRIDE = 4 -- frames between moves for pets past ANIM_RANGE
+local POP_EVERY = 3 -- seconds between income pops over your pen
 
 local PlotController = {}
 
+type PetView = {
+	model: Model,
+	root: BasePart,
+	from: Vector3,
+	to: Vector3,
+	t0: number,
+	t1: number,
+	facing: CFrame, -- rotation only
+	anim: (() -> ())?,
+	animKind: string?,
+	index: number,
+	own: boolean,
+	prompt: ProximityPrompt?,
+	stops: { () -> () },
+}
+
 local player = Players.LocalPlayer
-local data: { [string]: any } = {}
 local tracked: { [Model]: { () -> () } } = {}
+local pets: { [Model]: PetView } = {}
+local petCount = 0
+local frameNo = 0
 
 local function untrack(model: Model)
+	local view = pets[model]
+	if view then
+		pets[model] = nil
+		if view.anim then
+			view.anim()
+		end
+		for _, stop in view.stops do
+			stop()
+		end
+		if view.prompt then
+			view.prompt:Destroy()
+		end
+	end
 	local stops = tracked[model]
 	if stops then
 		tracked[model] = nil
@@ -68,25 +108,140 @@ local function trackEgg(egg: Model)
 	end)
 end
 
+-- Reads the server's path attributes into the view.
+local function readPath(view: PetView)
+	local m = view.model
+	local from, to = m:GetAttribute("PathFrom"), m:GetAttribute("PathTo")
+	local t0, t1 = m:GetAttribute("PathStart"), m:GetAttribute("PathEnd")
+	if typeof(from) == "Vector3" and typeof(to) == "Vector3" and typeof(t0) == "number" and typeof(t1) == "number" then
+		view.from, view.to, view.t0, view.t1 = from, to, t0, t1
+		local dir = Vector3.new(to.X - from.X, 0, to.Z - from.Z)
+		if dir.Magnitude > 0.05 then
+			view.facing = CFrame.lookAt(Vector3.zero, dir)
+		end
+	end
+end
+
+local function pickupPrompt(view: PetView)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PickUpPet"
+	prompt.ActionText = "Pick Up"
+	local name = view.model:GetAttribute("PetName")
+	prompt.ObjectText = if typeof(name) == "string" then name else "Pet"
+	prompt.HoldDuration = 0.3
+	prompt.MaxActivationDistance = 9
+	prompt.RequiresLineOfSight = false
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.UIOffset = Vector2.new(0, 30)
+	prompt.Triggered:Connect(function()
+		local uid = view.model:GetAttribute("PetUid")
+		if typeof(uid) == "string" then
+			Remotes.get("PickupPet"):FireServer(uid)
+		end
+	end)
+	prompt.Parent = view.root
+	view.prompt = prompt
+end
+
 local function trackPet(pet: Model)
+	local root = pet.PrimaryPart
+	if not root then
+		return
+	end
 	local rarity = pet:GetAttribute("Rarity")
 	local hatchedAt = pet:GetAttribute("HatchedAt")
 	if typeof(hatchedAt) == "number" and workspace:GetServerTimeNow() - hatchedAt < REVEAL_WINDOW then
 		VFX.play("HatchBurst", pet, { rarity = rarity })
 		VFX.play("PetReveal", pet, { rarity = rarity, name = pet:GetAttribute("PetName") })
 	end
-	local stops = { Anim.play(pet, "Idle") }
-	petFx(pet, "pet", stops)
+	petCount += 1
+	local view: PetView = {
+		model = pet,
+		root = root,
+		from = root.Position,
+		to = root.Position,
+		t0 = 0,
+		t1 = 0,
+		facing = root.CFrame.Rotation,
+		anim = nil,
+		animKind = nil,
+		index = petCount,
+		own = pet:GetAttribute("OwnerUserId") == player.UserId,
+		prompt = nil,
+		stops = {},
+	}
+	petFx(pet, "pet", view.stops)
 	local weather = pet:GetAttribute("Weather")
 	local mutation = if typeof(weather) == "string" then Mutations.Weather[weather] else nil
 	if mutation then
-		table.insert(stops, VFX.attach(mutation.vfx, pet))
+		table.insert(view.stops, VFX.attach(mutation.vfx, pet))
 	end
-	tracked[pet] = stops
+	readPath(view)
+	local conn = pet.AttributeChanged:Connect(function(name: string)
+		if string.sub(name, 1, 4) == "Path" then
+			readPath(view)
+		end
+	end)
+	table.insert(view.stops, function()
+		conn:Disconnect()
+	end)
+	if view.own then
+		pickupPrompt(view)
+	end
+	pets[pet] = view
+end
+
+local function setAnim(view: PetView, kind: string?)
+	if view.animKind == kind then
+		return
+	end
+	if view.anim then
+		view.anim()
+		view.anim = nil
+	end
+	view.animKind = kind
+	if kind then
+		view.anim = Anim.play(view.model, kind)
+	end
+end
+
+-- One frame for every pet: position along its path, facing, and the right animation at the right detail.
+local function movePets()
+	frameNo += 1
+	local now = workspace:GetServerTimeNow()
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	local camCF = cam.CFrame
+	local tanY = math.tan(math.rad(cam.FieldOfView) / 2)
+	local vp = cam.ViewportSize
+	local aspect = if vp.Y > 0 then vp.X / vp.Y else 16 / 9
+	for model, view in pets do
+		if not model.Parent then
+			continue
+		end
+		local target = if now >= view.t1 or view.t1 <= view.t0
+			then view.to
+			else view.from:Lerp(view.to, (now - view.t0) / (view.t1 - view.t0))
+		local d = (target - camCF.Position).Magnitude
+		if d > MOVE_RANGE then
+			setAnim(view, nil)
+			continue
+		end
+		local visible = d < SackLod.CULL_MIN or SackLod.inView(camCF, tanY, aspect, target, 6)
+		local near = visible and d < ANIM_RANGE
+		if not near and (frameNo + view.index) % FAR_STRIDE ~= 0 then
+			continue
+		end
+		local walking = now < view.t1 and view.t1 > view.t0
+		view.root.CFrame = CFrame.new(target) * view.facing
+		setAnim(view, if not near then nil elseif walking then "Waddle" else "Idle")
+	end
 end
 
 local function onPlotChild(child: Instance)
-	if not child:IsA("Model") or tracked[child] then
+	if not child:IsA("Model") or tracked[child] or pets[child] then
 		return
 	end
 	local kind = child:GetAttribute("Kind")
@@ -143,53 +298,32 @@ local function myBase(): Instance?
 	return if bases and typeof(index) == "number" then bases:FindFirstChild(`Base{index}`) else nil
 end
 
-local function placeNextEgg()
-	local eggs = data.eggs
-	if typeof(eggs) ~= "table" or #eggs == 0 then
-		print("[PlotController] no eggs in inventory")
-		return
-	end
-	local taken: { [number]: boolean } = {}
-	for key in data.plots or {} do
-		taken[tonumber(key) :: number] = true
-	end
-	for _, pet in data.pets or {} do
-		if pet.slot then
-			taken[pet.slot] = true
-		end
-	end
-	for slot = 1, data.plotSlots or Economy.PlotSlots.base do
-		if not taken[slot] then
-			Remotes.get("PlaceEgg"):FireServer(eggs[1].uid, slot)
+function PlotController:Start()
+	-- income pops: money from placed pets arrives every second; show it every few seconds near your pen
+	local lastMoney: number? = nil
+	local pending, lastPop = 0, 0
+	Remotes.get("DataChanged").OnClientEvent:Connect(function(partial: { [string]: any })
+		if typeof(partial.money) ~= "number" then
 			return
 		end
-	end
-	print("[PlotController] all pedestals are full")
-end
-
-function PlotController:Start()
-	Remotes.get("DataChanged").OnClientEvent:Connect(function(partial: { [string]: any })
-		local before = data.money
-		for k, v in partial do
-			data[k] = v
+		if lastMoney and partial.money > lastMoney then
+			pending += partial.money - lastMoney
 		end
-		if typeof(before) == "number" and typeof(partial.money) == "number" and partial.money > before then
-			local base = myBase()
-			if base then
-				VFX.play("MoneyPop", base, { amount = partial.money - before })
+		lastMoney = partial.money
+		local now = os.clock()
+		local base = myBase()
+		local area = base and base:FindFirstChild("PenArea")
+		local cam = workspace.CurrentCamera
+		if pending > 0 and now - lastPop >= POP_EVERY and area and area:IsA("BasePart") and cam then
+			if (area.Position - cam.CFrame.Position).Magnitude < 140 then
+				VFX.play("MoneyPop", area, { amount = math.floor(pending) })
 			end
+			pending, lastPop = 0, now
 		end
 	end)
 
 	task.spawn(watchBases)
-
-	if RunService:IsStudio() then
-		UserInputService.InputBegan:Connect(function(input, processed)
-			if not processed and input.KeyCode == Enum.KeyCode.P then
-				placeNextEgg()
-			end
-		end)
-	end
+	RunService.RenderStepped:Connect(movePets)
 end
 
 return PlotController

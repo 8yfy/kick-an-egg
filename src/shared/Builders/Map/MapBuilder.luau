@@ -3,7 +3,7 @@
 --   require(game.ReplicatedStorage.Shared.Builders.Map.MapBuilder).build()
 -- Layout (Config/Chase axes): a compact grass plaza (the safe zone, Z < SafeLineZ) on a cliff above the
 -- ocean, walled on three sides by plain studded dirt walls; the runway canyon leaves the plaza's wall at
--- the kick pad (origin) and runs +Z through the 20 zones. 8 fenced pens in two rows face a middle avenue
+-- the kick pad (origin) and runs +Z through the 20 zones. 6 fenced pens in two rows face a middle avenue
 -- (fountain), each with a kick-training station beside its entrance; the Boxing Sack Shop and the Index
 -- stall by the spawn.
 -- No zone signs: the HUD's zone bar names zones. Every part butts against its neighbours (no coplanar
@@ -27,6 +27,7 @@
 --   workspace.Map.Runway.Zone<id>                 Folder per zone
 -- ProximityPrompts carry an "Action" attribute the client UI handles:
 --   "UpgradePen" | "UpgradeTraining" | "EquipSack" | "OpenMenu:Store" (Boxing Sack Shop) | "OpenMenu:Index"
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local PhysicsService = game:GetService("PhysicsService")
 local Builder = require(script.Parent.Parent.BlockBuilder)
@@ -62,7 +63,6 @@ local PLAZA_Y = 11 -- about two characters tall: a gentle climb home, not a clif
 local RAMP_START, RAMP_END = 10, 76
 local RIM_W = 60 -- canyon rim plateau width beyond each wall
 local RIM_TOP = WALL_H + 2 -- flush with the wall caps
-local plazaLift = 0 -- becomes PLAZA_Y once the plaza has been raised (runtime rack rebuilds use it)
 MapBuilder.PlazaY = PLAZA_Y
 MapBuilder.RampStart, MapBuilder.RampEnd = RAMP_START, RAMP_END
 MapBuilder.KickPadTop = PLAZA_Y + 0.5
@@ -75,28 +75,20 @@ local GRASS, GRASS_DARK = rgb(120, 215, 75), rgb(104, 196, 64)
 local YELLOW = rgb(255, 220, 80)
 local SHIELD_ICON = "rbxassetid://77216163319959"
 local SIGN = rgb(32, 38, 52)
-local BASE_COLORS = {
-	rgb(255, 85, 85),
-	rgb(255, 160, 50),
-	rgb(255, 215, 60),
-	rgb(90, 210, 90),
-	rgb(60, 200, 220),
-	rgb(70, 130, 255),
-	rgb(170, 100, 255),
-	rgb(255, 120, 200),
-}
--- Pens: back row flanks the canyon mouth (entrances face -Z), front row faces it across the avenue.
+-- Pens (6, rework 2026-10-13): three each side of the central avenue. Back row flanks the canyon mouth
+-- (entrances face -Z), the outer front pens face it across the avenue; the middle of the front row is left open
+-- (fountain square) for future mechanics.
 type PenSlot = { cx: number, zE: number, out: number }
 local PENS: { PenSlot } = {
-	{ cx = -136, zE = -56, out = -1 },
 	{ cx = -76, zE = -56, out = -1 },
 	{ cx = 76, zE = -56, out = -1 },
+	{ cx = -136, zE = -56, out = -1 },
 	{ cx = 136, zE = -56, out = -1 },
 	{ cx = -99, zE = -100, out = 1 },
-	{ cx = -33, zE = -100, out = 1 },
-	{ cx = 33, zE = -100, out = 1 },
 	{ cx = 99, zE = -100, out = 1 },
 }
+MapBuilder.PenCount = #PENS
+MapBuilder.LandingTag = Chase.Landing.tag
 
 type River = { color: Color3, material: Enum.Material?, transparency: number? }
 local WATER: River = { color = rgb(80, 170, 240), transparency = 0.15 }
@@ -486,6 +478,7 @@ local function buildDrop(map: Instance)
 		{ shape = "Wedge" }
 	)
 	ramp.Name = "Ramp"
+	CollectionService:AddTag(ramp, Chase.Landing.tag)
 	-- top at PLAZA_Y - 1: the hub deck (1 thick, lifted with the plaza) sits on it without z-fighting
 	block(
 		drop,
@@ -552,6 +545,8 @@ local function setupCollisionGroups()
 	PhysicsService:CollisionGroupSetCollidable(g.barrier, "Default", false)
 	PhysicsService:CollisionGroupSetCollidable(g.barrier, g.eggs, false)
 	PhysicsService:CollisionGroupSetCollidable(g.barrier, g.players, true)
+	-- steered eggs pass through characters: the kicker waits (hidden) on the kick pad, right on the way home
+	PhysicsService:CollisionGroupSetCollidable(g.eggs, g.players, false)
 end
 
 -- Bright, punchy sky: atmosphere haze, bloom on neon, soft sun rays and a touch more colour.
@@ -893,55 +888,6 @@ local function fountain(parent: Instance, c: Vector3)
 	l.Parent = water
 end
 
--- Kick Sack display stand (replaced the treadmill): a brick gallows with the NEXT sack you can buy
--- hanging from it (your own sack once maxed). The sack turns slowly on clients (MapLife "Spin").
-local function refreshRack(base: Model, slot: CFrame)
-	local tiers = Upgrades.Sack.tiers
-	local level = math.clamp((base:GetAttribute("RackLevel") :: number?) or 1, 1, #tiers)
-	local show = math.min(level + 1, #tiers)
-	local hubY = Sacks.HANG + 0.3 -- the sack's hub; its chain reaches up to the beam
-	local beamY = hubY + Sacks.CHAIN_TOP + 0.45
-	local stand: Instance? = base:FindFirstChild("SackStand")
-	if not stand then
-		local m = Instance.new("Model")
-		m.Name = "SackStand"
-		local wood, dark = rgb(150, 98, 60), rgb(96, 62, 40)
-		local plinth = block(m, "Plinth", Vector3.new(7.6, 0.6, 4), slot * CFrame.new(0, 0.3, 0), rgb(120, 124, 138))
-		-- "Train": takes your Kick Sack out / puts it away (UI/Interact; replaces the old HUD SACK slot)
-		local train = prompt(plinth, "EquipSack", "Train", "Kick Sack")
-		train.KeyboardKeyCode = Enum.KeyCode.F
-		train.UIOffset = Vector2.new(0, 40)
-		for _, x in { -3, 3 } do
-			block(m, "Post", Vector3.new(0.9, beamY - 0.15, 0.9), slot * CFrame.new(x, (beamY + 0.75) / 2, 0), wood)
-			block(m, "PostFoot", Vector3.new(1.5, 0.6, 1.5), slot * CFrame.new(x, 0.9, 0), dark)
-			block(
-				m,
-				"Brace",
-				Vector3.new(0.5, 2.4, 0.5),
-				slot * CFrame.new(x * 0.8, beamY - 0.9, 0) * CFrame.Angles(0, 0, math.rad(if x > 0 then 45 else -45)),
-				dark,
-				{ studs = false }
-			)
-		end
-		block(m, "Beam", Vector3.new(7.8, 0.9, 1.2), slot * CFrame.new(0, beamY, 0), wood)
-		m.Parent = base
-		stand = m
-	end
-	assert(stand, "stand")
-	local current = stand:FindFirstChild("Sack")
-	if not (current and current:GetAttribute("Tier") == show) then
-		if current then
-			current:Destroy()
-		end
-		hangSack(stand, show, slot * CFrame.new(0, hubY, 0), 30)
-	end
-	local sign = base:FindFirstChild("RackSign")
-	local sgui = sign and sign:FindFirstChildOfClass("SurfaceGui")
-	local nextInfo = tiers[level + 1]
-	setText(sgui, "Level", if nextInfo then nextInfo.name else `{tiers[level].name} (MAX)`)
-	setText(sgui, "Cost", if nextInfo then `${Fx.formatNumber(nextInfo.cost)}` else "MAXED")
-end
-
 local function refreshPen(base: Model)
 	local level = math.max(1, (base:GetAttribute("PenLevel") :: number?) or 1)
 	local slots = math.min(Economy.PlotSlots.base + (level - 1) * Upgrades.Pen.slotsPerLevel, Economy.PlotSlots.max)
@@ -953,21 +899,6 @@ local function refreshPen(base: Model)
 		gui,
 		"Cost",
 		if maxed then "MAXED" else `${Fx.formatNumber(Upgrades.Pen.costBase * Upgrades.Pen.costGrowth ^ (level - 1))}`
-	)
-end
-
-local function refreshOwner(base: Model)
-	local uid = base:GetAttribute("OwnerUserId") :: number?
-	if not uid then
-		return -- B's PlotService manages the label until it mirrors OwnerUserId
-	end
-	local sign = base:FindFirstChild("Sign")
-	local board = sign and sign:FindFirstChild("Board")
-	local owner = if uid > 0 then game:GetService("Players"):GetPlayerByUserId(uid) else nil
-	setText(
-		board and board:FindFirstChildOfClass("SurfaceGui"),
-		"OwnerLabel",
-		if owner then `{owner.DisplayName}'s Pen` else "Empty Pen"
 	)
 end
 
@@ -1062,52 +993,33 @@ local function buildBase(parent: Instance, i: number)
 	fenceRun(fence, Vector3.new(x0, 0, zE), Vector3.new(cx - 6, 0, zE))
 	fenceRun(fence, Vector3.new(cx + 6, 0, zE), Vector3.new(x1, 0, zE))
 
-	-- Invisible egg spots (5 x 4, slot 1 nearest the entrance); egg bottom lands on the floor top (0.3)
-	local pedestals = folder(base, "Pedestals")
-	for n = 1, Economy.PlotSlots.max do
-		local row, col = (n - 1) // 5, (n - 1) % 5
-		local ped = Instance.new("Model")
-		ped.Name = "Pedestal" .. n
-		ped:SetAttribute("Slot", n)
-		ped.PrimaryPart = block(
-			ped,
-			"Top",
-			Vector3.new(3, 0.1, 3),
-			CFrame.new(cx + (col - 2) * 9.5, 0.15, zE - out * (6 + row * 9.5)),
-			Color3.new(1, 1, 1),
-			{
-				transparency = 1,
-				collide = false,
-				studs = false,
-			}
-		)
-		ped.Parent = pedestals
-	end
-
-	-- Owner board above the back fence
-	local sign = Instance.new("Model")
-	sign.Name = "Sign"
-	for _, dx in { -6, 6 } do
-		block(sign, "Post", Vector3.new(0.9, 9, 0.9), CFrame.new(cx + dx, 4.5, zB - out * 0.9), rgb(80, 60, 55))
-	end
-	local board = block(sign, "Board", Vector3.new(14, 3.6, 0.8), CFrame.new(cx, 8.8, zB - out * 0.9), BASE_COLORS[i])
-	surface(board, face, { { "Subtitle", `PEN {i}`, 0.04, 0.3 }, { "OwnerLabel", "Empty Pen", 0.34, 0.62 } })
-	sign.Parent = base
+	-- The pen's floor and frame (PlotService / PlotController): origin = floor centre on top of the tiles, -Z
+	-- toward the entrance, size = the fenced floor. Pets roam and eggs are placed inside it (pen-local coords).
+	local center = Vector3.new(cx, 0.2, (zE + zB) / 2)
+	local area = block(
+		base,
+		"PenArea",
+		Vector3.new(PEN_W, 0.2, PEN_D),
+		CFrame.lookAt(center, center + Vector3.new(0, 0, out)),
+		Color3.new(1, 1, 1),
+		{ transparency = 1, collide = false, studs = false }
+	)
+	area.CanQuery, area.CanTouch = false, false
+	-- Floating owner display anchor (avatar headshot + name, drawn by every client: UI/PenOwner) over the back
+	-- fence. Replaces the old owner board.
+	local owner = block(
+		base,
+		"OwnerAnchor",
+		Vector3.new(1, 1, 1),
+		CFrame.new(cx, 13, zB + out * 2),
+		Color3.new(1, 1, 1),
+		{ transparency = 1, collide = false, studs = false }
+	)
+	owner.CanQuery, owner.CanTouch = false, false
 
 	upgradeSign(base, "PenSign", "Upgrade Pen", Vector3.new(cx - 10, 0, zE + out * 2.5), face, "UpgradePen", `Pen {i}`)
-
-	-- Kick Sack stand on the avenue beside the entrance; the sack faces the avenue
-	local rackSlot = CFrame.new(cx + 16, 0, zE + out * 14)
-		* (if out > 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity)
-	upgradeSign(
-		base,
-		"RackSign",
-		"Next Kick Sack",
-		Vector3.new(cx + 5, 0, zE + out * 22),
-		face,
-		"UpgradeTraining",
-		`Station {i}`
-	)
+	-- (No sack stand or "Next Kick Sack" sign any more: sacks are bought at the physical Boxing Sack Shop and
+	-- taken out with the bottom Kick Sack quickslot.)
 
 	block(base, "SpawnPoint", Vector3.new(2, 1, 2), CFrame.new(cx - 4, 3, zE + out * 8), Color3.new(1, 1, 1), {
 		transparency = 1,
@@ -1115,17 +1027,9 @@ local function buildBase(parent: Instance, i: number)
 		studs = false,
 	})
 
-	refreshRack(base, rackSlot)
 	refreshPen(base)
-	base:GetAttributeChangedSignal("RackLevel"):Connect(function()
-		-- built at plaza level 0 and lifted afterwards; later rebuilds must include the lift
-		refreshRack(base, rackSlot + Vector3.new(0, plazaLift, 0))
-	end)
 	base:GetAttributeChangedSignal("PenLevel"):Connect(function()
 		refreshPen(base)
-	end)
-	base:GetAttributeChangedSignal("OwnerUserId"):Connect(function()
-		refreshOwner(base)
 	end)
 end
 
@@ -1288,7 +1192,8 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 	local fmid = fz0 + flen / 2
 	local minZ = fz0 + 4
 
-	block(f, "Lane", Vector3.new(Chase.RunwayWidth, 2, flen), CFrame.new(0, -1, fmid), zone.ground)
+	local lane = block(f, "Lane", Vector3.new(Chase.RunwayWidth, 2, flen), CFrame.new(0, -1, fmid), zone.ground)
+	CollectionService:AddTag(lane, Chase.Landing.tag) -- eggs land only on lanes and the ramp (KickService)
 	for k = -1, 1, 2 do
 		block(
 			f,
@@ -1469,7 +1374,6 @@ function MapBuilder.build(): Model
 			lift(child, PLAZA_Y)
 		end
 	end
-	plazaLift = PLAZA_Y
 	local safeZone = map:FindFirstChild("SafeZone") :: Instance
 	block(
 		safeZone,

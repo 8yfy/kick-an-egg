@@ -1,6 +1,7 @@
 --!strict
 -- Base upgrades from Config/Upgrades, server side:
---   UpgradePen()      buys pen level + 1 for Pen.costBase x Pen.costGrowth^(level - 1): more slots.
+--   UpgradePen()      buys pen level + 1 for Pen.costBase x Pen.costGrowth^(level - 1): room for more pets and
+--                     eggs (PlotService.slotsForPen).
 -- (Strength training and the sack ladder moved to SackService: Train / UpgradeTraining.)
 -- Levels are mirrored on the base (PlotService:MirrorBase) for the signs and the Store.
 
@@ -39,9 +40,7 @@ local function onUpgradePen(player: Player)
 		return
 	end
 	DataService:Set(player, { money = data.money - cost, penLevel = data.penLevel + 1 })
-	PlotService:MirrorBase(player)
-	PlotService:PlaceUnplacedPets(player) -- the new pedestals take waiting pets, then waiting eggs
-	PlotService:PlaceWaitingEggs(player)
+	PlotService:MirrorBase(player) -- more room: place stored pets / eggs from the Pets and Eggs screens
 	Analytics.money(player, "Sink", cost, "Shop", "Pen")
 	Analytics.funnel(player, Analytics.Funnel.FirstUpgrade, "FirstUpgrade")
 end

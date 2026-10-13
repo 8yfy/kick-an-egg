@@ -4,14 +4,14 @@
 -- (200 ms cubic out). Drawers size to their rows (1-4 visible, then scroll) instead of a tall empty box.
 -- One drawer at a time; opening a modal closes it.
 --
--- HATCHING EGGS: eggs on pedestals (soonest first): 3D egg, name, countdown + bar from the server's
---   placedAt/hatchAt and synced server time. Eggs hatch BY THEMSELVES at hatchAt (no Hatch action exists), so a
---   finished timer reads HATCHING... until the server swaps the egg for its pet. Then eggs waiting for a free
---   pedestal, then one compact "free pedestals" row. Footer: BIGGER PEN (Remotes.UpgradePen, the real capacity
---   unlock). Badge = eggs waiting for room.
--- ACTIVE PETS: pets earning on pedestals: 3D pet, name, $/s and cash waiting on the pedestal. The game places
---   pets on free pedestals automatically, so there is no Unequip / Equip Best. Footer: SELL PETS (inventory)
---   and TRADE (A's trade window). Badge = pets hatched since you last opened the drawer.
+-- EGGS: eggs placed in your pen (soonest first): 3D egg, name, countdown + bar from the server's placedAt/hatchAt
+--   and synced server time. Eggs hatch BY THEMSELVES at hatchAt, so a finished timer reads HATCHING... until the
+--   server swaps the egg for its pet. Then inventory eggs (finished kicks) with a HOLD button: you carry the egg
+--   (an "Egg" Tool, Remotes.EquipEgg) and put it down anywhere in your pen (PlacementController). One compact
+--   "free spots" row. Footer: BIGGER PEN (Remotes.UpgradePen). Badge = eggs in the inventory.
+-- PETS: every pet you own: 3D pet, name, rarity and mutation, $/s, and IN PEN (roaming, earning; walk up to it to
+--   pick it up) or STORED with a PLACE button (Remotes.PlacePet: a free spot in your pen). Footer: SELL PETS
+--   (inventory). Trading has its own TRADE button on the left rail. Badge = pets hatched since you last looked.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -243,6 +243,7 @@ function Drawers.new(parent: Instance): Drawers
 		bar: Ui.Progress,
 		ready: Frame,
 		state: TextLabel,
+		hold: Ui.Button,
 		data: Data.EggRow,
 		stopPulse: (() -> ())?,
 	}
@@ -327,17 +328,33 @@ function Drawers.new(parent: Instance): Drawers
 				ready.Position = UDim2.fromOffset(102, 46)
 				ready.Visible = false
 				local state = Ui.text(f, "", 22, { stroke = 3, color = C.power, name = "State" })
-				state.Position = UDim2.fromOffset(102, 52)
-				state.Size = UDim2.new(1, -118, 0, 32)
-				ui = { frame = f, time = time, bar = bar, ready = ready, state = state, data = d }
+				state.Position = UDim2.fromOffset(102, 56)
+				state.Size = UDim2.new(1, -258, 0, 30)
+				local uid = d.uid
+				local hold = Ui.button(f, {
+					text = "HOLD",
+					style = "lime",
+					size = UDim2.fromOffset(128, 44),
+					textSize = 26,
+					name = "Hold",
+					onClick = function()
+						remote("EquipEgg"):FireServer(uid)
+						show(nil)
+						Modal.toast("Walk to your pen and put the egg down!", "good")
+					end,
+				})
+				hold.gui.AnchorPoint = Vector2.new(1, 0)
+				hold.gui.Position = UDim2.new(1, -12, 0, 48)
+				ui = { frame = f, time = time, bar = bar, ready = ready, state = state, hold = hold, data = d }
 				eggRows[d.uid] = ui
 			end
 			local u = ui :: EggUi
 			u.data = d
 			u.frame.LayoutOrder = i
-			local waiting = d.slot == nil
+			local waiting = not d.placed
 			u.state.Visible = waiting
-			u.state.Text = if waiting then "WAITING FOR A PEDESTAL" else ""
+			u.state.Text = if waiting then "IN YOUR INVENTORY" else ""
+			u.hold.gui.Visible = waiting
 			if waiting then
 				u.bar.gui.Visible = false
 				u.ready.Visible = false
@@ -357,7 +374,7 @@ function Drawers.new(parent: Instance): Drawers
 		local free = math.max(0, cap.slots - cap.eggs - cap.pets)
 		eggEmpty.Visible = #rows == 0
 		freeRow.Visible = free > 0 and #rows > 0
-		freeText.Text = `{free} FREE PEDESTAL{if free == 1 then "" else "S"}`
+		freeText.Text = `{free} FREE SPOT{if free == 1 then "" else "S"} IN YOUR PEN`
 		if eggEmpty.Visible then
 			height += 84 + ROW_GAP
 		end
@@ -370,12 +387,12 @@ function Drawers.new(parent: Instance): Drawers
 	end
 
 	-- Pets drawer ----------------------------------------------------------------------------------------------
-	type PetUi = { frame: Frame, income: TextLabel, stored: TextLabel }
+	type PetUi = { frame: Frame, income: TextLabel, meta: TextLabel, status: TextLabel, place: Ui.Button }
 	local petRows: { [string]: PetUi } = {}
 	local petEmpty = rowFrame(pets.list, "Empty", 9000, 84)
 	local petEmptyText = Ui.text(
 		petEmpty,
-		"No pets on pedestals yet.",
+		"No pets yet. Place an egg in your pen and hatch it!",
 		22,
 		{ align = Enum.TextXAlignment.Center, stroke = 3, wrap = true }
 	)
@@ -390,7 +407,7 @@ function Drawers.new(parent: Instance): Drawers
 	local sellButton = Ui.button(pets.footer, {
 		text = "SELL PETS",
 		style = "lime",
-		size = UDim2.new(0.62, -6, 1, 0),
+		size = UDim2.fromScale(1, 1),
 		textSize = 30,
 		icon = "premium_icons_currency_cash",
 		name = "SellPets",
@@ -399,31 +416,16 @@ function Drawers.new(parent: Instance): Drawers
 		end,
 	})
 	sellButton.gui.Position = UDim2.new()
-	local trade = Ui.button(pets.footer, {
-		text = "TRADE",
-		style = "purple",
-		size = UDim2.new(0.38, -6, 1, 0),
-		textSize = 30,
-		name = "Trade",
-		onClick = function()
-			show(nil)
-			Drawers.openTrade()
-		end,
-	})
-	trade.gui.AnchorPoint = Vector2.new(1, 0)
-	trade.gui.Position = UDim2.fromScale(1, 0)
 
 	refreshPets = function()
 		local rows = Data.pets()
 		local cap = Data.capacity()
 		pets.count.Text = `{cap.pets}/{cap.slots}`
-		local placed = {}
-		for _, row in rows do
-			if row.slot then
-				table.insert(placed, row)
-			end
-		end
+		local placed = table.clone(rows) -- every pet: in the pen first, then stored; best earners first
 		table.sort(placed, function(a, b)
+			if a.placed ~= b.placed then
+				return a.placed
+			end
 			return a.income > b.income
 		end)
 		local seen: { [string]: boolean } = {}
@@ -440,26 +442,54 @@ function Drawers.new(parent: Instance): Drawers
 				nameLabel.Position = UDim2.fromOffset(102, 8)
 				nameLabel.Size = UDim2.new(1, -112, 0, 34)
 				nameLabel.TextColor3 = Theme.RarityText[d.rarity] or C.text
-				local coin = Ui.frame(f, "Coin", UDim2.fromOffset(38, 38), UDim2.fromOffset(100, 50))
+				nameLabel.Size = UDim2.new(1, -250, 0, 30)
+				local meta = Ui.text(f, "", 18, { stroke = 2, color = C.muted, name = "Meta" })
+				meta.Position = UDim2.fromOffset(102, 38)
+				meta.Size = UDim2.new(1, -250, 0, 22)
+				local coin = Ui.frame(f, "Coin", UDim2.fromOffset(34, 34), UDim2.fromOffset(100, 62))
 				Ui.art(coin, "premium_icons_currency_cash")
-				local income = Ui.text(f, "", 28, { autoX = true, stroke = 3, color = C.cash, name = "Income" })
-				income.Position = UDim2.fromOffset(142, 50)
-				local stored = Ui.text(
+				local income = Ui.text(f, "", 26, { autoX = true, stroke = 3, color = C.cash, name = "Income" })
+				income.Position = UDim2.fromOffset(138, 62)
+				local status = Ui.text(
 					f,
 					"",
 					20,
-					{ align = Enum.TextXAlignment.Right, stroke = 2, color = C.muted, name = "Stored" }
+					{ align = Enum.TextXAlignment.Right, stroke = 2, color = C.cash, name = "Status" }
 				)
-				stored.AnchorPoint = Vector2.new(1, 0)
-				stored.Position = UDim2.new(1, -12, 0, 56)
-				stored.Size = UDim2.fromOffset(150, 28)
-				ui = { frame = f, income = income, stored = stored }
+				status.AnchorPoint = Vector2.new(1, 0)
+				status.Position = UDim2.new(1, -12, 0, 10)
+				status.Size = UDim2.fromOffset(130, 26)
+				local uid = d.uid
+				local place = Ui.button(f, {
+					text = "PLACE",
+					style = "lime",
+					size = UDim2.fromOffset(128, 44),
+					textSize = 26,
+					name = "Place",
+					onClick = function()
+						remote("PlacePet"):FireServer(uid)
+					end,
+				})
+				place.gui.AnchorPoint = Vector2.new(1, 0)
+				place.gui.Position = UDim2.new(1, -12, 0, 46)
+				ui = { frame = f, income = income, meta = meta, status = status, place = place }
 				petRows[d.uid] = ui
 			end
 			local u = ui :: PetUi
 			u.frame.LayoutOrder = i
-			u.income.Text = `+{Ui.money(d.income)}/s`
-			u.stored.Text = if d.stored > 0 then `{Ui.money(d.stored)} waiting` else ""
+			u.income.Text = if d.placed then `+{Ui.money(d.income)}/s` else `{Ui.money(d.income)}/s when placed`
+			local tags = { d.rarity }
+			if d.size then
+				table.insert(tags, d.size)
+			end
+			if d.weather then
+				table.insert(tags, d.weather)
+			end
+			u.meta.Text = table.concat(tags, "  ·  ")
+			u.status.Text = if d.placed then "IN PEN" else "STORED"
+			u.status.TextColor3 = if d.placed then C.cash else C.muted
+			u.place.gui.Visible = not d.placed
+			u.place.setEnabled(cap.pets + cap.eggs < cap.slots)
 			height += ROW + ROW_GAP
 		end
 		for uid, ui in petRows do
@@ -470,8 +500,9 @@ function Drawers.new(parent: Instance): Drawers
 		end
 		petEmpty.Visible = #placed == 0
 		local waiting = cap.unplacedPets
-		waitingRow.Visible = waiting > 0
-		waitingText.Text = `{waiting} more pet{if waiting == 1 then "" else "s"} waiting for a free pedestal`
+		local full = cap.pets + cap.eggs >= cap.slots
+		waitingRow.Visible = waiting > 0 and full
+		waitingText.Text = "Your pen is full: get a BIGGER PEN or pick a pet up"
 		if petEmpty.Visible then
 			height += 84 + ROW_GAP
 		end
@@ -505,7 +536,7 @@ function Drawers.new(parent: Instance): Drawers
 		if open == "Eggs" then
 			tickEggs()
 		elseif open == "Pets" then
-			refreshPets() -- Stored cash ticks on the pedestal models every second
+			refreshPets() -- live $/s from the pet models
 		end
 	end)
 
@@ -517,7 +548,7 @@ function Drawers.new(parent: Instance): Drawers
 		end,
 		update = function()
 			local cap = Data.capacity()
-			eggButton.setBadge(if cap.waitingEggs > 0 then tostring(cap.waitingEggs) else nil)
+			eggButton.setBadge(if cap.waitingEggs > 0 then tostring(cap.waitingEggs) else nil) -- eggs to place
 			if open == "Eggs" then
 				refreshEggs()
 			elseif open == "Pets" then
@@ -535,7 +566,7 @@ function Drawers.new(parent: Instance): Drawers
 	}
 end
 
--- Set by UI/init: opens A's Trade window.
+-- Set by UI/init: opens A's Trade window (now from the left rail's TRADE button).
 function Drawers.openTrade() end
 
 return Drawers

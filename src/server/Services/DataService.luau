@@ -32,15 +32,17 @@ local LOCK_TIMEOUT = Economy.AutosaveSeconds * 5 -- a lock older than this is fr
 local LOCKED_RETRIES = 4 -- the other server may still be saving on leave
 local SERVER_ID = HttpService:GenerateGUID(false) -- JobId is "" in Studio, so use our own
 
+local VERSION = 2
 local TEMPLATE: Data = {
-	version = 1,
+	version = VERSION,
 	money = Economy.StartingMoney,
 	kickPower = Economy.KickPower.base,
-	runSpeed = Economy.RunSpeed.base,
+	speedLevel = 0, -- Run Speed upgrades bought (no cap); the speed itself is Economy.runSpeedAt(speedLevel)
+	runSpeed = Economy.RunSpeed.base, -- derived from speedLevel on load and on every purchase (read by clients)
 	rebirths = 0,
-	eggs = {}, -- { {uid, petId, size, weather} }
-	pets = {},
-	plots = {},
+	eggs = {}, -- inventory eggs { {uid, petId, size, weather} } (held as an "Egg" Tool, placed in the pen)
+	pets = {}, -- { [petUid]: {petId, size?, weather?, placed?, x?, z?} } placed = roaming in the pen
+	plots = {}, -- placed eggs { [eggUid]: {uid, petId, size?, weather?, placedAt, hatchAt, x, z} }
 	stats = { kicks = 0, secured = 0, lost = 0 },
 	receipts = {}, -- last processed dev-product PurchaseIds (MonetizationService)
 	onboarding = 0, -- highest onboarding funnel step logged (Util/Analytics)
@@ -48,6 +50,8 @@ local TEMPLATE: Data = {
 	penLevel = 1, -- pen level: more pedestal slots (Config/Upgrades.Pen)
 	discovered = {}, -- { [petId]: true } pets ever hatched (Pet Index; owned pets count too)
 	indexClaims = {}, -- { [zoneId as string]: true } claimed Pet Index zone rewards (Economy.IndexRewards)
+	indexMilestones = {}, -- { [count as string]: true } claimed Pet Index milestones (Economy.IndexMilestones)
+	tutorial = { done = false, skipped = false }, -- the step itself is worked out from the data (TutorialService)
 }
 
 local DataService = {}
@@ -83,9 +87,56 @@ local function isFinite(value: any): boolean
 	return typeof(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
 
+-- Pen-local spot (x, z; -z toward the pen entrance) of an old pedestal slot (5 per row, 9.5 studs apart).
+local function slotSpot(slot: number): (number, number)
+	local n = math.max(1, math.floor(slot))
+	local row, col = (n - 1) // 5, (n - 1) % 5
+	return (col - 2) * 9.5, -(16 - 9.5 * row)
+end
+-- Versioned migrations of saved data, oldest first. Never deletes pets, eggs or progress.
+local function migrate(data: Data)
+	local version = if isFinite(data.version) then data.version else 1
+	if version < 2 then
+		-- 2026-10-13: pedestals -> free-roaming pets and freely placed eggs; Run Speed levels without a cap.
+		local cash = 0
+		if typeof(data.pets) == "table" then
+			for _, pet in data.pets do
+				if typeof(pet) == "table" then
+					if isFinite(pet.stored) and pet.stored > 0 then
+						cash += math.floor(pet.stored) -- uncollected pedestal income is paid out, not lost
+					end
+					pet.stored = nil
+					if isFinite(pet.slot) then
+						pet.placed = true
+						pet.x, pet.z = slotSpot(pet.slot)
+					end
+					pet.slot = nil
+				end
+			end
+		end
+		if typeof(data.plots) == "table" then
+			local plots = {}
+			for key, egg in data.plots do
+				if typeof(egg) == "table" and typeof(egg.uid) == "string" then
+					egg.x, egg.z = slotSpot(tonumber(key) or 1)
+					plots[egg.uid] = egg
+				end
+			end
+			data.plots = plots
+		end
+		data.speedLevel = Economy.speedLevelFor(if isFinite(data.runSpeed) then data.runSpeed else 0)
+		if isFinite(data.money) then
+			data.money += cash
+		end
+		data.version = 2
+	end
+end
+
 -- Repairs corrupted or exploited numbers and wrong types so no service ever sees NaN or junk.
 local function sanitize(data: Data)
-	for _, key in { "eggs", "pets", "plots", "stats", "receipts", "discovered", "indexClaims" } do
+	for _, key in
+		{ "eggs", "pets", "plots", "stats", "receipts", "discovered", "indexClaims", "indexMilestones", "tutorial" }
+	do
 		if typeof(data[key]) ~= "table" then
 			data[key] = deepCopy(TEMPLATE[key])
 		end
@@ -96,9 +147,8 @@ local function sanitize(data: Data)
 	data.kickPower = if isFinite(data.kickPower)
 		then math.clamp(data.kickPower, Economy.KickPower.base, powerCap) -- strength is fractional
 		else Economy.KickPower.base
-	data.runSpeed = if isFinite(data.runSpeed)
-		then math.clamp(math.floor(data.runSpeed), Economy.RunSpeed.base, Economy.RunSpeed.max)
-		else Economy.RunSpeed.base
+	data.speedLevel = if isFinite(data.speedLevel) then math.max(0, math.floor(data.speedLevel)) else 0
+	data.runSpeed = Economy.runSpeedAt(data.speedLevel)
 	if data.plotSlots ~= nil and not isFinite(data.plotSlots) then
 		data.plotSlots = nil
 	end
@@ -129,6 +179,39 @@ local function sanitize(data: Data)
 		end
 	end
 	data.indexClaims = claims
+	local milestones = {}
+	for count, claimed in data.indexMilestones do
+		if typeof(count) == "string" and claimed == true then
+			milestones[count] = true
+		end
+	end
+	data.indexMilestones = milestones
+	data.tutorial = { done = data.tutorial.done == true, skipped = data.tutorial.skipped == true }
+	-- pets: drop broken entries, keep placement fields typed
+	for uid, pet in data.pets do
+		if typeof(uid) ~= "string" or typeof(pet) ~= "table" or typeof(pet.petId) ~= "string" then
+			data.pets[uid] = nil
+			continue
+		end
+		pet.placed = if pet.placed == true then true else nil
+		pet.x = if isFinite(pet.x) then pet.x else nil
+		pet.z = if isFinite(pet.z) then pet.z else nil
+	end
+	for uid, egg in data.plots do
+		if
+			typeof(uid) ~= "string"
+			or typeof(egg) ~= "table"
+			or typeof(egg.petId) ~= "string"
+			or not isFinite(egg.hatchAt)
+		then
+			data.plots[uid] = nil
+			continue
+		end
+		egg.uid = uid
+		egg.x = if isFinite(egg.x) then egg.x else 0
+		egg.z = if isFinite(egg.z) then egg.z else 0
+		egg.placedAt = if isFinite(egg.placedAt) then egg.placedAt else egg.hatchAt
+	end
 end
 
 local function keyFor(player: Player): string
@@ -240,6 +323,7 @@ local function onPlayerAdded(player: Player)
 	end
 
 	local loaded = data :: Data
+	migrate(loaded)
 	reconcile(loaded, TEMPLATE)
 	sanitize(loaded)
 	local profile: Profile = { data = loaded, inMemory = inMemory, released = false }
@@ -304,6 +388,9 @@ function DataService:Increment(player: Player, key: string, delta: number): numb
 end
 
 DataService.sanitize = sanitize -- exposed for the headless tests
+DataService.migrate = migrate
+DataService.slotSpot = slotSpot
+DataService.VERSION = VERSION
 
 -- Saves right away (keeps the lock). Used after purchases and trades. True on success.
 function DataService:SaveNow(player: Player): boolean
