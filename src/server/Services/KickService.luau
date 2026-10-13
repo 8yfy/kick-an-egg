@@ -1,8 +1,12 @@
 --!strict
 -- RequestKick(timing): rolls distance, landing zone, pet, size and weather on the server,
 -- stores the pending chase and fires KickResult. ChaseService takes over at touchdown.
+-- Character attributes for every client's kick-line visuals (KickLineController): KickAt = the launch time of
+-- the accepted kick (the kick cutscene lands the foot then), InChase = true from the kick until the chase ends
+-- (no mystery egg in hand meanwhile). Cosmetic only: nothing reads them for game rules.
 -- Studio command bar: require(game.ServerScriptService.Server.Services.KickService):Simulate(1000, 10, 0)
 
+local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -58,7 +62,8 @@ local kickCallbacks: { (Player, KickRoll) -> () } = {}
 local kickResult: RemoteEvent
 
 local LAST_ZONE = Zones[#Zones]
-local MAX_DISTANCE = LAST_ZONE.start + LAST_ZONE.length - 1
+-- Eggs land at most Chase.Landing.endMargin before the end wall (room for the avalanche behind them).
+local MAX_DISTANCE = Chase.trackEnd() - Chase.Landing.endMargin
 
 -- Size/weather keys sorted rarest first, so "first hit wins" is deterministic and fair.
 local function byChance(map: { [string]: { chance: number } }): { string }
@@ -168,19 +173,39 @@ local function rollWeather(zone: number, eventWeather: string?): string?
 	return nil
 end
 
-local function groundY(x: number, z: number): number
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.RespectCanCollide = true -- skip decor like A's AmbientFx emitters; hit the real ground
-	local ignore = {}
-	for _, player in Players:GetPlayers() do
-		if player.Character then
-			table.insert(ignore, player.Character)
-		end
+-- Top of the valid landing surface under (x, z): only the parts the MapBuilder tagged Chase.Landing.tag (zone
+-- lanes, the launch ramp), so an egg never lands on a wall, an arch, a prop or another player's egg. `nil` when
+-- there is no landing surface there.
+local function landingY(x: number, z: number): number?
+	local surfaces = CollectionService:GetTagged(Chase.Landing.tag)
+	if #surfaces == 0 then
+		return nil
 	end
-	params.FilterDescendantsInstances = ignore
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = surfaces
 	local hit = workspace:Raycast(Vector3.new(x, RAY_TOP, z), Vector3.new(0, -RAY_TOP * 2, 0), params)
-	return if hit then hit.Position.Y else 0
+	return if hit then hit.Position.Y else nil
+end
+
+-- A valid landing point for a kick of `distance` at lane offset `x`: on a tagged landing surface, inside the
+-- lane, before the end wall. Steps back toward the pad (never forward) until it finds a surface; with no
+-- tagged surfaces at all (a test place without the map) the lane top (y = 0) is used.
+function KickService.landingPoint(x: number, distance: number): Vector3
+	local halfWidth = Chase.RunwayWidth / 2 - Chase.Landing.edgeMargin
+	local lx = math.clamp(x, -halfWidth, halfWidth)
+	local z = math.clamp(distance, 1, MAX_DISTANCE)
+	for _ = 1, 12 do
+		local y = landingY(lx, z)
+		if y then
+			return Vector3.new(lx, y, z)
+		end
+		if #CollectionService:GetTagged(Chase.Landing.tag) == 0 then
+			break
+		end
+		z = math.max(1, z - 4)
+	end
+	return Vector3.new(lx, 0, z)
 end
 
 local function friendsInServer(player: Player): number
@@ -222,9 +247,12 @@ local function roll(
 	eventWeather: string?,
 	now: number
 ): KickRoll
-	local mult = 1 + rebirths * Economy.Rebirth.multiplierPerRebirth
+	local mult = Economy.distanceMultiplier(rebirths)
 	local distance = kickPower * Economy.DistancePerPower * timingBonus(timing) * mult
 	distance = math.min(distance, MAX_DISTANCE)
+	local halfWidth = Chase.RunwayWidth / 2 - Chase.Landing.edgeMargin
+	local landPos = KickService.landingPoint(rng:NextNumber(-halfWidth, halfWidth), distance)
+	distance = landPos.Z
 
 	local zonesCrossed = {}
 	for _, zone in Zones do
@@ -233,10 +261,6 @@ local function roll(
 		end
 	end
 	local landZone = zoneAt(distance)
-
-	local halfWidth = Chase.RunwayWidth / 2 - 6
-	local x = rng:NextNumber(-halfWidth, halfWidth)
-	local landPos = Vector3.new(x, groundY(x, distance), distance)
 
 	local pet = rollPet(landZone, friends * Economy.FriendLuckPerFriend)
 	local launchTime = now + LAUNCH_DELAY
@@ -287,6 +311,11 @@ local function onRequestKick(player: Player, timing: any)
 	pending.owner = player
 	pending.touchdown = result.launchTime + result.flightSeconds
 	active[player] = pending
+	local character = player.Character
+	if character then
+		character:SetAttribute("KickAt", result.launchTime)
+		character:SetAttribute("InChase", true)
+	end
 
 	local stats: { [string]: number } = table.clone(data.stats)
 	stats.kicks += 1
@@ -322,6 +351,10 @@ end
 -- Call when the chase is fully over (ChaseEnded / EggLost); the player may kick again.
 function KickService:EndChase(player: Player)
 	active[player] = nil
+	local character = player.Character
+	if character then
+		character:SetAttribute("InChase", nil)
+	end
 end
 
 function KickService:OnTouchdown(callback: (PendingChase) -> ())

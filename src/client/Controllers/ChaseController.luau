@@ -3,6 +3,10 @@
 -- The egg is the server's model at workspace.Chases[eggUid]. From controlStart (ChaseStart.eggRunStart)
 -- the owner has physics ownership: their movement input (keyboard / thumbstick, camera-relative)
 -- sets the egg's LinearVelocity, and the camera follows the egg. The server validates and decides.
+-- Egg form: while an egg is steered its kicker's character is hidden on every client (local Transparency, so the
+-- body stays in place for game logic; restored at the end of the chase, after a respawn too). The run animation
+-- follows the egg's real speed (Anim/Egg.EggRun) and stops when it stands still. At the finish the egg is gone
+-- at once (the "SECURED!" burst plays where it crossed) and the avalanche crumbles straight away.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -40,6 +44,7 @@ type ChaseView = {
 
 local EGG_WAIT = 10 -- seconds to wait for the server egg to replicate
 local CLEANUP_DELAY = 1.2 -- AvalancheStop crumble time
+local BURST_LIFE = 2
 local MOVE_DEADZONE = 0.05
 
 local ChaseController = {}
@@ -81,6 +86,65 @@ local function steerDirection(): Vector3
 	return if dir.Magnitude > 1 then dir.Unit else dir
 end
 
+-- Egg form: hide / show a player's character locally (parts, decals, accessories, name tag, trails).
+type Hidden = { saved: { [Instance]: any }, conns: { RBXScriptConnection } }
+local hidden: { [number]: Hidden } = {} -- userId -> what was changed
+local function hideOne(h: Hidden, d: Instance)
+	if h.saved[d] ~= nil then
+		return
+	end
+	if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then
+		h.saved[d] = d.Transparency
+		d.Transparency = 1
+	elseif d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Light") then
+		h.saved[d] = d.Enabled
+		d.Enabled = false
+	elseif d:IsA("Humanoid") then
+		h.saved[d] = d.DisplayDistanceType
+		d.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+end
+local function showCharacter(userId: number)
+	local h = hidden[userId]
+	if not h then
+		return
+	end
+	hidden[userId] = nil
+	for _, c in h.conns do
+		c:Disconnect()
+	end
+	for d, v in h.saved do
+		if d.Parent then
+			if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then
+				(d :: any).Transparency = v
+			elseif d:IsA("Humanoid") then
+				d.DisplayDistanceType = v
+			else
+				(d :: any).Enabled = v
+			end
+		end
+	end
+end
+local function hideCharacter(userId: number)
+	showCharacter(userId)
+	local owner = Players:GetPlayerByUserId(userId)
+	local character = owner and owner.Character
+	if not owner or not character then
+		return
+	end
+	local h: Hidden = { saved = {}, conns = {} }
+	hidden[userId] = h
+	for _, d in character:GetDescendants() do
+		hideOne(h, d)
+	end
+	table.insert(
+		h.conns,
+		character.DescendantAdded:Connect(function(d)
+			hideOne(h, d) -- accessories / tools that load later
+		end)
+	)
+end
+
 local function stopAll(view: ChaseView)
 	for _, stop in view.stops do
 		stop()
@@ -102,6 +166,7 @@ local function endView(view: ChaseView, delay: number)
 	if views[view.payload.eggUid] == view then
 		views[view.payload.eggUid] = nil
 	end
+	showCharacter(view.payload.ownerUserId)
 	if view.connection then
 		view.connection:Disconnect()
 		view.connection = nil
@@ -147,7 +212,8 @@ local function step(view: ChaseView)
 	local now = workspace:GetServerTimeNow()
 	if not view.steering and now >= view.payload.eggRunStart then
 		view.steering = true
-		table.insert(view.stops, Anim.play(egg, "EggRun"))
+		hideCharacter(view.payload.ownerUserId) -- egg form: the kicker IS the egg now
+		table.insert(view.stops, Anim.play(egg, "EggRun")) -- runs only while the egg actually moves
 	end
 	if view.isOwn and view.steering then
 		steer(egg)
@@ -222,7 +288,20 @@ local function onChaseStart(payload: ChaseStartPayload)
 	task.spawn(attachEgg, view)
 end
 
-local function onEggSecured(payload: { eggUid: string })
+-- A short-lived invisible anchor for effects that need a position after the egg itself is gone.
+local function burstAnchor(at: Vector3): BasePart
+	local p = Instance.new("Part")
+	p.Name = "SecuredFx"
+	p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch = true, false, false, false
+	p.Transparency = 1
+	p.Size = Vector3.new(1, 1, 1)
+	p.CFrame = CFrame.new(at)
+	p.Parent = chasesFolder
+	task.delay(BURST_LIFE, p.Destroy, p)
+	return p
+end
+
+local function onEggSecured(payload: { eggUid: string, position: Vector3? })
 	local view = views[payload.eggUid]
 	if not view then
 		return
@@ -231,15 +310,21 @@ local function onEggSecured(payload: { eggUid: string })
 		view.connection:Disconnect()
 		view.connection = nil
 	end
+	local at = payload.position or (if view.egg and view.egg.Parent then view.egg:GetPivot().Position else nil)
 	stopAll(view)
 	if view.isOwn and view.steering then
 		returnCamera()
 	end
 	view.steering = false
-	if view.egg then
-		VFX.play("EggSecured", view.egg, { rarity = view.payload.rarity, ownerUserId = view.payload.ownerUserId })
+	showCharacter(view.payload.ownerUserId)
+	if at then
+		VFX.play(
+			"EggSecured",
+			burstAnchor(at),
+			{ rarity = view.payload.rarity, ownerUserId = view.payload.ownerUserId }
+		)
 	end
-	-- The avalanche keeps rolling to the safe line; ChaseEnded removes the folder.
+	-- ChaseEnded follows at once: the avalanche crumbles and the folder goes.
 end
 
 local function onEggLost(payload: { eggUid: string, reason: string })
@@ -275,6 +360,27 @@ end
 
 function ChaseController:Start()
 	task.spawn(getControls)
+	-- a respawn mid-chase (or after it) never leaves a body hidden / visible by mistake
+	local function watch(other: Player)
+		other.CharacterAdded:Connect(function()
+			if hidden[other.UserId] then
+				task.defer(hideCharacter, other.UserId)
+			end
+		end)
+	end
+	for _, other in Players:GetPlayers() do
+		watch(other)
+	end
+	Players.PlayerAdded:Connect(watch)
+	Players.PlayerRemoving:Connect(function(other)
+		local h = hidden[other.UserId]
+		if h then
+			for _, c in h.conns do
+				c:Disconnect()
+			end
+			hidden[other.UserId] = nil
+		end
+	end)
 	Remotes.get("ChaseStart").OnClientEvent:Connect(onChaseStart)
 	Remotes.get("EggSecured").OnClientEvent:Connect(onEggSecured)
 	Remotes.get("EggLost").OnClientEvent:Connect(onEggLost)
