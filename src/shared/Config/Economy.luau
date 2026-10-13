@@ -3,33 +3,31 @@
 -- play (kicks, minutes and money per sack / zone, speed per level); ServerTests checks the formulas stay finite.
 local Economy = {
 	StartingMoney = 0,
-	-- Kick power = Strength: trained by kicking your Kick Sack gear (Config/Upgrades.Sack), never bought. Each
-	-- sack trains only up to its cap (Economy.sackCap); `max` is the absolute cap before rebirths.
-	-- costBase/costGrowth are unused while the Store's Kick Power card is disabled.
-	KickPower = { base = 1, max = 100, costBase = 25, costGrowth = 1.18 },
-	-- Run Speed = egg speed while steering and walk speed; bought in the shop (BuyUpgrade "RunSpeed"), with NO
-	-- level cap. The saved value is the level (PlayerData.speedLevel); the actual speed follows a curve that
-	-- approaches `max` (half the remaining gap per `halfLevels` levels), so any level is safe to move at.
-	-- Price of the next level: costBase * costGrowth^level up to expLevels, then it only grows linearly
-	-- (linearStep of that price per level), so it never reaches infinity / NaN however high the level.
-	RunSpeed = {
-		base = 16,
-		max = 48,
-		halfLevels = 30,
-		costBase = 100,
-		costGrowth = 1.35,
-		expLevels = 120,
-		linearStep = 0.05,
-	},
-	DistancePerPower = 24, -- studs per kick power point (before timing/multipliers)
-	TimingBonus = { perfect = 1.5, good = 1.15, miss = 0.85 },
+	-- Kick Power = Strength: WHOLE numbers, trained by kicking your Kick Sack (Config/Upgrades.Sack, integer gains
+	-- that grow into the billions with better sacks), never bought, no design cap. `max` is only the largest
+	-- whole number a Luau number stores exactly (2^53 - 1 ~ 9 quadrillion), far above the trillions a full sack
+	-- ladder reaches; past it the number would silently lose precision, so power stops there.
+	KickPower = { base = 1, max = 9007199254740991 },
+	-- Kick distance follows the LOG of power (Economy.kickDistance): every `studsPerDecade` studs takes 10x the
+	-- power, so huge numbers never mean an instant trip to the last zone. Fitted to the 2000-stud track: about
+	-- 10 power reaches zone 2, 1 million zone 10, 1 trillion zone 20 (tools/tests/Progression.server.lua).
+	Distance = { studsPerDecade = 160 },
+	-- Timing multiplies the DISTANCE: a Perfect kick goes 12% farther, a missed one 15% shorter.
+	TimingBonus = { perfect = 1.12, good = 1, miss = 0.85 },
+	-- Run Speed = egg speed while steering and walk speed; bought in the shop (BuyUpgrade "RunSpeed") with NO
+	-- level cap. Speed = base + gain * ln(1 + level / scale): it keeps growing at every level, a little less each
+	-- time (diminishing returns), so high levels still count but movement stays controllable (`safety` studs/s
+	-- is only reached around level 10 million). Price of the next level = costBase * (level + 1)^costPower:
+	-- finite and readable at any level, steep enough that late speed is an achievement.
+	RunSpeed = { base = 16, gain = 8, scale = 20, safety = 120, costBase = 25, costPower = 2 },
 	Rebirth = {
-		requiresMaxPower = true, -- needs kickPower at maxKickPower(rebirths); never mid-chase
+		-- needs Economy.rebirthPower(rebirths) Kick Power: firstPower, then x powerGrowth per rebirth (1M, 10M,
+		-- 100M ...); never mid-chase
+		firstPower = 1000000,
+		powerGrowth = 10,
 		multiplierPerRebirth = 0.5, -- pet income x (1 + rebirths * this)
-		-- kick distance x (1 + rebirths * this). Was the income multiplier (0.5) too; together with the higher
-		-- caps that stacked into a free ride past most zones after one rebirth.
-		distancePerRebirth = 0.1,
-		powerCapBonus = 25, -- each rebirth raises the strength cap (and every sack's cap in proportion)
+		distancePerRebirth = 0.1, -- kick distance x (1 + rebirths * this)
+		trainingPerRebirth = 1, -- Kick Sack gains x (1 + rebirths * this): power grows back faster
 		-- What a rebirth does (UpgradeService applies `resets`; the Rebirth screen lists both lists).
 		resets = { "money", "kickPower", "runSpeed" }, -- to StartingMoney / KickPower.base / Run Speed level 0
 		keeps = { "eggs", "pets", "rackLevel", "penLevel", "discovered" },
@@ -65,15 +63,15 @@ local Economy = {
 
 export type UpgradeKind = "KickPower" | "RunSpeed"
 
--- Highest Kick Power this player can train; each rebirth raises the cap.
-function Economy.maxKickPower(rebirths: number): number
-	return Economy.KickPower.max + rebirths * Economy.Rebirth.powerCapBonus
+-- The Kick Power a player needs for their next rebirth (`rebirths` done so far).
+function Economy.rebirthPower(rebirths: number): number
+	local r = math.clamp(math.floor(if rebirths == rebirths then rebirths else 0), 0, 12)
+	return math.floor(Economy.Rebirth.firstPower * Economy.Rebirth.powerGrowth ^ r)
 end
 
--- A sack's training cap (Config/Upgrades.Sack.tiers[].cap) after `rebirths` rebirths: scaled like the absolute
--- cap, so the last sack always trains to maxKickPower(rebirths).
-function Economy.sackCap(tierCap: number, rebirths: number): number
-	return tierCap * Economy.maxKickPower(rebirths) / Economy.KickPower.max
+-- (kept for older callers) the largest Kick Power a player can hold: the exact-integer ceiling.
+function Economy.maxKickPower(_rebirths: number): number
+	return Economy.KickPower.max
 end
 
 -- Kick distance multiplier from rebirths.
@@ -81,40 +79,56 @@ function Economy.distanceMultiplier(rebirths: number): number
 	return 1 + rebirths * Economy.Rebirth.distancePerRebirth
 end
 
--- Run Speed (studs/s) at speed `level` (0 = base). Approaches RunSpeed.max, never passes it.
+-- Kick distance (studs, before the track's end clamp) for `power`, `rebirths` and a timing multiplier
+-- (TimingBonus.perfect / good / miss): the log curve above. Finite for any power.
+function Economy.kickDistance(power: number, rebirths: number, timing: number): number
+	local p = math.max(0, if power == power then math.min(power, Economy.KickPower.max) else 0)
+	return Economy.Distance.studsPerDecade * math.log10(1 + p) * timing * Economy.distanceMultiplier(rebirths)
+end
+
+-- Kick Power gained by one kick on a sack giving `gain` (Config/Upgrades) after `rebirths`: a whole number.
+function Economy.trainGain(gain: number, rebirths: number): number
+	local mult = 1 + math.max(0, rebirths) * Economy.Rebirth.trainingPerRebirth
+	return math.max(1, math.floor(gain * mult + 0.5))
+end
+
+-- Kick Power after training `value` by `gain` (whole number, never past KickPower.max, never NaN).
+function Economy.addPower(value: number, gain: number): number
+	local v = if value == value then math.floor(value) else Economy.KickPower.base
+	return math.clamp(v + math.floor(gain), Economy.KickPower.base, Economy.KickPower.max)
+end
+
+-- Run Speed (studs/s) at speed `level` (0 = base): grows forever, slower and slower (log), finite for any level.
 function Economy.runSpeedAt(level: number): number
 	local rs = Economy.RunSpeed
 	local l = math.max(0, if level == level then level else 0)
-	return rs.base + (rs.max - rs.base) * (1 - 2 ^ (-l / rs.halfLevels))
+	return math.min(rs.base + rs.gain * math.log(1 + l / rs.scale), rs.safety)
 end
 
--- The lowest level whose speed is at least `speed` (save migration from the old speed value).
+-- The lowest level whose speed is at least `speed` (save migration).
 function Economy.speedLevelFor(speed: number): number
 	local rs = Economy.RunSpeed
 	if speed ~= speed or speed <= rs.base then
 		return 0
 	end
-	local fraction = math.min((speed - rs.base) / (rs.max - rs.base), 0.999999)
-	return math.ceil(-rs.halfLevels * math.log(1 - fraction, 2) - 1e-9)
+	local s = math.min(speed, rs.safety)
+	return math.max(0, math.ceil(rs.scale * (math.exp((s - rs.base) / rs.gain) - 1) - 1e-6))
 end
 
--- Price of buying speed level `level + 1` when at `level`. Finite for any level.
+-- Price of buying speed level `level + 1` when at `level`. Finite and whole for any level.
 function Economy.speedCost(level: number): number
 	local rs = Economy.RunSpeed
 	local l = math.max(0, math.floor(if level == level then level else 0))
-	local exp = math.min(l, rs.expLevels)
-	local cost = rs.costBase * rs.costGrowth ^ exp * (1 + math.max(0, l - rs.expLevels) * rs.linearStep)
-	return math.floor(math.min(cost, 1e300))
+	return math.floor(math.min(rs.costBase * (l + 1) ^ rs.costPower, 1e300))
 end
 
--- Price of the next +1 of `kind`. KickPower: `value` = current power (not sold); RunSpeed: `value` = the current
--- speed LEVEL (Economy.speedCost). Shared by the server (BuyUpgrade) and the shop UI so both show the same number.
+-- Price of the next +1 of `kind`. RunSpeed: `value` = the current speed LEVEL (Economy.speedCost). Kick Power is
+-- never sold (trained only). Shared by the server (BuyUpgrade) and the shop UI so both show the same number.
 function Economy.upgradeCost(kind: UpgradeKind, value: number): number
 	if kind == "RunSpeed" then
 		return Economy.speedCost(value)
 	end
-	local config = Economy.KickPower
-	return math.floor(config.costBase * config.costGrowth ^ (value - config.base))
+	return math.huge
 end
 
 return Economy

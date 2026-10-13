@@ -27,9 +27,10 @@ local Avalanche = {
 	spawnMinBehind = 35,
 	endMargin = 6,
 	-- Front speed (studs/s) by landing zone, a smooth curve: first (zone 1) .. last (zone 20), shaped by
-	-- exponent (> 1 = gentle early zones, steeper late). Always below Economy.RunSpeed.max, so a fully upgraded
-	-- egg can outrun any avalanche (tools/tests/Progression.server.lua checks every zone).
-	speedCurve = { first = 12, last = 36, exponent = 1.2 },
+	-- exponent (> 1 = gentle early zones, steeper late): 12 in zone 1, ~24 in zone 10, 44 in zone 20. Independent
+	-- of the player's Run Speed; every zone stays outrunnable at a reachable speed level
+	-- (tools/tests/Progression.server.lua lists the level each zone needs).
+	speedCurve = { first = 12, last = 44, exponent = 1.35 },
 	catchDistance = 4, -- caught when the front is within this many studs (Z axis) of you
 	height = 22,
 	despawnAtZ = -6, -- stops and crumbles at the safe line
