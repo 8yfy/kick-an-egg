@@ -1,14 +1,23 @@
 -- DEV ONLY (tools/playtest/playtest.sh): collects PlayTestClient's checks and ends the Play session with them
--- (StudioTestService:EndTest -> the runner prints them). Gives the test player Kick Power 12 so a perfect kick
--- crosses several zones. Never part of the game build.
+-- (StudioTestService:EndTest -> the runner prints them). Gives the test player Kick Power 12 (a perfect kick
+-- crosses several zones) and Run Speed level 200 (the egg outruns any avalanche when steered home), and a
+-- hook (KTE_PlayTestHook) to hurry what normally takes minutes: "hatch" (placed eggs hatch now), "giveEgg"
+-- (an inventory egg if the chase was lost). Never part of the game build.
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local StudioTestService = game:GetService("StudioTestService")
 
+local Economy = require(ReplicatedStorage.Shared.Config.Economy)
+local Pets = require(ReplicatedStorage.Shared.Config.Pets)
+
 local report = Instance.new("RemoteEvent")
 report.Name = "KTE_PlayTestReport"
 report.Parent = ReplicatedStorage
+local hook = Instance.new("RemoteEvent")
+hook.Name = "KTE_PlayTestHook"
+hook.Parent = ReplicatedStorage
 
 local lines = {}
 local done = false
@@ -31,15 +40,47 @@ report.OnServerEvent:Connect(function(_player, kind, text)
 	table.insert(lines, string.format("[%6.1fs] %s %s", workspace.DistributedGameTime, kind, text))
 end)
 
-Players.PlayerAdded:Connect(function(player)
-	local DataService = require(ServerScriptService.Server.Services.DataService)
-	local data = DataService:WaitForData(player)
-	if data then
-		data.kickPower = 12
-		table.insert(lines, "[setup] test player kickPower = 12")
+local function DataService()
+	return require(ServerScriptService.Server.Services.DataService)
+end
+
+hook.OnServerEvent:Connect(function(player, what)
+	local data = DataService():Get(player)
+	if not data then
+		return
+	end
+	if what == "hatch" then
+		local plots = table.clone(data.plots)
+		local now = workspace:GetServerTimeNow()
+		for uid, egg in plots do
+			local e = table.clone(egg)
+			e.hatchAt = now
+			plots[uid] = e
+		end
+		DataService():Set(player, { plots = plots })
+		table.insert(lines, "[setup] hook: placed eggs hatch now")
+	elseif what == "giveEgg" then
+		local eggs = table.clone(data.eggs)
+		table.insert(eggs, { uid = HttpService:GenerateGUID(false), petId = Pets[1].id })
+		DataService():Set(player, { eggs = eggs })
+		table.insert(lines, "[setup] hook: gave an inventory egg")
 	end
 end)
 
-task.delay(260, function()
-	finish("TIMEOUT: the client did not finish within 260 s")
+Players.PlayerAdded:Connect(function(player)
+	local data = DataService():WaitForData(player)
+	if data then
+		DataService():Set(player, { kickPower = 12, speedLevel = 200, runSpeed = Economy.runSpeedAt(200) })
+		table.insert(
+			lines,
+			string.format(
+				"[setup] test player kickPower = 12, Run Speed level 200 (%.1f studs/s)",
+				Economy.runSpeedAt(200)
+			)
+		)
+	end
+end)
+
+task.delay(420, function()
+	finish("TIMEOUT: the client did not finish within 420 s")
 end)

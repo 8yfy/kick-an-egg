@@ -45,16 +45,18 @@ for _, name in { "TrainingShop", "Shop", "PetIndex", "PetInventory", "Rebirth" }
 	end)
 end
 
-local rail, counters, drawers
+local rail, counters, drawers, sackSlot
 check("hud", function()
 	rail = require(UI.Hud.Rail).new(hud)
 	counters = require(UI.Hud.Counters).new(hud)
 	drawers = require(UI.Hud.Drawers).new(hud)
+	sackSlot = require(UI.Hud.SackSlot).new(hud, nil)
 end)
 Data.onChanged(function()
 	rail.update()
 	counters.update()
 	drawers.update()
+	sackSlot.update()
 	Modal.refresh()
 end)
 
@@ -66,13 +68,14 @@ Data.apply({
 	rebirths = 1,
 	rackLevel = 3,
 	penLevel = 2,
+	speedLevel = 4,
 	plots = {
-		["1"] = { uid = "e1", petId = "sprout_pup", placedAt = now - 5, hatchAt = now + 20 },
-		["2"] = { uid = "e2", petId = "bumble_bloc", placedAt = now - 30, hatchAt = now - 1 },
+		e1 = { uid = "e1", petId = "sprout_pup", placedAt = now - 5, hatchAt = now + 20, x = 2, z = 3 },
+		e2 = { uid = "e2", petId = "bumble_bloc", placedAt = now - 30, hatchAt = now - 1, x = -6, z = 1 },
 	},
 	eggs = { { uid = "e3", petId = "meadow_stag" } },
 	pets = {
-		p1 = { petId = "sprout_pup", slot = 3, size = "Big" },
+		p1 = { petId = "sprout_pup", placed = true, x = 4, z = -2, size = "Big" },
 		p2 = { petId = "meadow_stag", weather = "Sunny" },
 		p3 = { petId = "not_a_pet" },
 	},
@@ -88,11 +91,22 @@ check("data views", function()
 	assert(Data.speed().cost ~= nil, "speed cost")
 	assert(Data.pen().slots == 10, "pen slots")
 	assert(Data.rebirth().ready == false and Data.rebirth().available, "rebirth")
-	assert(#Data.eggs() == 3 and Data.eggs()[3].slot == nil, "eggs")
+	assert(#Data.eggs() == 3 and Data.eggs()[3].slot == nil and not Data.eggs()[3].placed, "eggs")
+	assert(Data.eggs()[1].placed, "placed eggs first")
 	assert(#Data.pets() == 3, "pets")
 	local cap = Data.capacity()
 	assert(cap.eggs == 2 and cap.pets == 1 and cap.waitingEggs == 1 and cap.unplacedPets == 2, "capacity")
 	assert(#Data.index() > 0 and Data.claimableZones() == 0, "index")
+	local found, all, milestones = Data.milestones()
+	assert(found == 1 and all == 79 and #milestones == 5 and milestones[1].state == "Locked", "index milestones")
+	assert(Data.speed().maxed == false and Data.speed().level == 4 and Data.speed().nextSpeed > Data.speed().current, "speed levels")
+	local placedPets = 0
+	for _, row in Data.pets() do
+		if row.placed then
+			placedPets += 1
+		end
+	end
+	assert(placedPets == 1, "placed pets")
 	assert(#Data.products() == 3 and not Data.products()[1].configured, "products")
 end)
 
@@ -130,15 +144,34 @@ check("asset registry binds every sack and zone", function()
 	end
 end)
 
-check("hud: no Training button, no Tool / SACK slot", function()
+check("hud: SHOP / INDEX / REBIRTH / TRADE, no Training button, the bottom Kick Sack quickslot", function()
 	local left = hud:FindFirstChild("LeftRail")
 	assert(left, "no left rail")
 	assert(
 		left:FindFirstChild("Shop") and left:FindFirstChild("Index") and left:FindFirstChild("Rebirth"),
 		"rail buttons"
 	)
+	local trade = left:FindFirstChild("Trade") :: GuiObject?
+	local rebirth = left:FindFirstChild("Rebirth") :: GuiObject?
+	assert(trade and rebirth and trade.LayoutOrder == rebirth.LayoutOrder + 1, "TRADE right under REBIRTH")
 	assert(not left:FindFirstChild("Training"), "Training button still in the HUD")
-	assert(not hud:FindFirstChild("Sack", true), "SACK slot still in the HUD")
+	local pets = hud:FindFirstChild("Pets", true)
+	local tradeInPets = false
+	for _, d in hud:GetDescendants() do
+		if d.Name == "Trade" and d ~= trade and not d:IsDescendantOf(left) then
+			tradeInPets = true
+		end
+	end
+	assert(pets and not tradeInPets, "Trade button still in the Pets drawer")
+	local slot = hud:FindFirstChild("SackSlot")
+	assert(slot and slot:FindFirstChild("Tile"), "no bottom Kick Sack quickslot")
+	local art = false
+	for _, d in slot:GetDescendants() do
+		if d:IsA("ImageLabel") and typeof(d:GetAttribute("ArtKey")) == "string" then
+			art = d:GetAttribute("ArtKey") == "03_leather_classic" -- rackLevel 3 in the test data
+		end
+	end
+	assert(art, "the quickslot shows the equipped sack's own art")
 	for _, key in { "hud_shop", "hud_index", "hud_rebirth" } do
 		local found = false
 		for _, d in left:GetDescendants() do
