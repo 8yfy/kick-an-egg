@@ -697,7 +697,10 @@ function PlotService:PlacePet(player: Player, petUid: string, world: Vector3?): 
 	placed.placed, placed.x, placed.z = true, x, z
 	pets[petUid] = placed
 	DataService:Set(player, { pets = pets })
-	spawnPetModel(player, base, petUid, placed, nil)
+	local model = spawnPetModel(player, base, petUid, placed, nil)
+	if model then
+		model:SetAttribute("PlacedAt", workspace:GetServerTimeNow()) -- clients: the placement knock (not a rebuild)
+	end
 	return true
 end
 

@@ -3,7 +3,8 @@
 -- stores the pending chase and fires KickResult. ChaseService takes over at touchdown.
 -- Character attributes for every client's kick-line visuals (KickLineController): KickAt = the launch time of
 -- the accepted kick (the kick cutscene lands the foot then), InChase = true from the kick until the chase ends
--- (no mystery egg in hand meanwhile). Cosmetic only: nothing reads them for game rules.
+-- (no mystery egg in hand meanwhile), KickBand = "perfect" | "good" | "weak" (the timing band, for the kick
+-- sound). Cosmetic only: nothing reads them for game rules.
 -- Studio command bar: require(game.ServerScriptService.Server.Services.KickService):Simulate(1000, 10, 0)
 
 local CollectionService = game:GetService("CollectionService")
@@ -89,6 +90,11 @@ local function activeWeather(): string?
 		end
 	end
 	return nil
+end
+
+-- The timing band of a kick ("perfect" | "good" | "weak"), the same thresholds as timingBonus.
+function KickService.band(timing: number): string
+	return if timing >= 0.9 then "perfect" elseif timing >= 0.6 then "good" else "weak"
 end
 
 local function timingBonus(timing: number): number
@@ -313,6 +319,7 @@ local function onRequestKick(player: Player, timing: any)
 	active[player] = pending
 	local character = player.Character
 	if character then
+		character:SetAttribute("KickBand", KickService.band(math.clamp(timing, 0, 1))) -- before KickAt (read on it)
 		character:SetAttribute("KickAt", result.launchTime)
 		character:SetAttribute("InChase", true)
 	end

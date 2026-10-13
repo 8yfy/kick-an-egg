@@ -1,7 +1,8 @@
 --!strict
 -- Partner A. Egg flight + landing effects (client). B moves the egg; these only decorate it.
---   KickImpact {power, cutscene?, own?}   target = egg/pad/foot: star burst + thump; with `cutscene` (the kick
---              line's kick, KickLineController) also a ground shockwave ring, spark spray and a layered kick sound
+--   KickImpact {power, cutscene?, own?, band?}  target = egg/pad/foot: star burst + thump; with `cutscene` (the
+--              kick line's kick, KickLineController) also a ground shockwave ring and spark spray. Its sound
+--              (by the server's timing band) is Audio's KickWeak / KickGood / KickPerfect.
 --   ZoneEnter  {zone}                     target = egg: ring of sparks in the zone's accent colour
 --   EggSpin    {zone, keys, finalKey?, seconds}  target = flying egg: slot-machine spin. The egg's own
 --              parts are hidden locally and a visual egg (built from Models.egg(key)) rides on a
@@ -25,6 +26,7 @@ local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Themes = require(script.Parent.Themes)
 local ZoneLanding = require(script.Parent.ZoneLanding)
+local Audio = require(Shared:WaitForChild("Audio"))
 
 local Egg = {}
 
@@ -63,42 +65,12 @@ local function shockwave(center: Vector3, color: Color3, r0: number, r1: number,
 	end)
 end
 
-local KICK_SOUNDS: { { id: string, pitch: number, volume: number } } = {
-	{ id = "rbxasset://sounds/impact_explosion_03.mp3", pitch = 1.35, volume = 0.32 },
-	{ id = "rbxasset://sounds/action_jump.mp3", pitch = 0.7, volume = 0.45 },
-	{ id = "rbxasset://sounds/action_jump_land.mp3", pitch = 0.8, volume = 0.6 },
-}
-
-local function kickSound(pos: Vector3, own: boolean)
-	local cam = workspace.CurrentCamera
-	if cam and (pos - cam.CFrame.Position).Magnitude > 90 then
-		return
-	end
-	local group = game:GetService("SoundService"):FindFirstChild("Master")
-	for _, layer in KICK_SOUNDS do
-		local anchor = Pool.anchor(CFrame.new(pos))
-		local s = Instance.new("Sound")
-		s.SoundId = layer.id
-		s.PlaybackSpeed = layer.pitch
-		s.Volume = layer.volume * (if own then 1 else 0.6)
-		s.RollOffMinDistance, s.RollOffMaxDistance = 10, 90
-		s.SoundGroup = if group and group:IsA("SoundGroup") then group else nil
-		s.Parent = anchor
-		s:Play()
-		task.delay(2.5, function()
-			s:Destroy()
-			Pool.release(anchor)
-		end)
-	end
-end
-
 function Egg.KickImpact(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target) or Vector3.new(0, 1, 0)
 	local power = math.clamp((params.power or 1) / 25, 0.3, 1)
 	if params.cutscene then
 		local me = game:GetService("Players").LocalPlayer
 		local reduced = me ~= nil and me:GetAttribute("ReducedMotion") == true
-		kickSound(pos, params.own == true)
 		Burst.play(
 			pos,
 			14,
@@ -239,8 +211,9 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 		if not finalKey then
 			return
 		end
-		-- Final stop: land on finalKey, pop 1.2 -> 1 and flash in the rarity colour.
+		-- Final stop: land on finalKey, pop 1.2 -> 1 and flash in the rarity colour (+ a "clack-ding").
 		current = show(state, egg, finalKey)
+		Audio.play("SpinStop", egg)
 		Fx.hideLocally(egg, true, current)
 		local rarity = Rarities[Fx.rarityOfKey(finalKey)] or Rarities.Common
 		local pivot = egg:GetPivot().Position + Vector3.new(0, 2, 0)

@@ -200,7 +200,8 @@ local function playKick(state: State, now: number): boolean
 			anchor.CFrame = CFrame.new(point)
 			anchor.Parent = workspace
 			task.delay(2, anchor.Destroy, anchor)
-			VFX.play("KickImpact", anchor, { power = 12, cutscene = true, own = own })
+			local band = state.character:GetAttribute("KickBand") -- the server's timing band: which kick sound
+			VFX.play("KickImpact", anchor, { power = 12, cutscene = true, own = own, band = band })
 		end
 	end
 	if t < 0 then

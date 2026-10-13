@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Mutations = require(Shared.Config.Mutations)
 local VFX = require(Shared.VFX)
+local Audio = require(Shared.Audio)
 local PetFx = require(Shared.VFX.PetFx)
 local SackLod = require(Shared.VFX.SackLod)
 local Anim = require(Shared.Anim)
@@ -85,7 +86,15 @@ local function petFx(model: Model, kind: string, stops: { () -> () })
 	end
 end
 
+local function fresh(model: Model, attribute: string): boolean
+	local at = model:GetAttribute(attribute)
+	return typeof(at) == "number" and workspace:GetServerTimeNow() - at < 2
+end
+
 local function trackEgg(egg: Model)
+	if egg:GetAttribute("OwnerUserId") == player.UserId and fresh(egg, "PlacedAt") then
+		Audio.play("EggPlace", egg) -- you just put it down
+	end
 	local stops = { Anim.play(egg, "EggWobble") }
 	petFx(egg, "egg", stops)
 	tracked[egg] = stops
@@ -136,6 +145,7 @@ local function pickupPrompt(view: PetView)
 	prompt.Triggered:Connect(function()
 		local uid = view.model:GetAttribute("PetUid")
 		if typeof(uid) == "string" then
+			Audio.play("PetPickup", view.root)
 			Remotes.get("PickupPet"):FireServer(uid)
 		end
 	end)
@@ -153,6 +163,8 @@ local function trackPet(pet: Model)
 	if typeof(hatchedAt) == "number" and workspace:GetServerTimeNow() - hatchedAt < REVEAL_WINDOW then
 		VFX.play("HatchBurst", pet, { rarity = rarity })
 		VFX.play("PetReveal", pet, { rarity = rarity, name = pet:GetAttribute("PetName") })
+	elseif fresh(pet, "PlacedAt") then
+		Audio.play("PetPlace", pet, { own = if pet:GetAttribute("OwnerUserId") == player.UserId then nil else false })
 	end
 	petCount += 1
 	local view: PetView = {

@@ -14,6 +14,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 
 local System = script.Parent.Parent.System
+local Audio = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Audio")) :: any
 local Data = require(System.Data)
 local Modal = require(System.Modal)
 local Motion = require(System.Motion)
@@ -357,6 +358,7 @@ function Rebirth.define()
 							confirm.Visible = false
 							if ok then
 								errorText = ""
+								Audio.play("Rebirth")
 								Modal.toast(
 									`Rebirth {Data.state.rebirths}! Pet income {mult(Data.rebirth().multiplier)}`,
 									"good"

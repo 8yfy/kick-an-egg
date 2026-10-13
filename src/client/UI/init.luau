@@ -131,6 +131,9 @@ function UI:Init()
 		Modal.refresh()
 	end)
 	gui.Parent = playerGui
+	-- a light click on every button of the game's UI (Audio/SoundBank UIClick; NoClickSound opts out)
+	local Audio = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Audio")) :: any
+	Audio.hookButtons(playerGui)
 
 	if RunService:IsStudio() then
 		local missing = AssetIds.missing()

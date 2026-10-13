@@ -135,7 +135,12 @@ local function fly(result: KickResult)
 		egg = spawnEgg(result.eggModel, result.eggUid, landPos)
 		eggs[result.eggUid] = egg
 		landedEggs[result.eggUid] = true
-		VFX.play("Landing", egg, { rarity = result.rarity, zone = result.landZone })
+		VFX.play("Landing", egg, {
+			rarity = result.rarity,
+			zone = result.landZone,
+			speed = 4 * apex / math.max(result.flightSeconds, 0.1), -- vertical speed at touchdown (landing sound)
+			weather = result.weather,
+		})
 		VFX.play("LegsSprout", egg, {})
 	end
 

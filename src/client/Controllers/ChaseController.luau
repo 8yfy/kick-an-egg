@@ -14,6 +14,8 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local VFX = require(Shared.VFX)
+local Audio = require(Shared.Audio)
+local SoundBank = require(Shared.Audio.SoundBank)
 local Anim = require(Shared.Anim)
 local Remotes = require(Shared.Remotes)
 
@@ -40,6 +42,9 @@ type ChaseView = {
 	steering: boolean,
 	stops: { () -> () },
 	connection: RBXScriptConnection?,
+	contact: SoundBank.ContactState, -- landing / bounce sounds from the egg's vertical velocity (never Touched)
+	clock: number,
+	stepIn: number, -- seconds to the next footstep sound
 }
 
 local EGG_WAIT = 10 -- seconds to wait for the server egg to replicate
@@ -94,11 +99,13 @@ local function hideOne(h: Hidden, d: Instance)
 		return
 	end
 	if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then
-		h.saved[d] = d.Transparency
-		d.Transparency = 1
+		local v = d :: any -- (all three have Transparency)
+		h.saved[d] = v.Transparency
+		v.Transparency = 1
 	elseif d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Light") then
-		h.saved[d] = d.Enabled
-		d.Enabled = false
+		local v = d :: any -- (all four have Enabled)
+		h.saved[d] = v.Enabled
+		v.Enabled = false
 	elseif d:IsA("Humanoid") then
 		h.saved[d] = d.DisplayDistanceType
 		d.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -204,6 +211,32 @@ local function steer(egg: Model)
 	end
 end
 
+-- The egg's own sounds: a landing / bounce when a fall stops (SoundBank.contactStep, with a minimum speed and a
+-- cooldown, so contacts can't stack), and light footsteps while your legged egg runs on the ground.
+local function sounds(view: ChaseView, egg: Model)
+	local hitbox = egg:FindFirstChild("Hitbox")
+	if not hitbox or not hitbox:IsA("BasePart") then
+		return
+	end
+	local t = os.clock()
+	local dt = math.min(t - view.clock, 0.1)
+	view.clock = t
+	local v = hitbox.AssemblyLinearVelocity
+	local kind, speed = SoundBank.contactStep(view.contact, dt, v.Y, t)
+	local own = if view.isOwn then nil else false
+	if kind then
+		Audio.landing(hitbox, speed, kind == "bounce", nil, { key = view.payload.eggUid, own = own })
+	end
+	local flat = Vector2.new(v.X, v.Z).Magnitude
+	if view.isOwn and view.steering and flat > 4 and math.abs(v.Y) < 2 then
+		view.stepIn -= dt
+		if view.stepIn <= 0 then
+			view.stepIn = math.clamp(4.5 / flat, 0.09, 0.3)
+			Audio.play("EggStep", hitbox, { follow = true })
+		end
+	end
+end
+
 local function step(view: ChaseView)
 	local egg = view.egg
 	if not egg or not egg.Parent then
@@ -218,6 +251,7 @@ local function step(view: ChaseView)
 	if view.isOwn and view.steering then
 		steer(egg)
 	end
+	sounds(view, egg)
 end
 
 local function attachEgg(view: ChaseView)
@@ -262,6 +296,9 @@ local function onChaseStart(payload: ChaseStartPayload)
 		folder = folder,
 		egg = nil,
 		steering = false,
+		contact = SoundBank.newContact(),
+		clock = os.clock(),
+		stepIn = 0,
 		stops = {},
 		connection = nil,
 	}

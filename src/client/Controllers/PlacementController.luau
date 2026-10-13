@@ -16,6 +16,7 @@ local Economy = require(Shared.Config.Economy)
 local Upgrades = require(Shared.Config.Upgrades)
 local Models = require(Shared.Builders.Models)
 local Remotes = require(Shared.Remotes)
+local Audio = require(Shared.Audio)
 
 local PEN_MARGIN = 3.5 -- = PlotService
 local EGG_SPACING = 4 -- = PlotService
@@ -222,6 +223,7 @@ local function hold(tool: Tool?)
 		return
 	end
 	makeGhost(tool)
+	Audio.play("EggHold", tool:FindFirstChild("Handle") or tool.Parent)
 	table.insert(conns, tool.Activated:Connect(onActivated))
 end
 

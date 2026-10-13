@@ -16,6 +16,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local System = script.Parent.Parent.System
+local Audio = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Audio")) :: any
 local AssetIds = require(System.AssetIds)
 local Data = require(System.Data)
 local Modal = require(System.Modal)
@@ -115,6 +116,8 @@ function PetIndex.define()
 					function(ok: boolean)
 						milestonePending[count] = nil
 						if ok then
+							local _, all = Data.milestones() -- every pet discovered: the big one
+							Audio.play(if count >= all then "GrandReward" else "MilestoneClaim")
 							Modal.toast(`Index reward claimed: {count} pets!`, "good")
 						else
 							Modal.toast("Couldn't claim that reward. Try again.", "error")
@@ -373,6 +376,7 @@ function PetIndex.define()
 					function(ok: boolean)
 						claiming[zoneId] = nil
 						if ok then
+							Audio.play("MilestoneClaim")
 							Modal.toast("Index reward claimed!", "good")
 							Motion.burst(Modal.layer(), zonePanel.AbsolutePosition + zonePanel.AbsoluteSize / 2, "cash")
 						else
