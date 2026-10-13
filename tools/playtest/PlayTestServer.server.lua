@@ -71,6 +71,25 @@ hook.OnServerEvent:Connect(function(player, what, arg)
 		table.insert(eggs, { uid = HttpService:GenerateGUID(false), petId = petId })
 		DataService():Set(player, { eggs = eggs })
 		table.insert(lines, "[setup] hook: gave an inventory egg (" .. petId .. ")")
+	elseif what == "set" and typeof(arg) == "table" then -- dev: set data fields (money, speedLevel ...)
+		local partial = table.clone(arg)
+		if typeof(partial.speedLevel) == "number" then
+			partial.runSpeed = Economy.runSpeedAt(partial.speedLevel)
+		end
+		DataService():Set(player, partial)
+		require(ServerScriptService.Server.Services.ChaseService):RefreshWalkSpeed(player)
+	elseif what == "command" and typeof(arg) == "string" then -- the Studio chat commands (SackService.command)
+		require(ServerScriptService.Server.Services.SackService).command(player, arg)
+	elseif what == "sackstate" then -- dev: where the server sees the player's Kick Sack tools
+		local seen = {}
+		for _, holder in { player:FindFirstChild("SackGear"), player:FindFirstChildOfClass("Backpack"), player.Character, game:GetService("StarterPack"), player:FindFirstChild("StarterGear") } do
+			for _, child in if holder then holder:GetChildren() else {} do
+				if child:IsA("Tool") and child:GetAttribute("KickSack") then
+					table.insert(seen, holder.Name .. ":" .. child.Name)
+				end
+			end
+		end
+		table.insert(lines, "[server] sack tools: " .. table.concat(seen, ", "))
 	elseif what == "respawn" then
 		player:LoadCharacter()
 		table.insert(lines, "[setup] hook: respawned the test player")
@@ -82,11 +101,11 @@ end)
 Players.PlayerAdded:Connect(function(player)
 	local data = DataService():WaitForData(player)
 	if data then
-		DataService():Set(player, { kickPower = 12, speedLevel = 200, runSpeed = Economy.runSpeedAt(200) })
+		DataService():Set(player, { kickPower = 400, speedLevel = 200, runSpeed = Economy.runSpeedAt(200) })
 		table.insert(
 			lines,
 			string.format(
-				"[setup] test player kickPower = 12, Run Speed level 200 (%.1f studs/s)",
+				"[setup] test player kickPower = 400 (a Perfect kick lands in zone 5), Run Speed level 200 (%.1f studs/s)",
 				Economy.runSpeedAt(200)
 			)
 		)

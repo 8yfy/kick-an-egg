@@ -1,6 +1,6 @@
 --!strict
 -- The shop's speed card: BuyUpgrade("RunSpeed") = +1 Run Speed LEVEL (no cap) for Economy.speedCost(level); the
--- speed itself (egg speed and walk speed) is Economy.runSpeedAt(level), which approaches RunSpeed.max.
+-- speed itself (egg speed and walk speed) is Economy.runSpeedAt(level): it keeps growing, slower each level.
 -- Strength (kickPower) is trained at the rack and better racks are bought (RackService), so
 -- BuyUpgrade("KickPower") is ignored. Rebirth(): only at the strength cap; resets Economy.Rebirth.resets (money, strength
 -- and Run Speed), keeps the rest (eggs, pets, sacks, pen, index), +1 rebirth (more income, higher strength cap).
@@ -58,7 +58,7 @@ function UpgradeService:CanRebirth(player: Player): boolean
 	if not data or KickService:GetActive(player) then
 		return false -- no rebirth mid-chase
 	end
-	return not Economy.Rebirth.requiresMaxPower or data.kickPower >= Economy.maxKickPower(data.rebirths)
+	return data.kickPower >= Economy.rebirthPower(data.rebirths)
 end
 
 function UpgradeService:Rebirth(player: Player): boolean

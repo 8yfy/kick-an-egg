@@ -16,7 +16,14 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Upgrades = require(Shared:WaitForChild("Config"):WaitForChild("Upgrades"))
+local Economy = require(Shared:WaitForChild("Config"):WaitForChild("Economy"))
 local Remotes = require(Shared:WaitForChild("Remotes"))
+local myRebirths = 0 -- (DataChanged) for the "+N Power" popup: the gain with your rebirths
+Remotes.get("DataChanged").OnClientEvent:Connect(function(partial: { [string]: any })
+	if typeof(partial.rebirths) == "number" then
+		myRebirths = partial.rebirths
+	end
+end)
 local SackGeometry = require(Shared:WaitForChild("Builders"):WaitForChild("SackGeometry"))
 local Sacks = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("Sacks"))
 local PlayerAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Player"))
@@ -315,7 +322,7 @@ local function land(c: Char, s: Sack, own: boolean, super: boolean)
 		floor = floorOf(s),
 		own = own,
 		super = super,
-		gain = if own then SACK.tiers[math.clamp(s.tier, 1, #SACK.tiers)].gain else nil,
+		gain = if own then Economy.trainGain(SACK.tiers[math.clamp(s.tier, 1, #SACK.tiers)].gain, myRebirths) else nil,
 	})
 end
 

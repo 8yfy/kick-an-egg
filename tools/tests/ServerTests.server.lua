@@ -101,21 +101,72 @@ section("PlotService.petIncome", function()
 end)
 
 section("Economy", function()
-	check("power cap after 2 rebirths", Economy.maxKickPower(2) == 150)
-	-- Run Speed: unlimited levels, speed approaches the max, costs grow and never overflow
+	-- rebirths need ever more Kick Power (whole numbers): 1M, 10M, 100M ...
+	check(
+		"rebirth power: 1M, 10M, 100M",
+		Economy.rebirthPower(0) == 1e6 and Economy.rebirthPower(1) == 1e7 and Economy.rebirthPower(2) == 1e8
+	)
+	-- Kick Power: whole numbers into the trillions; distance = log of power (big numbers, slow distance)
+	local wholeGains = true
+	for tier = 1, 20 do
+		for r = 0, 5 do
+			local g = Economy.trainGain(require(Shared.Config.Upgrades).Sack.tiers[tier].gain, r)
+			wholeGains = wholeGains and g >= 1 and g % 1 == 0
+		end
+	end
+	check("every sack gain is a whole number (every tier, every rebirth)", wholeGains)
+	check("power grows past a trillion", Economy.addPower(9.9e11, 2e10) == 1.01e12)
+	check(
+		"power stops at the exact-integer ceiling",
+		Economy.addPower(Economy.KickPower.max - 5, 2e10) == Economy.KickPower.max
+	)
+	check("power stays whole", Economy.addPower(10.7, 3.9) == 13)
+	local function zoneOf(d: number): number
+		return math.floor(d / 100) + 1
+	end
+	local good = Economy.TimingBonus.good
+	check("~10 power reaches zone 2", zoneOf(Economy.kickDistance(10, 0, good)) == 2)
+	check("1 million power reaches zone 10", zoneOf(Economy.kickDistance(1e6, 0, good)) == 10)
+	check("1 trillion power reaches zone 20", zoneOf(Economy.kickDistance(1e12, 0, good)) == 20)
+	check(
+		"x10 power = one more step of the same size (log)",
+		math.abs(
+			(Economy.kickDistance(1e9, 0, good) - Economy.kickDistance(1e8, 0, good)) - Economy.Distance.studsPerDecade
+		) < 1
+	)
+	check(
+		"distance grows much slower than power",
+		Economy.kickDistance(1e12, 0, good) < 2 * Economy.kickDistance(1e6, 0, good)
+	)
+	check(
+		"a Perfect kick goes farther than a miss",
+		Economy.kickDistance(1e6, 0, Economy.TimingBonus.perfect)
+			> Economy.kickDistance(1e6, 0, Economy.TimingBonus.miss)
+	)
+	for _, p in { 0 / 0, math.huge, -5, 1e300 } do
+		local d = Economy.kickDistance(p, 0, good)
+		check(`distance for power {p} is finite`, d == d and d < math.huge and d >= 0)
+	end
+	-- Run Speed: unlimited levels, every level still adds speed (log), costs grow and never overflow
 	check("speed level 0 = base", Economy.runSpeedAt(0) == Economy.RunSpeed.base)
 	local last, lastCost, rising, cheaper = -1, -1, true, true
-	for level = 0, 400 do
+	for level = 0, 2000 do
 		local v, c = Economy.runSpeedAt(level), Economy.speedCost(level)
-		rising = rising and v > last and v < Economy.RunSpeed.max
-		cheaper = cheaper and c > lastCost and c == c and c < math.huge
+		rising = rising and v > last
+		cheaper = cheaper and c > lastCost and c == c and c < math.huge and c % 1 == 0
 		last, lastCost = v, c
 	end
-	check("speed rises every level and stays under the max", rising)
-	check("speed cost rises every level, finite", cheaper)
+	check("speed rises at every level (0..2000)", rising)
+	check("speed cost rises every level, whole and finite", cheaper)
+	check("level 121 is faster than 120 (no cap at 120)", Economy.runSpeedAt(121) > Economy.runSpeedAt(120))
+	check("level 10,000 is still faster than 9,999", Economy.runSpeedAt(10000) > Economy.runSpeedAt(9999))
+	check(
+		"diminishing returns",
+		Economy.runSpeedAt(1001) - Economy.runSpeedAt(1000) < Economy.runSpeedAt(11) - Economy.runSpeedAt(10)
+	)
 	for _, level in { 1e6, 1e12, 0 / 0, -5 } do
 		local v, c = Economy.runSpeedAt(level), Economy.speedCost(level)
-		check(`speed at level {level} is safe`, v == v and v <= Economy.RunSpeed.max and c == c and c < math.huge)
+		check(`speed at level {level} is safe`, v == v and v <= Economy.RunSpeed.safety and c == c and c < math.huge)
 	end
 	for _, old in { 16, 17, 25, 40 } do
 		local level = Economy.speedLevelFor(old)
@@ -128,11 +179,16 @@ section("Economy", function()
 	for zone = 1, 20 do
 		local v = Chase.avalancheSpeed(zone)
 		smooth = smooth and v > prev and (zone == 1 or v - prev < 3)
-		escapable = escapable and v < Economy.RunSpeed.max - 6
+		escapable = escapable and v < Economy.runSpeedAt(1000) - 3
 		prev = v
 	end
 	check("avalanche faster in every later zone, no big jumps", smooth)
-	check("a fully upgraded egg can outrun every avalanche", escapable)
+	check("a well upgraded egg (level 1000) can outrun every avalanche", escapable)
+	check(
+		"later zones have clearly faster avalanches (zone 1 < 10 < 20)",
+		Chase.avalancheSpeed(1) + 8 < Chase.avalancheSpeed(10)
+			and Chase.avalancheSpeed(10) + 15 < Chase.avalancheSpeed(20)
+	)
 	-- avalanche start: inside the landing zone, a fair gap behind the egg, never past the end wall
 	local Zones = require(Shared.Config.Zones) :: any
 	local A = Chase.Avalanche
@@ -153,18 +209,15 @@ section("Economy", function()
 	check("avalanche starts inside the landing zone when there is room", inside)
 	check("avalanche never closer than the minimum gap", gap)
 	check("avalanche never past the map's end wall", onMap)
-	-- sack training caps: power follows the sack ladder
+	-- sack gains: whole numbers, every sack much stronger than the one before (no caps)
 	local Upgrades = require(Shared.Config.Upgrades) :: any
-	local capsUp = true
+	local gainsUp = true
 	for i = 2, #Upgrades.Sack.tiers do
-		capsUp = capsUp and Upgrades.Sack.tiers[i].cap > Upgrades.Sack.tiers[i - 1].cap
+		local t = Upgrades.Sack.tiers[i]
+		gainsUp = gainsUp and t.gain > Upgrades.Sack.tiers[i - 1].gain and t.gain % 1 == 0 and t.cap == nil
 	end
-	check("every sack trains further than the one before", capsUp)
-	check(
-		"the last sack trains to the absolute cap",
-		Upgrades.Sack.tiers[#Upgrades.Sack.tiers].cap == Economy.KickPower.max
-	)
-	check("sack caps grow with rebirths", Economy.sackCap(10, 1) == 12.5)
+	check("every sack gives more whole Kick Power than the one before, no caps", gainsUp)
+	check("sack training grows with rebirths", Economy.trainGain(10, 1) == 20 and Economy.trainGain(10, 2) == 30)
 	check("rebirths add a little kick distance", Economy.distanceMultiplier(2) == 1.2)
 end)
 
@@ -194,7 +247,7 @@ section("DataService.sanitize", function()
 	local D = require(Services.DataService) :: any
 	local d = {
 		money = 0 / 0,
-		kickPower = 1e9,
+		kickPower = 1e9 + 0.7,
 		runSpeed = -5,
 		rebirths = 2.7,
 		eggs = "junk",
@@ -208,7 +261,10 @@ section("DataService.sanitize", function()
 	D.sanitize(d)
 	check("NaN money", d.money == 0)
 	check("rebirths floored", d.rebirths == 2)
-	check("kickPower capped", d.kickPower == 150)
+	check("kickPower kept as a whole number (no design cap)", d.kickPower == 1e9)
+	local big = { kickPower = 1e300, eggs = {}, pets = {}, plots = {}, stats = {}, receipts = {} }
+	D.sanitize(big)
+	check("kickPower never past the exact-integer ceiling", big.kickPower == Economy.KickPower.max)
 	check("runSpeed raised", d.runSpeed == 16)
 	check("eggs restored", typeof(d.eggs) == "table")
 	check("onboarding reset", d.onboarding == 0)
@@ -230,18 +286,27 @@ section("SackService + pens + collecting", function()
 	end
 	check("sack 1 adds its gain", SS.trained(1, 1, 0) == 1 + levels[1].gain)
 	check("better sack trains faster", SS.trained(1, 5, 0) > SS.trained(1, 1, 0))
-	check("strength capped", SS.trained(Economy.maxKickPower(0), #levels, 0) == Economy.maxKickPower(0))
-	check("rebirth raises the cap", SS.trained(Economy.maxKickPower(0), #levels, 1) > Economy.maxKickPower(0))
-	check("a sack stops at its cap", SS.trained(levels[1].cap - 0.01, 1, 0) == levels[1].cap)
-	check("past a sack's cap only a better sack helps", SS.trained(levels[1].cap, 1, 0) == levels[1].cap)
-	check("power above the cap is never lowered", SS.trained(50, 1, 0) == 50)
-	local kicks = 0
-	local power = Economy.KickPower.base
-	while power < levels[1].cap and kicks < 10000 do
-		power = SS.trained(power, 1, 0)
-		kicks += 1
+	check("the top sack gives billions per kick", SS.trained(0, #levels, 0) >= 1e10)
+	check("no cap: a high power keeps growing", SS.trained(5e11, 1, 0) == 5e11 + levels[1].gain)
+	check("a rebirth doubles sack training", SS.trained(1, 5, 1) - 1 == 2 * levels[5].gain)
+	check(
+		"power never past the exact-integer ceiling",
+		SS.trained(Economy.KickPower.max, #levels, 3) == Economy.KickPower.max
+	)
+	-- with the sack bought for a zone, its next zone takes real training (tens of kicks, not one or thousands)
+	local fair = true
+	for zone = 5, 19 do
+		local function powerAt(d: number): number
+			return 10 ^ (d / Economy.Distance.studsPerDecade) - 1
+		end
+		local need = powerAt((zone - 0.5) * 100) - powerAt((zone - 1.5) * 100) -- the zone it was bought for
+		local kicks = need / levels[zone].gain
+		if kicks < 30 or kicks > 150 then
+			fair = false
+			warn(`zone {zone}: {kicks} kicks`)
+		end
 	end
-	check(`the first sack takes real training ({kicks} kicks to its cap)`, kicks >= 30 and kicks <= 80)
+	check("each sack needs ~30-150 kicks to carry you through its zone", fair)
 	check("next sack cost", SS.sackCost(1) == levels[2].cost)
 	check("no sack after the top", SS.sackCost(#levels) == nil)
 	local root = CFrame.lookAt(Vector3.new(30, 3, -40), Vector3.new(30, 3, -50))
@@ -480,7 +545,7 @@ section("SackService + pens + collecting", function()
 		penLevel = 0 / 0,
 	}
 	D.sanitize(d)
-	check("fractional strength kept", d.kickPower == 3.25)
+	check("fractional strength rounded down to a whole number", d.kickPower == 3)
 	check("sack tier clamped", d.rackLevel == #levels)
 	check("NaN pen level -> 1", d.penLevel == 1)
 	check("old tool field dropped", d.tool == nil)
@@ -536,8 +601,30 @@ section("SackService + pens + collecting", function()
 		old.plots.e3 ~= nil and old.plots["3"] == nil and typeof(old.plots.e3.x) == "number"
 	)
 	check("migration: inventory eggs untouched", #old.eggs == 1 and old.eggs[1].uid == "w1")
-	check("migration: run speed kept", old.runSpeed >= 25 - 1e-6 and old.speedLevel == Economy.speedLevelFor(25))
-	check("migration: power kept", old.kickPower == 12)
+	check("migration: run speed kept", Economy.runSpeedAt(old.speedLevel) >= 25 - 1e-6)
+	local before = 12 * 24 * 1.5 -- the old Perfect kick of power 12
+	local after = Economy.kickDistance(old.kickPower, 0, Economy.TimingBonus.perfect)
+	check(
+		"migration: power converted to whole numbers, same kick distance",
+		old.kickPower % 1 == 0 and old.kickPower > 12 and math.abs(after - before) < 2
+	)
+	local maxed = {
+		version = 2,
+		kickPower = 100,
+		speedLevel = 200,
+		runSpeed = 47.7,
+		rebirths = 0,
+		eggs = {},
+		pets = {},
+		plots = {},
+	}
+	D.migrate(maxed)
+	check(
+		"migration: an old maxed player still kicks to the last zone, keeps their speed",
+		maxed.version == 3
+			and Economy.kickDistance(maxed.kickPower, 0, Economy.TimingBonus.perfect) >= 1949
+			and Economy.runSpeedAt(maxed.speedLevel) >= 16 + 32 * (1 - 2 ^ (-200 / 30)) - 1e-6
+	)
 	local again = table.clone(old)
 	D.migrate(again)
 	check("migration runs once", again.money == 140)

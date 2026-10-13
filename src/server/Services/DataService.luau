@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
+local Chase = require(Shared.Config.Chase)
 local Upgrades = require(Shared.Config.Upgrades)
 local Remotes = require(Shared.Remotes)
 
@@ -32,7 +33,7 @@ local LOCK_TIMEOUT = Economy.AutosaveSeconds * 5 -- a lock older than this is fr
 local LOCKED_RETRIES = 4 -- the other server may still be saving on leave
 local SERVER_ID = HttpService:GenerateGUID(false) -- JobId is "" in Studio, so use our own
 
-local VERSION = 2
+local VERSION = 3
 local TEMPLATE: Data = {
 	version = VERSION,
 	money = Economy.StartingMoney,
@@ -124,11 +125,28 @@ local function migrate(data: Data)
 			end
 			data.plots = plots
 		end
-		data.speedLevel = Economy.speedLevelFor(if isFinite(data.runSpeed) then data.runSpeed else 0)
+		-- the v2 curve's level for the old speed (16 + 32 * (1 - 2^(-level / 30))); v3 below converts it again
+		local speed = if isFinite(data.runSpeed) then data.runSpeed else 16
+		local fraction = math.clamp((speed - 16) / 32, 0, 0.999999)
+		data.speedLevel = if speed <= 16 then 0 else math.ceil(-30 * math.log(1 - fraction, 2) - 1e-9)
 		if isFinite(data.money) then
 			data.money += cash
 		end
 		data.version = 2
+	end
+	if (if isFinite(data.version) then data.version else 1) < 3 then
+		-- v2 -> v3: Kick Power becomes whole numbers on a log distance curve; Run Speed a log curve. Each player
+		-- keeps what they could do: the same Perfect-kick distance and the same running speed.
+		local old = if isFinite(data.kickPower) then math.max(1, data.kickPower) else 1
+		local oldDistance = old * 24 * 1.5 -- the old Perfect kick: power x DistancePerPower x Perfect
+		local reach = (Chase.trackEnd() - Chase.Landing.endMargin) -- (farther lands at the end anyway)
+		local perfect = Economy.TimingBonus.perfect * Economy.Distance.studsPerDecade
+		local power = 10 ^ (math.min(oldDistance, reach) / perfect) - 1
+		data.kickPower = math.clamp(math.floor(power + 0.5), Economy.KickPower.base, Economy.KickPower.max)
+		local oldLevel = if isFinite(data.speedLevel) then math.max(0, data.speedLevel) else 0
+		local oldSpeed = 16 + 32 * (1 - 2 ^ (-oldLevel / 30))
+		data.speedLevel = Economy.speedLevelFor(oldSpeed)
+		data.version = 3
 	end
 end
 
@@ -143,9 +161,9 @@ local function sanitize(data: Data)
 	end
 	data.money = if isFinite(data.money) then math.max(0, data.money) else Economy.StartingMoney
 	data.rebirths = if isFinite(data.rebirths) then math.max(0, math.floor(data.rebirths)) else 0
-	local powerCap = Economy.maxKickPower(data.rebirths)
+	local powerCap = Economy.KickPower.max
 	data.kickPower = if isFinite(data.kickPower)
-		then math.clamp(data.kickPower, Economy.KickPower.base, powerCap) -- strength is fractional
+		then math.clamp(math.floor(data.kickPower), Economy.KickPower.base, powerCap) -- whole numbers
 		else Economy.KickPower.base
 	data.speedLevel = if isFinite(data.speedLevel) then math.max(0, math.floor(data.speedLevel)) else 0
 	data.runSpeed = Economy.runSpeedAt(data.speedLevel)

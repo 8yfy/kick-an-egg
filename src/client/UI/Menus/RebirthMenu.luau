@@ -121,9 +121,9 @@ function RebirthMenu.new(parent: Instance): Menu
 			count.Text = `Rebirths: {rebirths}`
 			mult.Text =
 				`Kick distance x{1 + rebirths * cfg.multiplierPerRebirth} → x{1 + (rebirths + 1) * cfg.multiplierPerRebirth}`
-			perks.Text = `+{cfg.powerCapBonus} max Kick Power · progress resets`
-			local need = Economy.KickPower.max + rebirths * cfg.powerCapBonus -- the cap grows each rebirth
-			req.Text = `Needs max Kick Power: {Kit.formatNumber(power)} / {Kit.formatNumber(need)}`
+			perks.Text = `x{1 + (rebirths + 1) * cfg.trainingPerRebirth} sack training · progress resets`
+			local need = Economy.rebirthPower(rebirths) -- Kick Power the next rebirth needs
+			req.Text = `Needs Kick Power: {Kit.formatNumber(power)} / {Kit.formatNumber(need)}`
 			local k = math.clamp(power / need, 0, 1)
 			Kit.tween(fill, 0.3, { Size = UDim2.fromScale(k, 1) })
 			ready = k >= 1

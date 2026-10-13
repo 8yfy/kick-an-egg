@@ -10,7 +10,7 @@
 --     the tool is put away.
 --   * Train(): one kick. Counts when the sack has finished dropping (Sack.dropSeconds), you are in range,
 --     not mid-chase and at most once per Sack.interval; adds tiers[tier].gain to kick power up to the sack's
---     training cap (SackService.capFor) and bumps the character's SackHits so other clients play the kick.
+--     whole-number gain (SackService.trained) and bumps the character's SackHits so other clients play the kick.
 --   * UpgradeTraining(): buys the next sack for tiers[tier + 1].cost (PlayerData.rackLevel = sack tier).
 
 local Players = game:GetService("Players")
@@ -53,20 +53,10 @@ local function tierOf(level: number): Upgrades.SackTier
 	return tiers[math.clamp(level, 1, #tiers)]
 end
 
--- The most kick power a sack of `tier` trains to (its cap, scaled by rebirths: Economy.sackCap).
-function SackService.capFor(tier: number, rebirths: number): number
-	return math.min(Economy.sackCap(tierOf(tier).cap, rebirths), Economy.maxKickPower(rebirths))
-end
-
--- `value` after one kick on a sack of `tier`: + the sack's gain up to its cap. Power already above the cap
--- (an older save, a lower sack) is kept as it is, never lowered.
+-- `value` after one kick on a sack of `tier`: + the sack's whole-number gain (x rebirths, Economy.trainGain).
+-- No cap (only the exact-integer ceiling, Economy.KickPower.max).
 function SackService.trained(value: number, tier: number, rebirths: number): number
-	local cap = SackService.capFor(tier, rebirths)
-	if value >= cap then
-		return value
-	end
-	local result = math.min(value + tierOf(tier).gain, cap)
-	return math.floor(result * 1000 + 0.5) / 1000 -- keep saves tidy
+	return Economy.addPower(value, Economy.trainGain(tierOf(tier).gain, rebirths))
 end
 
 -- Price of sack tier + 1, or nil at the top.
@@ -432,7 +422,7 @@ function SackService.command(player: Player, message: string)
 		DataService:Set(player, { money = data.money + math.max(0, n) })
 		print(`[studio] {player.Name}: +{math.max(0, n)} cash`)
 	elseif cmd == "power" then -- Kick Power (strength), up to the cap for your rebirths
-		local power = math.clamp(n, Economy.KickPower.base, Economy.maxKickPower(data.rebirths))
+		local power = math.clamp(math.floor(n), Economy.KickPower.base, Economy.KickPower.max)
 		DataService:Set(player, { kickPower = power })
 		print(`[studio] {player.Name}: kick power {power}`)
 	elseif cmd == "speed" then -- Run Speed level (egg + walk speed = Economy.runSpeedAt(level))

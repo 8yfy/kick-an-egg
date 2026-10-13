@@ -226,7 +226,7 @@ function Hatch.PetReveal(target: Instance?, params: { [string]: any })
 	end
 end
 
--- Training kick: yellow sparks off the bag and a "+0.3 Kick Power" pop. params {gain}
+-- Training kick: yellow sparks off the bag and a "+1.2K Power" pop (whole numbers). params {gain}
 function Hatch.TrainHit(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target)
 	if not pos then
@@ -242,7 +242,10 @@ function Hatch.TrainHit(target: Instance?, params: { [string]: any })
 		false,
 		true
 	)
-	Hatch.MoneyPop(target, { text = `+{params.gain or 0} Power`, color = Color3.fromRGB(255, 220, 70) })
+	Hatch.MoneyPop(
+		target,
+		{ text = `+{Fx.formatNumber(params.gain or 0)} Power`, color = Color3.fromRGB(255, 220, 70) }
+	)
 end
 
 function Hatch.MoneyPop(target: Instance?, params: { [string]: any })

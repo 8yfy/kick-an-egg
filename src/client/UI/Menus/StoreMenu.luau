@@ -220,16 +220,17 @@ function StoreMenu.new(parent: Instance): Menu
 		setPrice(station, if nxt then nxt.cost else nil, money)
 		local strength = if typeof(data.kickPower) == "number" then data.kickPower else Economy.KickPower.base
 		local rebirths = if typeof(data.rebirths) == "number" then data.rebirths else 0
-		power.subtitle.Text = `{Kit.formatNumber(strength)} / {Kit.formatNumber(
-			Economy.KickPower.max + rebirths * Economy.Rebirth.powerCapBonus
-		)}`
+		power.subtitle.Text =
+			`{Kit.formatNumber(strength)} power · rebirth at {Kit.formatNumber(Economy.rebirthPower(rebirths))}`
 		power.pill.Text = "Kick your sack"
 		power.label.Text = "TRAIN"
 		do -- Run Speed: unlimited levels (Economy.speedCost / runSpeedAt)
 			local level = if typeof(data.speedLevel) == "number" then data.speedLevel else 0
 			local speedNow = Economy.runSpeedAt(level)
-			speed.subtitle.Text = `{Kit.formatNumber(math.floor(speedNow * 10) / 10)} (level {level})`
-			speed.pill.Text = gain(`+{math.floor((Economy.runSpeedAt(level + 1) - speedNow) * 10 + 0.5) / 10}`, "Speed")
+			local step = Economy.runSpeedAt(level + 1) - speedNow
+			local digits = if step >= 0.1 then 2 elseif step >= 0.01 then 3 elseif step >= 0.001 then 4 else 5
+			speed.subtitle.Text = `{string.format("%.2f", speedNow)} (level {Kit.formatNumber(level)})`
+			speed.pill.Text = gain("+" .. string.format(`%.{digits}f`, step), "Speed")
 			setPrice(speed, Economy.speedCost(level), money)
 		end
 		local plvl = math.max(1, MyBase.level("PenLevel", data, "penLevel"))

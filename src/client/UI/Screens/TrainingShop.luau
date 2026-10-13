@@ -9,7 +9,7 @@
 --     the request is pending / an inline error if it fails. Buying makes the new sack yours right away
 --     (that is what UpgradeTraining does).
 --   Speed: Run Speed (= how fast your egg runs home), next value, level (no cap: each level adds a little less,
---   approaching Economy.RunSpeed.max), exact price, UPGRADE.
+--   growing with every level, slower each time; no level cap), exact price, UPGRADE.
 --     One step per purchase (BuyUpgrade "RunSpeed"); no bulk buying: the server sells +1 at a time.
 -- Cards are authored at the contract's reference size (444 x 566) and scaled as a whole to the grid cell.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -113,7 +113,7 @@ local function buildCard(parent: Instance, row: Data.SackRow, onBuy: (card: Card
 	sub.Position = UDim2.fromOffset(10, 52)
 	sub.Size = UDim2.new(1, -20, 0, 28)
 	sub.ZIndex = 3
-	local benefit = Ui.text(bg, `+{Ui.number(row.gain)} Kick Power per kick, up to {Ui.number(row.cap)}`, 24, {
+	local benefit = Ui.text(bg, `+{Ui.number(row.gain)} Kick Power per kick`, 24, {
 		align = Enum.TextXAlignment.Center,
 		stroke = 3,
 		name = "Benefit",
@@ -283,12 +283,12 @@ local function buildSpeed(
 	sub.Position = UDim2.fromOffset(0, 70)
 	local values = Ui.frame(info, "Values", UDim2.new(1, 0, 0, 110), UDim2.fromOffset(0, 140))
 	Ui.list(values, 22, true)
-	local now = Ui.text(values, "", 96, { autoX = true, stroke = 6, name = "Now" })
+	local now = Ui.text(values, "", 80, { autoX = true, stroke = 6, name = "Now" })
 	now.LayoutOrder = 1
 	local arrow = Ui.text(values, "→", 72, { autoX = true, stroke = 5, name = "Arrow" })
 	arrow.LayoutOrder = 2
 	local nextValue =
-		Ui.text(values, "", 96, { autoX = true, stroke = 6, color = Theme.Buttons.lime[1], name = "Next" })
+		Ui.text(values, "", 80, { autoX = true, stroke = 6, color = Theme.Buttons.lime[1], name = "Next" })
 	nextValue.LayoutOrder = 3
 	local barHolder = Ui.frame(info, "Bar", UDim2.new(1, 0, 0, 44), UDim2.fromOffset(0, 270))
 	local bar = Ui.progress(barHolder, Theme.Buttons.lime, 44, 26)
@@ -312,41 +312,36 @@ local function buildSpeed(
 	local bPrice = Ui.text(bRow, "", 38, { autoX = true, stroke = 3, name = "Price" })
 	bPrice.LayoutOrder = 4
 	bPrice.ZIndex = 2
-	local maxPill = Ui.pill(info, "MAXED", "grey", UDim2.new(1, 0, 0, 72), 38)
-	maxPill.AnchorPoint = Vector2.new(0, 1)
-	maxPill.Position = UDim2.fromScale(0, 1)
-
 	local function update(info2: Data.SpeedInfo, pending: boolean)
-		now.Text = tostring(info2.current)
-		arrow.Visible = not info2.maxed
-		nextValue.Visible = not info2.maxed
-		nextValue.Text = tostring(info2.nextSpeed)
-		-- no level cap: the bar shows how close the speed is to the top speed every level approaches
+		-- no level cap: current -> next speed, the level, the next price; the bar = your cash toward that price
+		now.Text = info2.currentText
+		nextValue.Text = info2.nextText
+		local cost = info2.cost or 0
+		local money = Data.money()
 		bar.set(
-			(info2.current - info2.base) / math.max(1, info2.max - info2.base),
-			`LEVEL {info2.level}  ·  TOP SPEED {info2.max}`
+			math.clamp(money / math.max(1, cost), 0, 1),
+			`LEVEL {Ui.number(info2.level)}  ·  NEXT {info2.stepText}`
 		)
-		button.gui.Visible = not info2.maxed
-		maxPill.Visible = info2.maxed
-		if info2.maxed then
-			note.Text = "Run Speed is maxed."
-			note.TextColor3 = C.text
-		elseif info2.cost then
-			local short = info2.cost - Data.money()
-			bPrice.Text = Ui.money(info2.cost)
-			button.setEnabled(short <= 0)
-			button.setPending(pending, "UPGRADING...")
-			bIcon.Visible = not pending
-			bPrice.Visible = not pending
-			local step = math.floor((info2.nextSpeed - info2.current) * 10 + 0.5) / 10
-			note.Text = if short > 0 then `Need {Ui.money(short)} more` else `+{step} Run Speed per upgrade`
-			note.TextColor3 = if short > 0 then C.power else C.text
-		end
+		local short = cost - money
+		bPrice.Text = Ui.money(cost)
+		button.setEnabled(short <= 0)
+		button.setPending(pending, "UPGRADING...")
+		bIcon.Visible = not pending
+		bPrice.Visible = not pending
+		note.Text = if short > 0
+			then `Need {Ui.money(short)} more`
+			else `{info2.stepText} studs/s per upgrade · no level limit`
+		note.TextColor3 = if short > 0 then C.power else C.text
 	end
 	local function layout(compact: boolean)
 		hero.Visible = not compact
 		info.Size = if compact then UDim2.new(1, -40, 1, -40) else UDim2.new(0.6, -50, 1, -40)
 		info.Position = if compact then UDim2.fromOffset(20, 20) else UDim2.new(0.4, 30, 0, 20)
+		-- short screens: no subtitle, everything stacked above the UPGRADE button (nothing under it)
+		sub.Visible = not compact
+		values.Position = UDim2.fromOffset(0, if compact then 56 else 140)
+		barHolder.Position = UDim2.fromOffset(0, if compact then 158 else 270)
+		note.Position = UDim2.fromOffset(0, if compact then 206 else 326)
 	end
 	return update, layout
 end
@@ -453,7 +448,7 @@ function TrainingShop.define()
 
 			local function upgradeSpeed()
 				local info = Data.speed()
-				if speedPending or info.maxed or not info.cost or Data.money() < info.cost then
+				if speedPending or not info.cost or Data.money() < info.cost then
 					return
 				end
 				speedPending = true

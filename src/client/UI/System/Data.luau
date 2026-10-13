@@ -104,8 +104,7 @@ export type SackState = "Equipped" | "Owned" | "Buy" | "Insufficient" | "Locked"
 export type SackRow = {
 	tier: number,
 	name: string,
-	gain: number,
-	cap: number, -- trains kick power up to this (Economy.sackCap: grows with rebirths)
+	gain: number, -- whole Kick Power per kick, with your rebirths (Economy.trainGain); no cap
 	cost: number,
 	fx: string,
 	state: SackState,
@@ -123,11 +122,8 @@ function Data.sacks(): { SackRow }
 			elseif i < tier then "Owned"
 			elseif i == tier + 1 then (if money >= t.cost then "Buy" else "Insufficient")
 			else "Locked"
-		local cap = math.floor(Economy.sackCap(t.cap, num("rebirths", 0)) * 10 + 0.5) / 10
-		table.insert(
-			rows,
-			{ tier = i, name = t.name, gain = t.gain, cap = cap, cost = t.cost, fx = t.fx, state = state }
-		)
+		local gain = Economy.trainGain(t.gain, num("rebirths", 0))
+		table.insert(rows, { tier = i, name = t.name, gain = gain, cost = t.cost, fx = t.fx, state = state })
 	end
 	return rows
 end
@@ -135,28 +131,41 @@ end
 -- Training: run speed --------------------------------------------------------------------------------------
 
 export type SpeedInfo = {
-	current: number, -- studs/s now (1 decimal)
+	current: number, -- studs/s now
 	nextSpeed: number, -- studs/s after one more level
+	currentText: string, -- "31.57" (2 decimals)
+	nextText: string,
+	stepText: string, -- "+0.06", "+0.008": enough decimals to show the real gain of one level
 	level: number,
 	base: number,
-	max: number, -- the speed every level approaches (never reached)
 	cost: number?,
 	maxed: boolean, -- always false: Run Speed has no level cap
 }
 
-local function oneDecimal(x: number): number
-	return math.floor(x * 10 + 0.5) / 10
+-- Decimals that keep one level's gain visible: 2 normally, more once a level adds less than 0.01 (so "now ->
+-- next" never reads the same number and a step never shows as a fake "+0").
+function Data.speedDigits(step: number): number
+	return if step >= 0.1 then 2 elseif step >= 0.01 then 3 elseif step >= 0.001 then 4 else 5
+end
+function Data.speedText(v: number, digits: number?): string
+	return string.format(`%.{digits or 2}f`, v)
+end
+function Data.speedStepText(d: number): string
+	return "+" .. string.format(`%.{Data.speedDigits(d)}f`, d)
 end
 
 function Data.speed(): SpeedInfo
 	local rs = Economy.RunSpeed
 	local level = num("speedLevel", 0)
+	local step = Economy.runSpeedAt(level + 1) - Economy.runSpeedAt(level)
 	return {
-		current = oneDecimal(Economy.runSpeedAt(level)),
-		nextSpeed = oneDecimal(Economy.runSpeedAt(level + 1)),
+		current = Economy.runSpeedAt(level),
+		nextSpeed = Economy.runSpeedAt(level + 1),
+		currentText = Data.speedText(Economy.runSpeedAt(level), Data.speedDigits(step)),
+		nextText = Data.speedText(Economy.runSpeedAt(level + 1), Data.speedDigits(step)),
+		stepText = Data.speedStepText(Economy.runSpeedAt(level + 1) - Economy.runSpeedAt(level)),
 		level = level,
 		base = rs.base,
-		max = rs.max,
 		cost = Economy.speedCost(level),
 		maxed = false,
 	}
@@ -207,7 +216,7 @@ export type RebirthInfo = {
 	inChase: boolean,
 	multiplier: number,
 	nextMultiplier: number,
-	nextCap: number,
+	nextCap: number, -- Kick Power the rebirth after this one will need
 	resets: { string },
 	keeps: { string },
 }
@@ -216,7 +225,7 @@ function Data.rebirth(): RebirthInfo
 	local rules = Economy.Rebirth
 	local count = num("rebirths", 0)
 	local power = Data.power()
-	local required = Economy.maxKickPower(count)
+	local required = Economy.rebirthPower(count)
 	local resets, keeps = {}, {}
 	local known = typeof(rules) == "table" and typeof(rules.resets) == "table" and typeof(rules.keeps) == "table"
 	if known then
@@ -238,7 +247,7 @@ function Data.rebirth(): RebirthInfo
 		inChase = Data.busy,
 		multiplier = 1 + count * per,
 		nextMultiplier = 1 + (count + 1) * per,
-		nextCap = Economy.maxKickPower(count + 1),
+		nextCap = Economy.rebirthPower(count + 1),
 		resets = resets,
 		keeps = keeps,
 	}

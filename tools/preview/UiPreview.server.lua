@@ -486,7 +486,21 @@ elseif SCREEN == "Proof" or SCREEN == "Proof2" then
 		end
 	end
 else
-	Modal.open(SCREEN)
+	if SCREEN == "TrainingSpeed" then -- the Speed tab with late-game numbers (level past 120, a trillion power)
+		Data.apply({ speedLevel = 1250, money = 2e10, kickPower = 2.5e12 })
+		Modal.open("Training")
+		task.delay(0.6, function()
+			for _, d in stage:GetDescendants() do
+				if d.Name == "Sacks" and d.Parent and d.Parent.Name == "Pages" then
+					(d :: GuiObject).Visible = false
+				elseif d.Name == "Speed" and d.Parent and d.Parent.Name == "Pages" then
+					(d :: GuiObject).Visible = true
+				end
+			end
+		end)
+	else
+		Modal.open(SCREEN)
+	end
 end
 
 -- 12x12 magenta corner marker: the capture script finds the stage by it and crops to STAGE size.

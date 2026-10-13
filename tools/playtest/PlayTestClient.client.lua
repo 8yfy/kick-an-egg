@@ -100,7 +100,8 @@ end
 local function backpackTool(attribute, uid)
 	local backpack = player:FindFirstChildOfClass("Backpack")
 	for _, t in if backpack then backpack:GetChildren() else {} do
-		if t:IsA("Tool") and (uid == nil and t:GetAttribute(attribute) ~= nil or t:GetAttribute(attribute) == uid) then
+		local value = t:IsA("Tool") and t:GetAttribute(attribute)
+		if value ~= nil and value ~= false and (uid == nil or value == uid) then
 			return t
 		end
 	end
@@ -838,6 +839,95 @@ step("quickslot", function()
 	end, 2) ~= nil)
 end)
 
+-- Phase 2, live: Run Speed past level 120 (no cap, every level counts), trillion-scale whole-number Power on the
+-- HUD, and a real sack kick adding exactly its whole-number gain.
+step("speed + power (live)", function()
+	local Economy = require(Shared.Config.Economy)
+	local moneyLog = {} -- every money value the server sends, in order (income ticks arrive in between)
+	local logConn = Remotes.get("DataChanged").OnClientEvent:Connect(function(partial)
+		if typeof(partial.money) == "number" then
+			table.insert(moneyLog, { money = partial.money, level = partial.speedLevel })
+		end
+	end)
+	local function buyAt(level)
+		hook:FireServer("set", { speedLevel = level, money = 1e15 })
+		waitFor(function()
+			return Data.state.speedLevel == level
+		end, 3)
+		task.wait(0.3)
+		table.clear(moneyLog)
+		Remotes.get("BuyUpgrade"):FireServer("RunSpeed")
+		local ok = waitFor(function()
+			return Data.state.speedLevel == level + 1
+		end, 4)
+		task.wait(0.3)
+		local paid = nil
+		for i, entry in moneyLog do
+			if entry.level == level + 1 then -- the purchase's own update: money right before it - money in it
+				local before = if i > 1 then moneyLog[i - 1].money else 1e15
+				paid = before - entry.money
+			end
+		end
+		return ok ~= nil, paid, humanoid.WalkSpeed
+	end
+	local ok121, paid121, walk121 = buyAt(121)
+	check(
+		"Run Speed: buying past level 121 works (no cap at 120)",
+		ok121 and paid121 == Economy.speedCost(121) and math.abs(walk121 - Economy.runSpeedAt(122)) < 0.01,
+		string.format("paid %s, walk speed %.3f", tostring(paid121), walk121)
+	)
+	local ok10k, paid10k, walk10k = buyAt(10000)
+	check(
+		"Run Speed: level 10,001 bought, still faster than 10,000, price finite",
+		ok10k and paid10k == Economy.speedCost(10000) and walk10k > Economy.runSpeedAt(10000),
+		string.format("paid %s, walk speed %.4f", tostring(paid10k), walk10k)
+	)
+	logConn:Disconnect()
+	hook:FireServer("set", { speedLevel = 200 })
+	-- trillion-scale whole-number Power, shown abbreviated on the Power HUD
+	hook:FireServer("command", "/power 2500000000000")
+	check("Power can be 2.5 trillion", waitFor(function()
+		return Data.state.kickPower == 2.5e12
+	end, 4) ~= nil, Data.state.kickPower)
+	task.wait(0.6)
+	local shown = nil
+	for _, d in hud:GetDescendants() do
+		if d:IsA("TextLabel") and string.sub(d.Text, 1, 6) == "POWER " then
+			shown = d.Text
+		end
+	end
+	check("the Power HUD shows it as a whole abbreviated number", shown == "POWER 2.5T", shown)
+	-- a real sack kick adds exactly the sack's whole-number gain
+	hook:FireServer("command", "/power 1000")
+	waitFor(function()
+		return Data.state.kickPower == 1000
+	end, 3)
+	tp(onPad + Vector3.new(0, 0, -30))
+	task.wait(0.8)
+	SackGear.toggle()
+	waitFor(holdingSack, 3)
+	task.wait(1.8)
+	local before = Data.state.kickPower
+	local tool = char:FindFirstChildOfClass("Tool")
+	if tool then
+		tool:Activate()
+	end
+	local after = waitFor(function()
+		return Data.state.kickPower ~= before and Data.state.kickPower
+	end, 3)
+	local tier = Data.state.rackLevel or 1
+	local want = Economy.trainGain(require(Shared.Config.Upgrades).Sack.tiers[tier].gain, Data.state.rebirths or 0)
+	check(
+		"a sack kick adds its whole-number gain",
+		after ~= nil and after - before == want and after % 1 == 0,
+		after and `+{after - before} (sack {tier}: +{want})`
+	)
+	SackGear.toggle()
+	waitFor(function()
+		return not holdingSack()
+	end, 3)
+end)
+
 -- BUG 6: Shift Lock + the sack. The camera must stay on the Humanoid and not turn by itself. Scripts can't press
 -- Shift or reach the PlayerModule's MouseLockController (RobloxScript only), so the probe does what Shift Lock does
 -- to the character: UserGameSettings.RotationType = CameraRelative (the character turns with the camera).
@@ -1111,7 +1201,23 @@ step("inventory after a respawn", function()
 	for _, pet in Data.state.pets or {} do
 		wantPets += if not pet.placed then 1 else 0
 	end
+	local function sackState(tag)
+		local seen = {}
+		for _, holder in
+			{ player:FindFirstChild("SackGear"), player:FindFirstChildOfClass("Backpack"), player.Character }
+		do
+			for _, c in if holder then holder:GetChildren() else {} do
+				if c:IsA("Tool") and c:GetAttribute("KickSack") then
+					table.insert(seen, holder.Name .. ":" .. c.Name)
+				end
+			end
+		end
+		note(tag .. " client sack tools: " .. table.concat(seen, ", "))
+		hook:FireServer("sackstate")
+	end
+	sackState("before respawn")
 	hook:FireServer("respawn")
+	task.delay(5, sackState, "after respawn")
 	local newChar = waitFor(function()
 		return player.Character ~= char and player.Character
 	end, 10)
@@ -1126,10 +1232,22 @@ step("inventory after a respawn", function()
 		ok ~= nil and wantEggs >= 1,
 		`eggs {e}/{wantEggs}, pets {p}/{wantPets}`
 	)
-	check("after a respawn the sack is still on its quickslot (not in the Backpack)", waitFor(function()
+	local sackOk = waitFor(function()
 		local folder = player:FindFirstChild("SackGear")
 		return folder and folder:FindFirstChildOfClass("Tool") and backpackTool("KickSack") == nil
-	end, 4) ~= nil)
+	end, 6)
+	local folder = player:FindFirstChild("SackGear")
+	local held = player.Character and player.Character:FindFirstChildOfClass("Tool")
+	check(
+		"after a respawn the sack is still on its quickslot (not in the Backpack)",
+		sackOk ~= nil,
+		string.format(
+			"folder %s, in backpack %s, in hand %s",
+			tostring(folder and #folder:GetChildren()),
+			tostring(backpackTool("KickSack") ~= nil),
+			tostring(held and held.Name)
+		)
+	)
 end)
 
 send("DONE", "")

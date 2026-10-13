@@ -1,7 +1,7 @@
 --!strict
 -- Rebirth (UI handoff v2 01-Mockups/07-Rebirth.png). Purple header; a "REBIRTH n -> n+1" pill over the large
--- supplied rebirth hero (nav-rebirth.png, rays + glow, gentle float); REQUIREMENTS (Kick Power at the current
--- cap, Economy.maxKickPower) and NEXT BONUS (pet income multiplier, Economy.Rebirth.multiplierPerRebirth)
+-- supplied rebirth hero (nav-rebirth.png, rays + glow, gentle float); REQUIREMENTS (the Kick Power this rebirth
+-- needs, Economy.rebirthPower) and NEXT BONUS (pet income multiplier, Economy.Rebirth.multiplierPerRebirth)
 -- panels; a status card on the right; the "Review what resets before rebirthing" box with the server's real
 -- reset / keep lists (Economy.Rebirth.resets / keeps); one main action bar: REBIRTH when ready, otherwise
 -- MORE POWER NEEDED / FINISH YOUR CHASE FIRST. Rebirthing is two steps: the confirmation lists exactly what
@@ -419,7 +419,7 @@ function Rebirth.define()
 				cardNote.Text = if ready
 					then "Confirmation required."
 					elseif info.inChase then "Finish your chase first."
-					else `Train {Ui.number(math.max(0, info.required - info.power))} more Kick Power on your boxing sack. Kick Power cap after: {Ui.number(
+					else `Train {Ui.number(math.max(0, info.required - info.power))} more Kick Power on your boxing sack. Next rebirth after this needs: {Ui.number(
 						info.nextCap
 					)}.`
 				errorLabel.Text = errorText

@@ -253,9 +253,8 @@ local function roll(
 	eventWeather: string?,
 	now: number
 ): KickRoll
-	local mult = Economy.distanceMultiplier(rebirths)
-	local distance = kickPower * Economy.DistancePerPower * timingBonus(timing) * mult
-	distance = math.min(distance, MAX_DISTANCE)
+	-- distance grows with the LOG of power (Economy.kickDistance): huge power never skips the late zones
+	local distance = math.min(Economy.kickDistance(kickPower, rebirths, timingBonus(timing)), MAX_DISTANCE)
 	local halfWidth = Chase.RunwayWidth / 2 - Chase.Landing.edgeMargin
 	local landPos = KickService.landingPoint(rng:NextNumber(-halfWidth, halfWidth), distance)
 	distance = landPos.Z
