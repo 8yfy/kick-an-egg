@@ -23,6 +23,7 @@ local PlayerAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Player"))
 local VFX = require(Shared:WaitForChild("VFX")) :: any
 local SackFx = require(Shared:WaitForChild("VFX"):WaitForChild("Sack"))
 local SackAura = require(Shared:WaitForChild("VFX"):WaitForChild("SackAura"))
+local SackSfx = require(Shared:WaitForChild("VFX"):WaitForChild("SackSfx"))
 
 local SACK = Upgrades.Sack
 local SKY = 48 -- studs above the hang point the drop starts from / the retract ends at
@@ -45,6 +46,8 @@ type Piece = { part: BasePart, rel: CFrame, size: Vector3, squash: boolean, scal
 type Sack = {
 	model: Model,
 	fx: any, -- SackAura context (the tier's idle VFX, level of detail by VFX/SackLod), stepped after the sack moves
+	idleStop: () -> (), -- premium sacks' ambient loop (VFX/SackSfx.idle): stop / pause
+	idleSet: (on: boolean) -> (),
 	pieces: { Piece },
 	parts: { BasePart },
 	at: CFrame,
@@ -172,9 +175,14 @@ local function build(tier: number, at: CFrame, own: boolean): Sack
 	end
 	model:PivotTo(at + Vector3.new(0, SKY, 0))
 	model.Parent = sackFolder()
+	local body = model:FindFirstChild("Body")
+	local idleStop, idleSet = SackSfx.idle(tier, if body and body:IsA("BasePart") then body else fx.root)
+	idleSet(false) -- starts once the sack has dropped
 	return {
 		model = model,
 		fx = fx,
+		idleStop = idleStop,
+		idleSet = idleSet,
 		pieces = pieces,
 		parts = parts,
 		at = at,
@@ -221,6 +229,7 @@ local function stepSack(s: Sack, now: number, dt: number, camPos: Vector3): bool
 	if s.leaving then
 		local k = (now - s.leaving) / RETRACT
 		if k >= 1 then
+			s.idleStop()
 			s.model:Destroy()
 			return false
 		end
@@ -280,6 +289,7 @@ local function stepSack(s: Sack, now: number, dt: number, camPos: Vector3): bool
 	end
 	workspace:BulkMoveTo(s.parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 	s.fx:step(dt) -- after the move: orbits, wings and particles follow the swinging sack
+	s.idleSet(s.dropped and not s.leaving and not s.fx.hidden) -- ambient loop only while it is out and shown
 	return true
 end
 

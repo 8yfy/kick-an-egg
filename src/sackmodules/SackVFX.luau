@@ -5,7 +5,7 @@
 -- against the original viewer showed it closer than the package's own approximations, which stay available as
 -- SackModules/SackVFXBasic.
 --
---   local handle = SackVFX.Attach(model, tier, { Quality = 0.75 })  -- on the CLIENT, once per sack
+--   local handle = SackVFX.Attach(model, tier)  -- on the CLIENT, once per sack (same preset as gameplay)
 --   handle:SetEnabled(false)  -- culling: removes the effects (rebuilt on true)
 --   handle:Destroy()
 --
@@ -69,10 +69,9 @@ function VFX.Attach(model: Model, tier: number?, options: Options?): Handle
 	local o: Options = options or {}
 	local t = tier or model:GetAttribute("SackTier")
 	assert(typeof(t) == "number" and t >= 1 and t <= 20, "SackVFX.Attach: tier 1..20 expected")
-	local SackAura = aura()
-	if o.Quality then
-		SackAura.Quality = math.clamp(o.Quality, 0.1, 2)
-	end
+	-- options.Quality is accepted but no longer changes anything: it used to overwrite the global SackAura.Quality,
+	-- so a showroom preview changed every sack built after it (and phones built thinner sacks in gameplay than
+	-- in the showroom). Every sack now uses one shared preset; detail by distance / device is VFX/SackLod's job.
 	local self = setmetatable({ model = model, tier = t, enabled = false, options = o }, Handle) :: any
 	if o.Enabled ~= false then
 		self:SetEnabled(true)

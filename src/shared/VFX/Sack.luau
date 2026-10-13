@@ -29,6 +29,7 @@ local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Hatch = require(script.Parent.Hatch)
 local SackLod = require(script.Parent.SackLod)
+local SackSfx = require(script.Parent.SackSfx)
 
 local Sack = {}
 
@@ -39,40 +40,8 @@ local STEPS = { Basics = 1, Comic = 2, Champion = 3, Elemental = 4, Mythic = 5, 
 local FAR = 160 -- studs: other players' sack effects beyond this are skipped
 local WAVE_RANGE = 140
 local WORD_RANGE = 70 -- = the words' BillboardGui MaxDistance
-local HEAR_RANGE = 120 -- = the sounds' RollOffMaxDistance
 local rng = Random.new()
 
--- Built-in engine sounds, retuned per use. Swap `id` for uploaded SFX later without touching callers.
-type Sfx = { id: string, pitch: number, volume: number }
-local THUD = "rbxasset://sounds/action_jump_land.mp3"
-local BOOM = "rbxasset://sounds/impact_explosion_03.mp3"
-local SPLASH = "rbxasset://sounds/impact_water.mp3"
-local WHOOSH = "rbxasset://sounds/action_jump.mp3"
-local SFX: { [string]: Sfx } = {
-	thud = { id = THUD, pitch = 0.8, volume = 0.7 },
-	punch = { id = BOOM, pitch = 2.6, volume = 0.22 },
-	clang = { id = BOOM, pitch = 3.6, volume = 0.18 },
-	gong = { id = BOOM, pitch = 0.55, volume = 0.25 },
-	splash = { id = SPLASH, pitch = 1.4, volume = 0.5 },
-	boom = { id = BOOM, pitch = 1.1, volume = 0.35 },
-	bass = { id = BOOM, pitch = 0.45, volume = 0.55 },
-	whoosh = { id = WHOOSH, pitch = 0.7, volume = 0.4 },
-	zap = { id = BOOM, pitch = 4.5, volume = 0.2 },
-}
--- Theme -> extra sound on hits (Elemental and up).
-local THEME_SFX: { [string]: string } = {
-	frost = "splash",
-	crystal = "clang",
-	sprinkles = "splash",
-	embers = "boom",
-	lightning = "zap",
-	goo = "splash",
-	robo = "zap",
-	fire = "boom",
-	cosmic = "bass",
-	holy = "gong",
-	rainbow = "bass",
-}
 local WORDS: { [string]: { string } } = {
 	Comic = { "POW!", "BAM!", "WHAM!" },
 	Champion = { "BONG!", "CLANG!", "POW!" },
@@ -115,28 +84,6 @@ local function seen(pos: Vector3, radius: number, range: number): boolean
 		pos,
 		radius * SackLod.CULL_MARGIN
 	)
-end
-
-local function heard(pos: Vector3): boolean
-	local cam = workspace.CurrentCamera
-	return cam == nil or (pos - cam.CFrame.Position).Magnitude < HEAR_RANGE
-end
-
-local function play(name: string, pos: Vector3, pitchJitter: number?)
-	local s = SFX[name]
-	if not s or not heard(pos) then
-		return
-	end
-	local anchor = Pool.anchor(CFrame.new(pos))
-	local sound = Instance.new("Sound")
-	sound.SoundId = s.id
-	sound.Volume = s.volume
-	sound.PlaybackSpeed = s.pitch * (1 + rng:NextNumber(-1, 1) * (pitchJitter or 0.06))
-	sound.RollOffMinDistance = 12
-	sound.RollOffMaxDistance = 120
-	sound.Parent = anchor
-	sound:Play()
-	task.delay(2.5, Pool.release, anchor)
 end
 
 local function puff(
@@ -300,16 +247,14 @@ function Sack.SackDrop(target: Instance?, params: { [string]: any })
 	local floor: Vector3 = params.floor or (Fx.posOf(target) or Vector3.zero)
 	local b = body(target)
 	local center = if b then b.Position else floor + Vector3.new(0, 3.4, 0)
+	SackSfx.play(tier, "equip", center, { own = params.own }) -- every sack its own slam (VFX/SackSfx)
 	if not params.own and not seen(center, 14, FAR) then
-		play("thud", center)
 		return
 	end
 	-- Basics: dust ring on the floor, BONK
 	puff(floor + Vector3.new(0, 0.4, 0), SMOKE, { Color3.fromRGB(230, 222, 205) }, 14, 1.2, 14)
 	ringWave(floor + Vector3.new(0, 0.2, 0), Vector3.yAxis, { Color3.fromRGB(240, 232, 215) }, 1.5, 6, 0.4, 14, 0.3)
 	word(center + Vector3.new(-1.5, 1.5, 0), "BONK!", Color3.fromRGB(255, 225, 77), 1)
-	play("thud", center)
-	play("whoosh", center + Vector3.new(0, 4, 0), 0.1)
 	if step >= 2 then
 		Burst.play(
 			center,
@@ -324,20 +269,17 @@ function Sack.SackDrop(target: Instance?, params: { [string]: any })
 	end
 	if step >= 3 then
 		Fx.flash(center, look.fx[1], 6, 0.35)
-		play("clang", center)
 	end
 	if step >= 4 then
 		Fx.pillar(floor, look.fx[1], 40, 0.9)
 		ringWave(floor + Vector3.new(0, 0.3, 0), Vector3.yAxis, look.fx, 2, 11, 0.6, 20, 0.35)
 		puff(center, SPARK, look.fx, 24, 0.8, 18, true)
-		play(THEME_SFX[look.theme] or "boom", center)
 	end
 	if step >= 5 then
 		Burst.play(center, 18, look.fx, NumberRange.new(0.3, 0.7), 34, 0.9, false, true)
 		if params.own then
 			Shake.impulse("SackDrop", 0.45, 0.35)
 		end
-		play("bass", center)
 	end
 	if step >= 6 then
 		for i, c in look.fx do
@@ -358,8 +300,11 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 	local super = params.super == true and step >= 5
 	local own = params.own == true
 	local mult = if super then 1.8 else 1
+	SackSfx.play(tier, "impact", at, { own = own }) -- each sack's own hit (VFX/SackSfx)
+	if super then
+		SackSfx.play(tier, "special", at, { own = own })
+	end
 	if not own and not seen(at, 10, FAR) then
-		play("thud", at)
 		return
 	end
 	local b = body(target)
@@ -367,7 +312,6 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 	-- Basics: dust puff off the impact, cloth bits, thud; theme extras for the first sacks
 	puff(at, SMOKE, { Color3.fromRGB(235, 228, 214) }, math.floor(6 * mult), 0.7, 8)
 	Burst.play(at, math.floor(4 * mult), cloth, NumberRange.new(0.15, 0.3), 12, 0.45)
-	play("thud", at)
 	if look.theme == "chalk" then
 		puff(at, SMOKE, { Color3.new(1, 1, 1) }, 8, 0.9, 10)
 	elseif look.theme == "sweat" then
@@ -393,7 +337,6 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 			false,
 			true
 		)
-		play("punch", at)
 		local words = WORDS[look.theme] or WORDS[if step >= 3 then "Champion" else "Comic"]
 		word(
 			at + Vector3.new(0, 1.6, 0) - dir * 0.5,
@@ -414,7 +357,6 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 				false,
 				true
 			)
-			play("clang", at)
 		end
 	end
 	if step >= 3 then
@@ -431,15 +373,11 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 				true,
 				false
 			)
-			play("clang", at, 0.15)
-		elseif look.theme == "glint" then
-			play("gong", at)
 		end
 	end
 	if step >= 4 then
 		puff(at, SPARK, look.fx, math.floor(14 * mult), 0.6, 16, true)
 		ringWave(floor + Vector3.new(0, 0.25, 0), Vector3.yAxis, look.fx, 1.2, 6 * mult, 0.45, 16, 0.25)
-		play(THEME_SFX[look.theme] or "boom", at)
 		if look.theme == "embers" or look.theme == "fire" then
 			puff(at, FIRE, { look.fx[1], look.fx[2] }, math.floor(12 * mult), 1.1, 12, true)
 		end
@@ -455,7 +393,6 @@ function Sack.SackHit(target: Instance?, params: { [string]: any })
 		if super then
 			Fx.flash(at, look.fx[1], 9, 0.4)
 			ringWave(at, dir, look.fx, 1, 9, 0.5, 18, 0.35)
-			play("bass", at)
 		end
 	end
 	if step >= 6 then
@@ -493,7 +430,7 @@ function Sack.SackUpgrade(target: Instance?, params: { [string]: any })
 	Fx.pillar(floor or pos - Vector3.new(0, 3.4, 0), look.fx[1], 50, 1.2)
 	Burst.play(pos + Vector3.new(0, 1, 0), 26, look.fx, NumberRange.new(0.2, 0.45), 26, 1.3, true, true)
 	ringWave(pos, Vector3.yAxis, look.fx, 1, 8, 0.6, 18, 0.3)
-	play("gong", pos)
+	SackSfx.play(tier, "upgrade", pos, { own = params.own, volume = 1.2 })
 	if params.own then
 		local info = Upgrades.Sack.tiers[math.clamp(tier, 1, #Upgrades.Sack.tiers)]
 		Hatch.Announce(

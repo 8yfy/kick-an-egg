@@ -124,8 +124,8 @@ local function addSpinner(model: Instance)
 	end
 end
 
--- The stand's sack is rebuilt for every new tier: spin the new one and celebrate real upgrades
--- (RackLevel going up), not the level restored when an owner joins.
+-- Celebrates real sack upgrades (the base's RackLevel going up, not the level restored when an owner joins) on
+-- the owner's character (there are no stand sacks any more; sacks are bought at the Boxing Sack Shop).
 local function watchBase(base: Instance)
 	local ownerChangedAt = os.clock()
 	local level = base:GetAttribute("RackLevel")
@@ -142,26 +142,13 @@ local function watchBase(base: Instance)
 		if os.clock() - ownerChangedAt < OWNER_SETTLE then
 			return
 		end
-		task.delay(0.35, function() -- the server rebuilds the stand's sack first
-			local stand = base:FindFirstChild("SackStand")
-			local sack = stand and stand:FindFirstChild("Sack")
-			if sack then
-				VFX.play("SackUpgrade", sack, { tier = new, own = base:GetAttribute("OwnerUserId") == player.UserId })
-			end
-		end)
-	end)
-	local function watchStand(stand: Instance)
-		if stand.Name == "SackStand" then
-			stand.ChildAdded:Connect(function(child)
-				task.defer(addSpinner, child)
-				task.defer(addStandSack, child)
-			end)
+		local uid = base:GetAttribute("OwnerUserId")
+		local owner = if typeof(uid) == "number" then Players:GetPlayerByUserId(uid) else nil
+		local character = owner and owner.Character
+		if character then
+			VFX.play("SackUpgrade", character, { tier = new, own = owner == player })
 		end
-	end
-	for _, child in base:GetChildren() do
-		watchStand(child)
-	end
-	base.ChildAdded:Connect(watchStand)
+	end)
 end
 
 local function makeBubble(model: Model, text: string): BillboardGui?
@@ -288,6 +275,11 @@ local function step(dt: number)
 	local character = player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	local me = if hrp and hrp:IsA("BasePart") then hrp.Position else nil
+	for i = #merchants, 1, -1 do
+		if not merchants[i].model.Parent then
+			table.remove(merchants, i) -- replaced (e.g. by its avatar NPC) or streamed out
+		end
+	end
 	for _, m in merchants do
 		if m.model.Parent then
 			local target = 0
@@ -320,6 +312,18 @@ function MapLifeController:Start()
 			track(d)
 			addStandSack(d)
 		end
+		-- StreamingEnabled: map models that stream back in are new instances: pick them up again (their old
+		-- sack effects were freed by VFX/SackLod once they had been gone a while)
+		map.DescendantAdded:Connect(function(d: Instance)
+			if d:IsA("Model") then
+				task.defer(function()
+					if d.Parent and not standSacks[d] then
+						track(d)
+						addStandSack(d)
+					end
+				end)
+			end
+		end)
 		local safeZone = map:FindFirstChild("SafeZone")
 		local bases = safeZone and safeZone:FindFirstChild("Bases")
 		if bases then

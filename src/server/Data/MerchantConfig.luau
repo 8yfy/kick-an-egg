@@ -1,0 +1,27 @@
+--!strict
+-- Shop merchants (MerchantService): which real Roblox avatar appearance each shop's NPC wears.
+--
+-- UserId = the Roblox user whose AVATAR APPEARANCE the merchant NPC copies (Players:GetHumanoidDescriptionFromUserId).
+-- It is only an appearance: the NPC is not that player, is not controlled by them and never joins as them.
+-- 0 = not provided yet: the merchant wears a plain default Roblox avatar (no account) until a real id is set.
+-- Never put an id here that the owner of that account hasn't agreed to.
+--
+-- Kinds are the merchant spots the map builds (Builders/Map/Merchants): "Coach" stands behind the Boxing Sack
+-- Shop counter, "Professor" behind the Index stall.
+
+export type Merchant = { UserId: number, DisplayName: string, Kind: string }
+
+local MerchantConfig: { [string]: Merchant } = {
+	BoxingSackMerchant = {
+		UserId = 0, -- BLOCKED: waiting for the real UserId to use
+		DisplayName = "Boxing Sack Merchant",
+		Kind = "Coach",
+	},
+	IndexMerchant = {
+		UserId = 0, -- BLOCKED: waiting for the real UserId to use
+		DisplayName = "Index Merchant",
+		Kind = "Professor",
+	},
+}
+
+return MerchantConfig

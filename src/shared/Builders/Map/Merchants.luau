@@ -82,6 +82,7 @@ function Merchants.build(kind: Kind, parent: Instance, feet: CFrame): Model
 		return feet * CFrame.new(x, y, z)
 	end)
 	m:SetAttribute("Merchant", NAME[kind])
+	m:SetAttribute("MerchantKind", kind) -- MerchantService swaps in the configured Roblox avatar (MerchantConfig)
 	m:SetAttribute("Greeting", GREETING[kind])
 	return m
 end
