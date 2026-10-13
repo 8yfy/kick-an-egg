@@ -80,7 +80,6 @@ local PLACE_REACH = 30 -- a placement must be this close to the player
 local PICKUP_REACH = 16 -- the player must be this close to the pet's (server) position
 local OWNER_NEAR = 10 -- a pet stops and idles while its owner is this close (its Pick Up prompt reaches 9)
 local SPAWN_ABOVE = 3
-local EGG_TOOL = "Egg"
 
 local PlotService = {}
 
@@ -504,41 +503,62 @@ local function eggIndex(data: DataService.Data, eggUid: string): number?
 	return nil
 end
 
-local function removeEggTools(player: Player)
-	local containers: { Instance } = {}
-	if player.Character then
-		table.insert(containers, player.Character)
+-- Backpack tools: every inventory egg and every stored pet is a Tool in the player's Backpack (Roblox hotbar:
+-- keys 1-9, click / tap, gamepad). The tool is only a handle on the saved item (attribute EggUid / PetUid): the
+-- server makes and removes them from the data (syncTools), so they can't be duplicated, survive respawns
+-- (rebuilt on CharacterAdded) and rejoining (rebuilt from the save). The held model is built only while the
+-- tool is in hand (a big inventory stays light).
+local function displayName(entry: { [string]: any }): string
+	local config = petsById[entry.petId]
+	local name = if config then config.name else tostring(entry.petId)
+	local tags = {}
+	if typeof(entry.size) == "string" then
+		table.insert(tags, entry.size)
 	end
-	local backpack = player:FindFirstChildOfClass("Backpack")
-	if backpack then
-		table.insert(containers, backpack)
+	if typeof(entry.weather) == "string" then
+		table.insert(tags, entry.weather)
 	end
-	for _, container in containers do
-		for _, child in container:GetChildren() do
-			if child:IsA("Tool") and child:GetAttribute("EggUid") then
-				child:Destroy()
-			end
+	table.insert(tags, name)
+	return table.concat(tags, " ")
+end
+
+local function holdModel(tool: Tool, kind: "Egg" | "Pet", key: string, scale: number)
+	local handle = tool:FindFirstChild("Handle")
+	if not handle or not handle:IsA("BasePart") or tool:FindFirstChild("Held") then
+		return
+	end
+	local model = build(kind, key)
+	if not model then
+		return
+	end
+	Builder.scale(model, scale)
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = false
+			d.CanCollide, d.CanQuery, d.CanTouch, d.Massless = false, false, false, true
 		end
 	end
+	local _, size = model:GetBoundingBox()
+	model:PivotTo(handle.CFrame * CFrame.new(0, -size.Y / 2, 0))
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0, weld.Part1 = handle, model.PrimaryPart :: BasePart
+	weld.Parent = handle
+	model.Name = "Held"
+	model.Parent = tool
 end
 
--- The "Egg" Tool the player holds (nil if none).
-function PlotService.heldEgg(player: Player): string?
-	local character = player.Character
-	local tool = character and character:FindFirstChildOfClass("Tool")
-	local uid = tool and tool:GetAttribute("EggUid")
-	return if typeof(uid) == "string" then uid else nil
-end
-
-local function makeEggTool(egg: { [string]: any }): Tool
-	local config = petsById[egg.petId]
+local function makeTool(kind: "Egg" | "Pet", uid: string, entry: { [string]: any }): Tool
+	local config = petsById[entry.petId]
+	local key = if config then config.model else tostring(entry.petId)
 	local tool = Instance.new("Tool")
-	tool.Name = EGG_TOOL
+	tool.Name = if kind == "Egg" then displayName(entry) .. " Egg" else displayName(entry)
 	tool.CanBeDropped = false
 	tool.RequiresHandle = true
-	tool.ToolTip = `{if config then config.name else "Egg"} egg: place it in your pen`
-	tool:SetAttribute("EggUid", egg.uid)
-	tool:SetAttribute("ModelKey", if config then config.model else egg.petId)
+	tool.ToolTip = if kind == "Egg"
+		then "Hold it, walk to your pen and place it"
+		else "Hold it and place it in your pen"
+	tool:SetAttribute(if kind == "Egg" then "EggUid" else "PetUid", uid)
+	tool:SetAttribute("ModelKey", key)
 	tool:SetAttribute("Rarity", if config then config.rarity else "Common")
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
@@ -546,37 +566,89 @@ local function makeEggTool(egg: { [string]: any }): Tool
 	handle.Transparency = 1
 	handle.CanCollide, handle.CanQuery, handle.CanTouch, handle.Massless = false, false, false, true
 	handle.Parent = tool
-	-- the egg itself, held in front of the chest (BlockBuilder egg, half size, welded to the handle)
-	local model = build("Egg", if config then config.model else egg.petId)
-	if model then
-		Builder.scale(model, 0.55)
-		for _, d in model:GetDescendants() do
-			if d:IsA("BasePart") then
-				d.Anchored = false
-				d.CanCollide, d.CanQuery, d.CanTouch, d.Massless = false, false, false, true
-			end
-		end
-		local _, size = model:GetBoundingBox()
-		model:PivotTo(handle.CFrame * CFrame.new(0, -size.Y / 2, 0))
-		local root = model.PrimaryPart :: BasePart
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0, weld.Part1 = handle, root
-		weld.Parent = handle
-		model.Name = "Held"
-		model.Parent = tool
-	end
 	tool.Grip = CFrame.new(0, -0.6, 1.4) * CFrame.Angles(math.rad(-90), 0, 0) -- in both hands, in front
+	tool.Equipped:Connect(function()
+		holdModel(tool, kind, key, if kind == "Egg" then 0.55 else 0.45)
+	end)
 	tool.Unequipped:Connect(function()
-		task.defer(function()
-			if tool.Parent and not tool.Parent:IsA("Model") then
-				tool:Destroy() -- put away: the egg stays in the inventory, the tool goes
-			end
-		end)
+		local held = tool:FindFirstChild("Held")
+		if held then
+			held:Destroy()
+		end
 	end)
 	return tool
 end
 
--- Puts inventory egg `eggUid` in the player's hands (or, with nil, puts the held egg away).
+-- Makes the player's Backpack (+ hand) hold exactly one tool per inventory egg and stored pet.
+function PlotService.syncTools(player: Player)
+	local data = DataService:Get(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not data or not backpack then
+		return
+	end
+	local want: { [string]: { kind: "Egg" | "Pet", uid: string, entry: { [string]: any } } } = {}
+	local order: { string } = {}
+	for _, egg in data.eggs do
+		if typeof(egg) == "table" and typeof(egg.uid) == "string" then
+			want["Egg:" .. egg.uid] = { kind = "Egg", uid = egg.uid, entry = egg }
+			table.insert(order, "Egg:" .. egg.uid)
+		end
+	end
+	for uid, pet in data.pets do
+		if typeof(pet) == "table" and not pet.placed then
+			want["Pet:" .. uid] = { kind = "Pet", uid = uid, entry = pet }
+			table.insert(order, "Pet:" .. uid)
+		end
+	end
+	local have: { [string]: Tool } = {}
+	local holders: { Instance } = { backpack }
+	if player.Character then
+		table.insert(holders, player.Character)
+	end
+	for _, holder in holders do
+		for _, child in holder:GetChildren() do
+			if child:IsA("Tool") then
+				local egg, pet = child:GetAttribute("EggUid"), child:GetAttribute("PetUid")
+				local key = if typeof(egg) == "string"
+					then "Egg:" .. egg
+					elseif typeof(pet) == "string" then "Pet:" .. pet
+					else nil
+				if key then
+					if want[key] and not have[key] then
+						have[key] = child
+					else
+						child:Destroy() -- placed, sold, traded away, or a duplicate
+					end
+				end
+			end
+		end
+	end
+	for _, key in order do
+		if not have[key] then
+			local item = want[key]
+			makeTool(item.kind, item.uid, item.entry).Parent = backpack
+		end
+	end
+end
+
+local function heldTool(player: Player, attribute: string): string?
+	local character = player.Character
+	local tool = character and character:FindFirstChildOfClass("Tool")
+	local uid = tool and tool:GetAttribute(attribute)
+	return if typeof(uid) == "string" then uid else nil
+end
+
+-- The inventory egg the player holds (nil if none).
+function PlotService.heldEgg(player: Player): string?
+	return heldTool(player, "EggUid")
+end
+
+-- The stored pet the player holds (nil if none).
+function PlotService.heldPet(player: Player): string?
+	return heldTool(player, "PetUid")
+end
+
+-- Puts inventory egg `eggUid` in the player's hands (its Backpack tool), or with nil puts what they hold away.
 function PlotService:EquipEgg(player: Player, eggUid: string?): boolean
 	local data = DataService:Get(player)
 	local character = player.Character
@@ -585,22 +657,25 @@ function PlotService:EquipEgg(player: Player, eggUid: string?): boolean
 		return false
 	end
 	if eggUid == nil then
-		removeEggTools(player)
+		humanoid:UnequipTools()
 		return true
 	end
-	local index = eggIndex(data, eggUid)
-	if not index then
+	if not eggIndex(data, eggUid) then
 		return false
 	end
 	if PlotService.heldEgg(player) == eggUid then
 		return true
 	end
-	humanoid:UnequipTools()
-	removeEggTools(player)
-	local tool = makeEggTool(data.eggs[index])
-	tool.Parent = player:FindFirstChildOfClass("Backpack") or character
-	humanoid:EquipTool(tool)
-	return true
+	PlotService.syncTools(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	local tools: { Instance } = if backpack then backpack:GetChildren() else {}
+	for _, tool in tools do
+		if tool:IsA("Tool") and tool:GetAttribute("EggUid") == eggUid then
+			humanoid:EquipTool(tool)
+			return true
+		end
+	end
+	return false
 end
 
 -- Placement ---------------------------------------------------------------------------------------------------
@@ -664,8 +739,7 @@ local function placeEgg(player: Player, eggUid: string, world: Vector3): boolean
 	}
 	local plots = table.clone(data.plots)
 	plots[egg.uid] = plot
-	DataService:Set(player, { eggs = eggs, plots = plots })
-	removeEggTools(player)
+	DataService:Set(player, { eggs = eggs, plots = plots }) -- (its Backpack tool goes with it: syncTools)
 	Analytics.funnel(player, Analytics.Funnel.FirstPlace, "FirstPlace")
 	spawnEggModel(player, base, plot)
 	return true
@@ -682,6 +756,14 @@ function PlotService:PlacePet(player: Player, petUid: string, world: Vector3?): 
 	end
 	local x, z
 	if world then
+		local character = player.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		if PlotService.heldPet(player) ~= petUid or not hrp or not hrp:IsA("BasePart") then
+			return false -- a chosen spot: you place the pet you are holding
+		end
+		if (world - hrp.Position).Magnitude > PLACE_REACH then
+			return false
+		end
 		local lx, lz, inside = PlotService.toLocal(area, world)
 		if not inside then
 			return false
@@ -963,7 +1045,16 @@ function PlotService:Start()
 		assignBase(player)
 		player.CharacterAdded:Connect(function(character)
 			spawnAtBase(player, character)
+			task.defer(PlotService.syncTools, player) -- a new Backpack every life
 		end)
+		if player.Character then
+			task.defer(PlotService.syncTools, player)
+		end
+	end)
+	DataService:OnChanged(function(player, partial)
+		if partial.eggs ~= nil or partial.pets ~= nil then
+			PlotService.syncTools(player)
+		end
 	end)
 	Players.PlayerRemoving:Connect(releaseBase)
 

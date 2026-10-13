@@ -20,6 +20,8 @@
 -- S->C  EggLost({ eggUid: string, reason: "Caught" | "EggCaught" | "Left" }) -- "Caught" is no longer sent
 -- S->C  ChaseEnded({ eggUid: string })             -- avalanche crumbles at the safe line
 -- C->S  EquipEgg(eggUid: string?)                 -- hold an inventory egg (an "Egg" Tool); nil puts it away
+-- C->S  EquipSack(on: boolean)                    -- take the Kick Sack out (server) / put it away; it lives outside
+--                                                   the Backpack (Player.SackGear) so the hotbar shows eggs + pets
 -- C->S  PlaceEgg(eggUid: string, position: Vector3) -- put the held egg down anywhere valid in your own pen
 -- S->C  EggHatched({ eggUid: string, petUid: string, position: Vector3 })
 -- C->S  PickupPet(petUid: string)                  -- your placed pet back into your inventory (stops its income)
@@ -72,6 +74,7 @@ local EVENTS = {
 	"UpgradeTraining",
 	"UpgradePen",
 	"EquipEgg",
+	"EquipSack",
 	"PickupPet",
 	"PlacePet",
 	"ClaimIndexMilestone",

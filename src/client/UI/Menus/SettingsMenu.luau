@@ -31,6 +31,14 @@ function SettingsMenu.new(parent: Instance): Menu
 	body.ScrollingDirection = Enum.ScrollingDirection.Y
 	body.ScrollBarThickness = 8
 	body.Parent = window.body
+	body.ScrollBarImageColor3 = Color3.fromRGB(200, 205, 230)
+	body.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar -- rows never run under the bar
+	body.ScrollingEnabled = true
+	body.Selectable = false
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 6)
+	pad.PaddingBottom = UDim.new(0, 18) -- the last row ends fully inside the window
+	pad.Parent = body
 	local list = Instance.new("UIListLayout")
 	list.Padding = UDim.new(0, 14)
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -38,6 +46,16 @@ function SettingsMenu.new(parent: Instance): Menu
 	list.Parent = body
 	local rows = 0
 	local me = Players.LocalPlayer
+	-- (attributes on the local player; no player in Studio previews / headless tests)
+	local function attr(name: string): any
+		return if me then me:GetAttribute(name) else nil
+	end
+	local function setAttr(name: string, value: any)
+		if me then
+			me:SetAttribute(name, value)
+		end
+	end
+	local firstButton: GuiObject? = nil
 
 	local function toggle(title: string, initial: boolean, apply: (on: boolean) -> ())
 		local row = Kit.panel({
@@ -76,6 +94,7 @@ function SettingsMenu.new(parent: Instance): Menu
 				apply(on)
 			end,
 		})
+		firstButton = firstButton or button
 		apply(on)
 	end
 
@@ -120,7 +139,7 @@ function SettingsMenu.new(parent: Instance): Menu
 	local master = SoundToggle.master()
 	toggle("Sound effects", master.Volume > 0, function(on)
 		master.Volume = if on then 0.5 else 0
-		me:SetAttribute("SoundOn", on)
+		setAttr("SoundOn", on)
 	end)
 	for _, category in
 		{
@@ -142,32 +161,43 @@ function SettingsMenu.new(parent: Instance): Menu
 			Audio.setVolume(category[1], VOLUMES[i])
 		end)
 	end
-	toggle("Camera shake", me:GetAttribute("ShakeOff") ~= true, function(on)
-		me:SetAttribute("ShakeOff", not on)
+	toggle("Camera shake", attr("ShakeOff") ~= true, function(on)
+		setAttr("ShakeOff", not on)
 	end)
-	toggle("Low detail effects", me:GetAttribute("LowDetail") == true, function(on)
-		me:SetAttribute("LowDetail", on)
+	toggle("Low detail effects", attr("LowDetail") == true, function(on)
+		setAttr("LowDetail", on)
 	end)
 	-- Kick Sack effects: AUTO follows the Roblox graphics level and this device's frame rate (VFX/SackLod)
 	local levels = { "AUTO", "HIGH", "MEDIUM", "LOW", "MINIMAL" }
-	local current = me:GetAttribute("SackVfxQuality")
+	local current = attr("SackVfxQuality")
 	choice(
 		"Sack effects",
 		levels,
 		if typeof(current) == "string" then table.find(levels, current) or 1 else 1,
 		function(index)
-			me:SetAttribute("SackVfxQuality", if index == 1 then nil else levels[index])
+			setAttr("SackVfxQuality", if index == 1 then nil else levels[index])
 		end
 	)
-	-- UI/System/Motion reads "ReducedMotion": no overshoot, loops, floating art or bursts; short fades only.
-	local reduced = me:GetAttribute("ReducedMotion")
+	-- UI/System/Motion reads "ReducedMotion": no overshoot, loops, floating art or bursts; short fades only. The
+	-- kick cutscene keeps one steady camera and VFX/Shake shakes much less with it on.
+	local reduced = attr("ReducedMotion")
 	toggle(
 		"Reduced motion",
 		if typeof(reduced) == "boolean" then reduced else (GuiService :: any).ReducedMotionEnabled == true,
 		function(on)
-			me:SetAttribute("ReducedMotion", on)
+			setAttr("ReducedMotion", on)
 		end
 	)
+
+	-- gamepads: opening the window selects its first option (the list scrolls along with the selection)
+	window.onOpen(function()
+		local UserInputService = game:GetService("UserInputService")
+		local last = UserInputService:GetLastInputType()
+		if firstButton and string.find(last.Name, "Gamepad") then
+			body.CanvasPosition = Vector2.zero
+			GuiService.SelectedObject = firstButton
+		end
+	end)
 
 	return { window = window, update = function(_data: { [string]: any }) end }
 end

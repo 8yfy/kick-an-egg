@@ -110,6 +110,24 @@ local function rowFrame(list: ScrollingFrame, name: string, order: number, heigh
 	return row
 end
 
+-- Puts the Backpack tool of an egg / stored pet in your hand (Roblox hotbar item); false if it isn't there yet.
+local function equipFromBackpack(attribute: string, uid: string): boolean
+	local me = game:GetService("Players").LocalPlayer
+	local character = me and me.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local backpack = me and me:FindFirstChildOfClass("Backpack")
+	if not humanoid or not backpack then
+		return false
+	end
+	for _, tool in backpack:GetChildren() do
+		if tool:IsA("Tool") and tool:GetAttribute(attribute) == uid then
+			humanoid:EquipTool(tool)
+			return true
+		end
+	end
+	return false
+end
+
 function Drawers.new(parent: Instance): Drawers
 	local rail = Ui.frame(parent, "RightRail", UDim2.fromOffset(120, 2 * 120 + 14))
 	Kit.autoScale(rail)
@@ -338,7 +356,9 @@ function Drawers.new(parent: Instance): Drawers
 					textSize = 26,
 					name = "Hold",
 					onClick = function()
-						remote("EquipEgg"):FireServer(uid)
+						if not equipFromBackpack("EggUid", uid) then
+							remote("EquipEgg"):FireServer(uid)
+						end
 						show(nil)
 						Modal.toast("Walk to your pen and put the egg down!", "good")
 					end,
@@ -467,7 +487,13 @@ function Drawers.new(parent: Instance): Drawers
 					textSize = 26,
 					name = "Place",
 					onClick = function()
-						remote("PlacePet"):FireServer(uid)
+						-- hold it (Backpack tool) and choose the spot; no tool yet = the server picks a free spot
+						if equipFromBackpack("PetUid", uid) then
+							show(nil)
+							Modal.toast("Walk to your pen and place your pet!", "good")
+						else
+							remote("PlacePet"):FireServer(uid)
+						end
 					end,
 				})
 				place.gui.AnchorPoint = Vector2.new(1, 0)

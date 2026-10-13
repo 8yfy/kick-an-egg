@@ -136,7 +136,40 @@ for _, name in { "TrainingShop", "Shop", "PetIndex", "PetInventory", "Rebirth" }
 	end
 end
 
-if SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kick" then
+if SCREEN == "Settings" then -- the Settings window (FROM 1 = top, 2 = scrolled to the bottom)
+	Kit.setPreview(size, touch)
+	local hud = Instance.new("Frame")
+	hud.Name = "HUD"
+	hud.BackgroundTransparency = 1
+	hud.Size = UDim2.fromScale(1, 1)
+	hud.Parent = stage
+	local menus = require(UI.Menus).new(hud, { tiles = false })
+	Kit.watchViewport()
+	menus.open("Settings")
+	task.delay(1.2, function()
+		local rows = hud:FindFirstChild("Rows", true) :: ScrollingFrame?
+		if rows and FROM == 2 then
+			rows.CanvasPosition = Vector2.new(0, rows.AbsoluteCanvasSize.Y)
+		end
+		if rows then
+			local last, inside = nil, true
+			for _, row in rows:GetChildren() do
+				if row:IsA("GuiObject") and (not last or row.LayoutOrder > last.LayoutOrder) then
+					last = row
+				end
+			end
+			print(
+				string.format(
+					"SETTINGS rows=%d canvas=%d window=%d last=%s",
+					#rows:GetChildren(),
+					rows.AbsoluteCanvasSize.Y,
+					rows.AbsoluteSize.Y,
+					last and last.Name or "?"
+				)
+			)
+		end
+	end)
+elseif SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kick" then
 	Kit.setPreview(size, touch)
 	local hud = Instance.new("Frame")
 	hud.Name = "HUD"

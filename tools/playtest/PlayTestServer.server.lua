@@ -71,6 +71,9 @@ hook.OnServerEvent:Connect(function(player, what, arg)
 		table.insert(eggs, { uid = HttpService:GenerateGUID(false), petId = petId })
 		DataService():Set(player, { eggs = eggs })
 		table.insert(lines, "[setup] hook: gave an inventory egg (" .. petId .. ")")
+	elseif what == "respawn" then
+		player:LoadCharacter()
+		table.insert(lines, "[setup] hook: respawned the test player")
 	elseif what == "sack" and typeof(arg) == "number" then -- switch the Kick Sack (the Studio /sack command)
 		require(ServerScriptService.Server.Services.SackService).command(player, "/sack " .. tostring(arg))
 	end

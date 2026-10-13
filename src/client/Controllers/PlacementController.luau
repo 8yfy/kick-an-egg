@@ -1,9 +1,10 @@
 --!strict
--- Placing a held egg in your pen (client side of PlotService's EquipEgg / PlaceEgg):
---   While you hold an "Egg" Tool (attribute EggUid) a ghost of the egg follows where you aim on your pen's floor:
---   GREEN = valid, RED = not (outside your pen, too close to another egg, pen full). Mouse: aim with the cursor,
---   click to place. Touch: tap a spot. Gamepad: aim with the screen centre, R2 to place (Tool.Activated covers
---   all three). The server re-checks everything (ownership, held egg, bounds, spacing, capacity).
+-- Placing what you hold in your pen (client side of PlotService's Backpack tools, PlaceEgg / PlacePet):
+--   While you hold an egg Tool (attribute EggUid) or a stored pet's Tool (PetUid) from the hotbar, a ghost of it
+--   follows where you aim on your pen's floor: GREEN = valid, RED = not (outside your pen, an egg too close to
+--   another egg, pen full). Mouse: aim with the cursor, click to place. Touch: tap a spot. Gamepad: aim with the
+--   screen centre, R2 to place (Tool.Activated covers all three). The server re-checks everything (ownership,
+--   the held item, reach, bounds, spacing, capacity).
 -- A short hint under the screen centre says what to do (or to walk to your pen first).
 
 local Players = game:GetService("Players")
@@ -64,13 +65,22 @@ local function capacity(): number
 	return math.clamp(Economy.PlotSlots.base + (level - 1) * Upgrades.Pen.slotsPerLevel, 1, Economy.PlotSlots.max)
 end
 
--- Why `pos` is not a valid egg spot (nil = valid): same rules as PlotService.eggSpotProblem.
-local function problem(area: BasePart, pos: Vector3): string?
+local function kindOf(tool: Tool?): ("Egg" | "Pet")?
+	if tool and typeof(tool:GetAttribute("EggUid")) == "string" then
+		return "Egg"
+	elseif tool and typeof(tool:GetAttribute("PetUid")) == "string" then
+		return "Pet"
+	end
+	return nil
+end
+
+-- Why `pos` is not a valid spot (nil = valid): the same rules as PlotService (eggs also keep their spacing).
+local function problem(area: BasePart, pos: Vector3, kind: "Egg" | "Pet"): string?
 	local p = area.CFrame:PointToObjectSpace(pos)
 	if math.abs(p.X) > area.Size.X / 2 - PEN_MARGIN or math.abs(p.Z) > area.Size.Z / 2 - PEN_MARGIN then
 		return "Outside your pen"
 	end
-	for _, egg in data.plots or {} do
+	for _, egg in if kind == "Egg" then data.plots or {} else {} do
 		if typeof(egg) == "table" and typeof(egg.x) == "number" and typeof(egg.z) == "number" then
 			if (Vector2.new(egg.x, egg.z) - Vector2.new(p.X, p.Z)).Magnitude < EGG_SPACING then
 				return "Too close to another egg"
@@ -135,7 +145,8 @@ end
 local function makeGhost(tool: Tool)
 	clearGhost()
 	local key = tool:GetAttribute("ModelKey")
-	local ok, model = pcall(Models.egg, if typeof(key) == "string" then key else "")
+	local ok, model =
+		pcall(if kindOf(tool) == "Pet" then Models.pet else Models.egg, if typeof(key) == "string" then key else "")
 	if not ok or not model then
 		return
 	end
@@ -146,7 +157,7 @@ local function makeGhost(tool: Tool)
 			d.Transparency = math.max(d.Transparency, 0.45)
 		end
 	end
-	model.Name = "EggGhost"
+	model.Name = if kindOf(tool) == "Pet" then "PetGhost" else "EggGhost"
 	local h = Instance.new("Highlight")
 	h.FillTransparency = 0.55
 	h.OutlineTransparency = 0.1
@@ -154,7 +165,7 @@ local function makeGhost(tool: Tool)
 	h.Parent = model
 	highlight = h
 	model.Parent = workspace
-	ghost = model
+	ghost = model :: Model
 end
 
 local function update()
@@ -171,15 +182,15 @@ local function update()
 		ghost:PivotTo(CFrame.new(0, -500, 0))
 		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 		setHint(
-			if touch
-				then "Walk to your pen, then tap a spot to place the egg"
-				else "Walk to your pen and aim at its floor",
+			if touch then "Walk to your pen, then tap a spot to place it" else "Walk to your pen and aim at its floor",
 			Color3.new(1, 1, 1)
 		)
 		return
 	end
 	aimPos = pos
-	local why = problem(area, pos)
+	local kind: "Egg" | "Pet" = kindOf(tool) or "Egg"
+	local thing = if kind == "Pet" then "pet" else "egg"
+	local why = problem(area, pos, kind)
 	valid = why == nil
 	ghost:PivotTo(CFrame.lookAt(pos, pos + area.CFrame.LookVector))
 	if highlight then
@@ -192,9 +203,9 @@ local function update()
 		why
 			or (
 				if touch
-					then "Tap to place your egg"
-					elseif pad then "R2 to place your egg"
-					else "Click to place your egg"
+					then `Tap to place your {thing}`
+					elseif pad then `R2 to place your {thing}`
+					else `Click to place your {thing}`
 			),
 		if valid then VALID else INVALID
 	)
@@ -202,13 +213,14 @@ end
 
 local function onActivated()
 	local tool = held
-	local uid = tool and tool:GetAttribute("EggUid")
-	if typeof(uid) ~= "string" then
+	local kind = kindOf(tool)
+	local uid = tool and tool:GetAttribute(if kind == "Pet" then "PetUid" else "EggUid")
+	if not kind or typeof(uid) ~= "string" then
 		return
 	end
 	update() -- a tap moves the aim first
 	if valid and aimPos then
-		Remotes.get("PlaceEgg"):FireServer(uid, aimPos)
+		Remotes.get(if kind == "Pet" then "PlacePet" else "PlaceEgg"):FireServer(uid, aimPos)
 	end
 end
 
@@ -230,9 +242,9 @@ end
 local function watchCharacter(character: Model)
 	local function refresh()
 		local tool = character:FindFirstChildOfClass("Tool")
-		local egg = if tool and typeof(tool:GetAttribute("EggUid")) == "string" then tool else nil
-		if egg ~= held then
-			hold(egg)
+		local item = if kindOf(tool) then tool else nil
+		if item ~= held then
+			hold(item)
 		end
 	end
 	character.ChildAdded:Connect(refresh)

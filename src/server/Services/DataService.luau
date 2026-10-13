@@ -365,6 +365,14 @@ function DataService:WaitForData(player: Player): Data?
 	return self:Get(player)
 end
 
+local changedListeners: { (Player, Data) -> () } = {}
+
+-- Calls `callback(player, partial)` after every DataService:Set (other services react to changes, e.g. the
+-- Backpack tools of PlotService follow the eggs / pets). Errors in a listener never break the write.
+function DataService:OnChanged(callback: (Player, Data) -> ())
+	table.insert(changedListeners, callback)
+end
+
 -- Merges top-level keys and tells the client only what changed.
 function DataService:Set(player: Player, partial: Data)
 	local profile = profiles[player]
@@ -375,6 +383,11 @@ function DataService:Set(player: Player, partial: Data)
 		profile.data[k] = v
 	end
 	dataChanged:FireClient(player, partial)
+	for _, listener in changedListeners do
+		task.spawn(xpcall, listener, function(err)
+			warn(`[DataService] change listener failed: {err}`)
+		end, player, partial)
+	end
 end
 
 function DataService:Increment(player: Player, key: string, delta: number): number?

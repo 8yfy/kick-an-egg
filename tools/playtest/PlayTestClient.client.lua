@@ -97,6 +97,16 @@ local function myBase()
 	return nil, bases
 end
 
+local function backpackTool(attribute, uid)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	for _, t in if backpack then backpack:GetChildren() else {} do
+		if t:IsA("Tool") and (uid == nil and t:GetAttribute(attribute) ~= nil or t:GetAttribute(attribute) == uid) then
+			return t
+		end
+	end
+	return nil
+end
+
 local function yaw(cf)
 	local look = cf.LookVector
 	return math.deg(math.atan2(-look.X, -look.Z))
@@ -116,7 +126,8 @@ step("hud", function()
 	check("HUD: no TRAINING button", left and not left:FindFirstChild("Training"))
 	local slot = hud:FindFirstChild("SackSlot", true)
 	check("HUD: the bottom Kick Sack quickslot is there", slot and slot:FindFirstChild("Tile") and slot.Visible)
-	check("HUD: Roblox hotbar hidden", not StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.Backpack))
+	check("HUD: Roblox's Backpack hotbar is on (eggs + pets)", StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.Backpack))
+	check("the Kick Sack is not in the Backpack (it has its own quickslot)", backpackTool("KickSack") == nil)
 	local keys = {}
 	for _, d in hud:GetDescendants() do
 		if d:IsA("ImageLabel") and typeof(d:GetAttribute("ArtKey")) == "string" then
@@ -156,7 +167,7 @@ end)
 
 step("pens", function()
 	local mine, bases = myBase()
-	local n, stands, cards = 0, 0, 0
+	local n, stands = 0, 0
 	for _, b in if bases then bases:GetChildren() else {} do
 		if b:FindFirstChild("PenArea") then
 			n += 1
@@ -168,22 +179,45 @@ step("pens", function()
 	check("6 pens on the map", n == 6, n)
 	check("no old sack stands", stands == 0 and not map:FindFirstChild("SackStand", true), stands)
 	check("you own a pen", mine ~= nil)
-	local anchor = mine and mine:FindFirstChild("OwnerAnchor", true)
-	local card = anchor and waitFor(function()
-		return anchor:FindFirstChild("PenOwner")
-	end, 5)
-	local texts = {}
-	for _, d in if card then card:GetDescendants() else {} do
+	-- owner display: only the avatar headshot + the username, high above an occupied pen; nothing on free pens
+	local area = mine and mine:FindFirstChild("PenArea")
+	local display = area
+		and waitFor(function()
+			local g = area:FindFirstChild("PenOwner")
+			return g and g.Enabled and g
+		end, 6)
+	local texts, images, extras = {}, 0, 0
+	for _, d in if display then display:GetDescendants() else {} do
 		if d:IsA("TextLabel") then
 			table.insert(texts, d.Text)
-		end
-		if d:IsA("ImageLabel") and string.find(d.Image, "AvatarHeadShot") then
-			cards += 1
+		elseif d:IsA("ImageLabel") then
+			images += if string.find(d.Image, "AvatarHeadShot") then 1 else 0
+		elseif d:IsA("Frame") or d:IsA("ImageButton") or d:IsA("TextButton") then
+			extras += 1
 		end
 	end
-	local all = table.concat(texts, " | ")
-	check("your pen shows your owner card (@username)", string.find(all, "@" .. player.Name, 1, true) ~= nil, all)
-	check("the owner card uses your avatar headshot", cards >= 1)
+	check("pen owner: your username over your pen", #texts == 1 and texts[1] == player.Name, table.concat(texts, " | "))
+	check(
+		"pen owner: your avatar headshot, nothing else (no panel / banner)",
+		images == 1 and extras == 0,
+		`{images} images, {extras} panels`
+	)
+	check("pen owner: high above the pen", display ~= nil and display.StudsOffsetWorldSpace.Y >= 15)
+	local freeShown, freeText = 0, false
+	for _, b in if bases then bases:GetChildren() else {} do
+		local g = b:FindFirstChild("PenOwner", true)
+		if g and b ~= mine and g.Enabled then
+			freeShown += 1
+		end
+		for _, d in if g then g:GetDescendants() else {} do
+			if d:IsA("TextLabel") and string.find(string.upper(d.Text), "FREE") then
+				freeText = true
+			end
+		end
+	end
+	check("pen owner: free pens show nothing (no FREE PEN)", freeShown == 0 and not freeText, freeShown)
+	local oldCard = mine and mine:FindFirstChild("OwnerAnchor", true)
+	check("pen owner: the old big card is gone", not (oldCard and oldCard:FindFirstChild("PenOwner")))
 end)
 
 step("pad", function()
@@ -360,6 +394,10 @@ step("chase", function()
 			return n > 0 and n
 		end, 3)
 		check("the egg is in your inventory exactly once", copies == 1, copies)
+		local eggTool = waitFor(function()
+			return backpackTool("EggUid", securedUid)
+		end, 3)
+		check("the secured egg is a Tool in your Backpack (hotbar)", eggTool ~= nil, eggTool and eggTool.Name)
 	end
 	check("your character shows again after the chase", waitFor(function()
 		return head and head.Transparency < 0.01
@@ -458,6 +496,22 @@ step("pets", function()
 	if not model then
 		return
 	end
+	task.wait(0.8) -- (the reveal pop)
+	local shown, hiddenParts = 0, 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d.Transparency < 1 then
+			if d.LocalTransparencyModifier > 0.5 then
+				hiddenParts += 1
+			else
+				shown += 1
+			end
+		end
+	end
+	check(
+		"the freshly hatched pet is VISIBLE right away (no pickup + place needed)",
+		shown > 0 and hiddenParts == 0,
+		`{shown} visible parts, {hiddenParts} hidden`
+	)
 	tp(model:GetPivot().Position + Vector3.new(16, 4, 0)) -- inside the pen (52 wide), out of OWNER_NEAR
 	task.wait(1.5) -- a pet idles while you stand next to it: step back first
 	local p0 = model:GetPivot().Position
@@ -500,14 +554,34 @@ step("pets", function()
 		Remotes.get("PickupPet"):FireServer(petUid)
 	end
 	check("picking it up stores it (model goes, STORED)", waitFor(stored, 4) ~= nil)
+	local petTool = waitFor(function()
+		return backpackTool("PetUid", petUid)
+	end, 3)
+	check("the stored pet is a Tool in your Backpack (hotbar)", petTool ~= nil, petTool and petTool.Name)
 	local money1 = Data.state.money or 0
 	task.wait(2.5)
 	check("a stored pet earns nothing", (Data.state.money or 0) == money1)
-	Remotes.get("PlacePet"):FireServer(petUid, nil)
-	check("PLACE puts the stored pet back in your pen", waitFor(function()
+	-- choose the spot: a spot without holding the pet is refused; holding its tool it goes exactly there
+	local area = mine:FindFirstChild("PenArea", true)
+	local spot = area.Position + area.CFrame.RightVector * 6 + area.CFrame.LookVector * -6
+	Remotes.get("PlacePet"):FireServer(petUid, spot)
+	task.wait(1)
+	check("a chosen spot needs the pet in your hand", not ((Data.state.pets or {})[petUid] or {}).placed)
+	if petTool then
+		humanoid:EquipTool(petTool)
+	end
+	check("holding the pet shows its placement ghost", waitFor(function()
+		return workspace:FindFirstChild("PetGhost")
+	end, 3) ~= nil)
+	Remotes.get("PlacePet"):FireServer(petUid, spot)
+	check("holding the pet, it is placed where you chose", waitFor(function()
 		local pet = (Data.state.pets or {})[petUid]
-		return pet and pet.placed and plots:FindFirstChild("Pet_" .. petUid)
+		local model = plots:FindFirstChild("Pet_" .. petUid)
+		return pet and pet.placed and model and (model:GetPivot().Position - spot).Magnitude < 8
 	end, 4) ~= nil)
+	check("its Backpack tool goes once it is placed", waitFor(function()
+		return backpackTool("PetUid", petUid) == nil and not char:FindFirstChildOfClass("Tool")
+	end, 3) ~= nil)
 	check("tutorial: finished after the first upgrade (TutorialDone)", waitFor(function()
 		return player:GetAttribute("TutorialDone") == true or player:GetAttribute("TutorialStep") == 0
 	end, 4) ~= nil, table.concat(tutorialSteps, ","))
@@ -753,6 +827,9 @@ step("quickslot", function()
 		return glow and glow.Thickness > 0
 	end, 2) ~= nil)
 	SackGear.toggle()
+	check("the sack never lands in the Backpack hotbar", waitFor(function()
+		return backpackTool("KickSack") == nil
+	end, 2) ~= nil)
 	check("the quickslot puts it away again", waitFor(function()
 		return not holdingSack()
 	end, 3) ~= nil)
@@ -1012,6 +1089,42 @@ step("sack vfx lod", function()
 	check("sack vfx: the Settings override picks the profile", SackLod.profile().name == "LOW")
 	player:SetAttribute("SackVfxQuality", nil)
 	note("sack vfx profile (AUTO): " .. SackLod.profile().name)
+end)
+
+step("inventory after a respawn", function()
+	local function count()
+		local eggs, pets = 0, 0
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		for _, t in if backpack then backpack:GetChildren() else {} do
+			eggs += if t:IsA("Tool") and t:GetAttribute("EggUid") then 1 else 0
+			pets += if t:IsA("Tool") and t:GetAttribute("PetUid") then 1 else 0
+		end
+		return eggs, pets
+	end
+	local wantEggs = #(Data.state.eggs or {})
+	local wantPets = 0
+	for _, pet in Data.state.pets or {} do
+		wantPets += if not pet.placed then 1 else 0
+	end
+	hook:FireServer("respawn")
+	local newChar = waitFor(function()
+		return player.Character ~= char and player.Character
+	end, 10)
+	check("respawned", newChar ~= nil)
+	local ok = waitFor(function()
+		local e, p = count()
+		return e == wantEggs and p == wantPets
+	end, 6)
+	local e, p = count()
+	check(
+		"after a respawn the Backpack holds every egg and stored pet once",
+		ok ~= nil,
+		`eggs {e}/{wantEggs}, pets {p}/{wantPets}`
+	)
+	check("after a respawn the sack is still on its quickslot (not in the Backpack)", waitFor(function()
+		local folder = player:FindFirstChild("SackGear")
+		return folder and folder:FindFirstChildOfClass("Tool") and backpackTool("KickSack") == nil
+	end, 4) ~= nil)
 end)
 
 send("DONE", "")

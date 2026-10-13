@@ -1,10 +1,13 @@
 --!strict
--- Kick Sack gear. SackService gives every character a sack Tool; this takes it out / puts it away:
+-- Kick Sack gear. SackService gives every player a sack Tool kept in Player.SackGear (outside the Backpack, so
+-- Roblox's hotbar lists only your eggs and pets); this takes it out / puts it away through the server
+-- (Remotes.EquipSack):
 --   * the bottom Kick Sack quickslot (UI/Hud/SackSlot: click / tap),
---   * key 1 on keyboards, Y on gamepads.
+--   * Q on keyboards (1-9 belong to the hotbar), Y on gamepads.
 -- With the sack out, SackController turns clicks / taps into kicks; a small contextual hint says so (it only
--- shows while the sack is out). Roblox's own backpack hotbar stays hidden.
+-- shows while the sack is out). Roblox's own Backpack hotbar is on: eggs and pets are Tools there.
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 local Kit = require(script.Parent.Kit)
@@ -21,13 +24,19 @@ function SackGear.tool(): (Tool?, boolean)
 	if held and held:GetAttribute("KickSack") then
 		return held, true
 	end
-	local backpack = player:FindFirstChildOfClass("Backpack")
-	for _, t in if backpack then backpack:GetChildren() else {} do
-		if t:IsA("Tool") and t:GetAttribute("KickSack") then
-			return t, false
+	for _, holder in { player:FindFirstChild("SackGear"), player:FindFirstChildOfClass("Backpack") } do
+		for _, t in if holder then holder:GetChildren() else {} do
+			if t:IsA("Tool") and t:GetAttribute("KickSack") then
+				return t, false
+			end
 		end
 	end
 	return nil, false
+end
+
+local function remote(): RemoteEvent
+	local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes")) :: any
+	return Remotes.get("EquipSack")
 end
 
 function SackGear.toggle()
@@ -38,21 +47,17 @@ function SackGear.toggle()
 	if not humanoid or not tool or humanoid.Health <= 0 then
 		return
 	end
-	if out then
-		humanoid:UnequipTools()
-	else
-		humanoid:EquipTool(tool)
-	end
+	remote():FireServer(not out) -- the server holds the sack (Player.SackGear) and hands it over
 end
 
 function SackGear.start(parent: Instance)
 	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false) -- no Tool UI anywhere in the HUD
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true) -- the hotbar: your eggs and stored pets
 	end)
 	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 	local hint = Kit.label({
 		name = "SackHint",
-		text = if touch then "Tap to kick the sack!" else "Click to kick the sack!  (1 to put it away)",
+		text = if touch then "Tap to kick the sack!" else "Click to kick the sack!  (Q to put it away)",
 		size = UDim2.fromOffset(520, 34),
 		position = UDim2.new(0.5, 0, 1, -150), -- above the quickslot
 		anchor = Vector2.new(0.5, 1),
@@ -87,7 +92,7 @@ function SackGear.start(parent: Instance)
 		watch(Players.LocalPlayer.Character)
 	end
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if not processed and (input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.ButtonY) then
+		if not processed and (input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.ButtonY) then
 			SackGear.toggle()
 		end
 	end)

@@ -106,7 +106,9 @@ function Hatch.HatchBurst(target: Instance?, params: { [string]: any })
 	local rarity = rarityOf(params.rarity)
 	local center = pos + Vector3.new(0, 2, 0)
 	local shell = Fx.colorsOf(target, { Color3.fromRGB(250, 240, 210) })
-	if target and target:IsA("Model") then
+	-- the burst hides an EGG it is played on (its shell breaks); never the pet that just hatched (PlotController
+	-- plays it on the new pet model: hiding that made fresh pets invisible until picked up and placed again)
+	if target and target:IsA("Model") and target:GetAttribute("Kind") ~= "Pet" then
 		Fx.hideLocally(target, true)
 	end
 	Burst.play(center, 26, shell, NumberRange.new(0.4, 1.2), 30, 1.2)

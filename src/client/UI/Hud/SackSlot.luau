@@ -1,7 +1,7 @@
 --!strict
 -- The bottom Kick Sack quickslot (equipment, not a shop): one classic tool-slot tile at the bottom centre with your
 -- CURRENT sack's approved 2D art (UI/System/AssetIds.sack, mapped by the sack's name for all 20), its name under
--- a "BOXING SACK" label, and the key: [1] on keyboards, (Y) on gamepads, nothing on touch (just tap it). Click /
+-- a "BOXING SACK" label, and the key: [Q] on keyboards, (Y) on gamepads, nothing on touch (just tap it). Click /
 -- tap / key / button takes the sack out or puts it away (UI/SackGear, the same Tool the server gives every
 -- character). Out = gold glow + raised; away = plain. Pops when your sack changes (an upgrade) and on every use.
 -- While the kick controls show (on the kick pad) it slides left of KICK so both fit. Survives respawns.
@@ -65,7 +65,7 @@ function SackSlot.new(parent: Instance, kickPanel: GuiObject?): SackSlot
 	key.Font = Theme.Font
 	key.TextSize = 22
 	key.TextColor3 = C.text
-	key.Text = "1"
+	key.Text = "Q"
 	key.ZIndex = 4
 	key.Parent = tile
 	Ui.corner(key, 8)
@@ -89,7 +89,7 @@ function SackSlot.new(parent: Instance, kickPanel: GuiObject?): SackSlot
 		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 		local pad = UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled
 		key.Visible = not touch
-		key.Text = if pad then "Y" else "1"
+		key.Text = if pad then "Y" else "Q"
 	end
 
 	local function paintOut()
