@@ -108,6 +108,51 @@ local function backpackTool(attribute, uid)
 	return nil
 end
 
+-- A pet on screen vs a fresh build of the same design (+ its size mutation): overall size and how far its
+-- farthest part sits from the Root. Scattered / floating parts make both grow.
+local function petShape(model)
+	local root = model.PrimaryPart
+	local far = 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and root then
+			far = math.max(far, (d.Position - root.Position).Magnitude)
+		end
+	end
+	local _, size = model:GetBoundingBox()
+	return size, far
+end
+local function assembledLikeDesign(model)
+	local Models = require(Shared.Builders.Models)
+	local Mutations = require(Shared.Config.Mutations)
+	local key = model:GetAttribute("ModelKey")
+	local fresh = Models.pet(key)
+	local m = model:GetAttribute("Size") and Mutations.Size[model:GetAttribute("Size")]
+	if m then
+		fresh:ScaleTo(m.scale)
+	end
+	fresh:PivotTo(CFrame.new(0, -400, 0))
+	fresh.Parent = workspace
+	task.wait()
+	local wantSize, wantFar = petShape(fresh)
+	fresh:Destroy()
+	local size, far = petShape(model)
+	local tol = 0.9 * (m and m.scale or 1) -- walk / idle sway
+	local ok = far <= wantFar + tol and (size - wantSize).Magnitude <= tol * 2
+	return ok,
+		string.format(
+			"%s: farthest part %.2f (design %.2f), size %.1f/%.1f/%.1f (design %.1f/%.1f/%.1f)",
+			tostring(key),
+			far,
+			wantFar,
+			size.X,
+			size.Y,
+			size.Z,
+			wantSize.X,
+			wantSize.Y,
+			wantSize.Z
+		)
+end
+
 local function yaw(cf)
 	local look = cf.LookVector
 	return math.deg(math.atan2(-look.X, -look.Z))
@@ -600,6 +645,9 @@ step("pets", function()
 		shown > 0 and hiddenParts == 0,
 		`{shown} visible parts, {hiddenParts} hidden`
 	)
+	task.wait(1.5) -- after the reveal, walking / idling
+	local okH, whyH = assembledLikeDesign(model)
+	check("the hatched pet is in one piece, exactly its design (nothing floating)", okH, whyH)
 	tp(model:GetPivot().Position + Vector3.new(16, 4, 0)) -- inside the pen (52 wide), out of OWNER_NEAR
 	task.wait(1.5) -- a pet idles while you stand next to it: step back first
 	local p0 = model:GetPivot().Position
@@ -667,6 +715,12 @@ step("pets", function()
 		local model = plots:FindFirstChild("Pet_" .. petUid)
 		return pet and pet.placed and model and (model:GetPivot().Position - spot).Magnitude < 8
 	end, 4) ~= nil)
+	task.wait(1.5)
+	local placedModel = plots:FindFirstChild("Pet_" .. petUid)
+	if placedModel then
+		local okP, whyP = assembledLikeDesign(placedModel)
+		check("after pick up + place it looks the same: one piece, its design", okP, whyP)
+	end
 	check("its Backpack tool goes once it is placed", waitFor(function()
 		return backpackTool("PetUid", petUid) == nil and not char:FindFirstChildOfClass("Tool")
 	end, 3) ~= nil)
@@ -847,6 +901,21 @@ step("audio: scenarios 9-10, hatching a Common and a Secret pet", function()
 		end, 6)
 		task.wait(2)
 		measured[rarity] = e
+		-- this pen now holds several pets: each hatched one in one piece
+		task.wait(1.2)
+		local mine2 = myBase()
+		local plots2 = mine2 and mine2:FindFirstChild("Plots")
+		local newest, best = nil, -1
+		for _, mdl in if plots2 then plots2:GetChildren() else {} do
+			local h = mdl:GetAttribute("HatchedAt")
+			if mdl:GetAttribute("Kind") == "Pet" and typeof(h) == "number" and h > best then
+				newest, best = mdl, h
+			end
+		end
+		if newest then
+			local okR, whyR = assembledLikeDesign(newest)
+			check(`a hatched {rarity} pet (with other pets in the pen) is in one piece`, okR, whyR)
+		end
 		check(
 			`scenario {if rarity == "Common" then 9 else 10}: a {rarity} hatch = {name}`,
 			e ~= nil and e.loaded,

@@ -88,6 +88,7 @@ function Builder.build(spec: Spec, name: string?): Model
 	root.Anchored = true
 	root.Parent = model
 	model.PrimaryPart = root
+	model:SetAttribute("RestScale", 1) -- the model scale RestC0 was recorded at (ScaleTo changes GetScale)
 
 	local groups: { [string]: BasePart } = {}
 	for _, p in spec.parts do
@@ -111,6 +112,7 @@ function Builder.build(spec: Spec, name: string?): Model
 			m.Name = g
 			m.Part0, m.Part1 = root, part
 			m.C0 = root.CFrame:ToObjectSpace(part.CFrame)
+			m:SetAttribute("RestC0", m.C0) -- the rest pose, for Anim/Rig (never re-read from a posed / scaled C0)
 			m.Parent = root
 		else
 			local w = Instance.new("WeldConstraint")

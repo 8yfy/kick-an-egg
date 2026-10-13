@@ -158,14 +158,12 @@ local function trackPet(pet: Model)
 	if not root then
 		return
 	end
+	-- ONE setup for every pet, hatched or placed (the server builds both through PlotService.spawnPetModel): the
+	-- assembled model moves only as a whole (its anchored Root; every part rides on Motor6D / welds), its effects
+	-- attach at its real size, its animation runs on its own joints. A hatch only adds the reveal on top.
 	local rarity = pet:GetAttribute("Rarity")
 	local hatchedAt = pet:GetAttribute("HatchedAt")
-	if typeof(hatchedAt) == "number" and workspace:GetServerTimeNow() - hatchedAt < REVEAL_WINDOW then
-		VFX.play("HatchBurst", pet, { rarity = rarity })
-		VFX.play("PetReveal", pet, { rarity = rarity, name = pet:GetAttribute("PetName") })
-	elseif fresh(pet, "PlacedAt") then
-		Audio.play("PetPlace", pet, { own = if pet:GetAttribute("OwnerUserId") == player.UserId then nil else false })
-	end
+	local hatched = typeof(hatchedAt) == "number" and workspace:GetServerTimeNow() - hatchedAt < REVEAL_WINDOW
 	petCount += 1
 	local view: PetView = {
 		model = pet,
@@ -187,6 +185,12 @@ local function trackPet(pet: Model)
 	local mutation = if typeof(weather) == "string" then Mutations.Weather[weather] else nil
 	if mutation then
 		table.insert(view.stops, VFX.attach(mutation.vfx, pet))
+	end
+	if hatched then
+		VFX.play("HatchBurst", pet, { rarity = rarity })
+		VFX.play("PetReveal", pet, { rarity = rarity, name = pet:GetAttribute("PetName") })
+	elseif fresh(pet, "PlacedAt") then
+		Audio.play("PetPlace", pet, { own = if pet:GetAttribute("OwnerUserId") == player.UserId then nil else false })
 	end
 	readPath(view)
 	local conn = pet.AttributeChanged:Connect(function(name: string)
@@ -247,8 +251,9 @@ local function movePets()
 			continue
 		end
 		local walking = now < view.t1 and view.t1 > view.t0
-		view.root.CFrame = CFrame.new(target) * view.facing
-		setAnim(view, if not near then nil elseif walking then "Waddle" else "Idle")
+		view.root.CFrame = CFrame.new(target) * view.facing -- the whole pet moves with its Root, never part by part
+		local revealing = (tonumber(model:GetAttribute("RevealUntil")) or 0) > os.clock()
+		setAnim(view, if not near or revealing then nil elseif walking then "Waddle" else "Idle")
 	end
 end
 

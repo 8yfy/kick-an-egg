@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Rarities = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Rarities"))
 local Burst = require(script.Parent.Burst)
+local Rig = require(script.Parent.Parent.Anim.Rig)
 local Pool = require(script.Parent.Pool)
 local Fx = require(script.Parent.Fx)
 local Popup = require(script.Parent.Popup)
@@ -190,24 +191,27 @@ function Hatch.PetReveal(target: Instance?, params: { [string]: any })
 	end
 	local pet = target :: Model
 	local rarity = rarityOf(params.rarity)
-	local base = pet:GetScale()
 	local pos = pet:GetPivot().Position
-	-- Squash-bounce pop: 0.2 -> overshoot -> 1 (relative to any size-mutation scale).
-	pet:ScaleTo(base * 0.2)
+	-- Pop up out of the ground with a squash-bounce, through the pet's own Motor6Ds (Anim/Rig): the model is never
+	-- rescaled or moved part by part, so every eye, ear and wing stays exactly where the design puts it.
+	local motors = Rig.motors(pet)
+	local depth = 2.2 * pet:GetScale()
+	pet:SetAttribute("RevealUntil", os.clock() + 0.55) -- (PlotController starts the walk / idle after it)
 	local t0 = os.clock()
 	local conn: RBXScriptConnection
 	conn = RunService.RenderStepped:Connect(function()
-		if not pet.Parent then
-			conn:Disconnect()
-			return
-		end
 		local k = math.clamp((os.clock() - t0) / 0.5, 0, 1)
 		local s = 2.4
 		local back = if k >= 1 then 1 else 1 + (s + 1) * (k - 1) ^ 3 + s * (k - 1) ^ 2
-		pet:ScaleTo(base * (0.2 + 0.8 * back))
-		if k >= 1 then
+		for _, m in motors do
+			if k >= 1 or not pet.Parent then
+				Rig.reset(m)
+			else
+				Rig.pose(m, CFrame.new(0, -depth * (1 - back), 0))
+			end
+		end
+		if k >= 1 or not pet.Parent then
 			conn:Disconnect()
-			pet:ScaleTo(base)
 		end
 	end)
 	Burst.play(

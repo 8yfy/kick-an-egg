@@ -86,3 +86,27 @@ The checkpoint before any change is git tag **`checkpoint/before-targeted-fixes`
 - The tap listener exists only during timing.
 - The tutorial trail is 12 reused parts, hidden when not needed.
 - The kick cinematic uses one render binding, removed right after.
+
+## Follow-up: pet models breaking apart (2026-10-13)
+
+**Status:** verified.
+
+**Root cause:** `Anim/Rig` remembered each animation joint's rest pose (Motor6D C0) the first time it saw it. A freshly hatched pet plays a reveal that shrank the whole model to 20% and grew it back. The walk / idle animation that started meanwhile cached the *shrunken* joint offsets, then wrote them every frame onto the full-size pet. Eyes, ears, wings, legs and other jointed parts ended up floating out of place. A picked-up and re-placed pet is rebuilt with no reveal, so it cached correct offsets. That is why "pick up and place again" fixed it. The same shrink also made a hatched pet's effects (auras, orbiting cubes) attach at a fraction of the right size.
+
+**The fix: one assembly pipeline for every pet, hatched or placed.**
+- **Server:** both paths build through `PlotService.spawnPetModel`: one assembly (anchored Root, a Motor6D per animated group, welds for the rest), positioned as a whole, with atomic streaming.
+- **Rest poses:** BlockBuilder records each joint's rest pose on the joint (`RestC0`, `RestScale`), and `Rig.base` uses it, scaled to the model's current scale. Animation can't cache a wrong pose, whatever the scale did.
+- **Reveal:** it no longer rescales the live pet. It pops the pet up through its own joints, then resets them.
+- **Client:** one setup for both paths. Effects attach at the real size, and walking / idle starts after the reveal. The pet moves only as a whole, through its Root, never part by part. No extra welds were added to animated parts.
+
+**Tests:**
+- **Unit, all 79 pets, normal and Big:**
+  - every part is in the pet's single assembly;
+  - after the old reveal sequence plus animation, every joint is back at its exact design pose;
+  - the old cache demonstrably breaks.
+- **Live playtest:**
+  - hatched pets are visible right away and in one piece, matching their design on screen;
+  - a pet looks the same after pick up + place;
+  - several pets in one pen (Common and Secret) are each in one piece.
+
+Atomic streaming plus local, joint-based animation is the same for every player. A real multi-player check in Studio (Test > Clients and Servers) is still worth doing by hand.

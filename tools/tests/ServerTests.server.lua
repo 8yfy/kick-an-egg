@@ -658,6 +658,87 @@ section("Pets and eggs: all 79 build (hatching never fails on a model)", functio
 	check("79 pets configured", #Pets == 79)
 end)
 
+section("Pets stay assembled: all 79, normal and Big, through the hatch reveal and animation", function()
+	-- (edit mode runs no physics, so jointed parts don't follow here: the joints themselves are checked; the live
+	-- play-test checks the shapes on screen)
+	local Pets = require(Shared.Config.Pets) :: any
+	local Models = require(Shared.Builders.Models) :: any
+	local Rig = require(Shared.Anim.Rig) :: any
+	local Mutations = require(Shared.Config.Mutations) :: any
+	local function close(a: CFrame, b: CFrame): boolean
+		return (a.Position - b.Position).Magnitude < 0.01
+			and a.LookVector:Dot(b.LookVector) > 0.9999
+			and a.UpVector:Dot(b.UpVector) > 0.9999
+	end
+	local detached, broke, unrecorded = {}, {}, {}
+	local motorsSeen = 0
+	for _, pet in Pets do
+		for _, size in { 1, Mutations.Size.Big and Mutations.Size.Big.scale or 1.5 } do
+			local model = Models.pet(pet.model)
+			local truth = Models.pet(pet.model) -- a fresh build: the design's exact joints
+			if size ~= 1 then
+				model:ScaleTo(size)
+				truth:ScaleTo(size)
+			end
+			model.Parent = workspace
+			local root = model.PrimaryPart :: BasePart
+			-- 1. one assembly: every part rides on the Root (Motor6D / welds), nothing loose or anchored apart
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") and (d.AssemblyRootPart ~= root or (d.Anchored and d ~= root)) then
+					table.insert(detached, `{pet.model} x{size}: {d.Name}`)
+					break
+				end
+			end
+			-- 2. the hatch reveal's old sequence: shrink -> animate -> grow back -> animate -> rest
+			model:ScaleTo(size * 0.2)
+			for _, m in Rig.motors(model) do
+				Rig.pose(m, CFrame.Angles(0.2, 0.1, 0) + Vector3.new(0, -0.4, 0))
+			end
+			model:ScaleTo(size)
+			for _, m in Rig.motors(model) do
+				Rig.pose(m, CFrame.Angles(0.15, 0, 0.1))
+				Rig.reset(m)
+			end
+			local want = Rig.motors(truth)
+			for name, m in Rig.motors(model) do
+				motorsSeen += 1
+				if typeof(m:GetAttribute("RestC0")) ~= "CFrame" then
+					table.insert(unrecorded, `{pet.model}.{name}`)
+				end
+				if not want[name] or not close(m.C0, want[name].C0) then
+					table.insert(broke, `{pet.model} x{size}: {name}`)
+				end
+			end
+			model:Destroy()
+			truth:Destroy()
+		end
+	end
+	check("all 79 pets: every part attached to the pet (one assembly, only the Root anchored)", #detached == 0)
+	check("every animation joint records its rest pose", #unrecorded == 0 and motorsSeen > 0)
+	check(
+		`all 79 pets, normal + Big: after the hatch reveal + animation every joint is back at its design pose ({motorsSeen} joints)`,
+		#broke == 0
+	)
+	for _, list in { detached, unrecorded, broke } do
+		for k = 1, math.min(#list, 5) do
+			warn("  " .. list[k])
+		end
+	end
+	-- the old cache (first C0 seen) is what broke: without the record it would have kept the shrunken pose
+	local legacy = Models.pet(Pets[1].model)
+	local m = next(Rig.motors(legacy)) and select(2, next(Rig.motors(legacy)))
+	if m then
+		local rest = m.C0
+		m:SetAttribute("RestC0", nil)
+		legacy:ScaleTo(0.2)
+		Rig.pose(m, CFrame.identity)
+		legacy:ScaleTo(1)
+		Rig.reset(m)
+		check("(the old behaviour really broke it: a cached shrunken pose)", not close(m.C0, rest))
+	end
+	legacy:Destroy()
+end)
+
 section("Pet Index + rebirth rules", function()
 	local IS = require(Services.IndexService) :: any
 	local allPets = require(Shared.Config.Pets) :: any
