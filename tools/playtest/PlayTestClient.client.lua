@@ -66,6 +66,9 @@ local UI = player.PlayerScripts.Client.UI
 local Data = require(UI.System.Data)
 local Modal = require(UI.System.Modal)
 local SackGear = require(UI.SackGear)
+local Audio = require(Shared:WaitForChild("Audio"))
+local SoundBank = require(Shared.Audio.SoundBank)
+Audio.measure = true -- record what every sound really does in the engine (the audio steps)
 local kickPressed = Shared:WaitForChild("KickPressed")
 local results, ended, secured = {}, {}, {}
 Remotes.get("KickResult").OnClientEvent:Connect(function(r)
@@ -511,6 +514,198 @@ step("pets", function()
 	note("tutorial steps seen: " .. table.concat(tutorialSteps, " > "))
 end)
 
+-- SOUND DESIGN, live. Audio.measure records what each sound really did in the engine (loaded, the summed
+-- PlaybackLoudness of its layers, seconds audible). The 10 required scenarios + the loop's sounds.
+local function audioEntries(from: number, prefix: string)
+	local list = {}
+	for i = from + 1, #Audio.history do
+		local e = Audio.history[i]
+		if string.sub(e.event, 1, #prefix) == prefix then
+			table.insert(list, e)
+		end
+	end
+	return list
+end
+local function describe(e)
+	return if e
+		then string.format(
+			"%s tier %d, loudness %.0f, audible %.2f s, %s",
+			e.event,
+			e.tier,
+			e.loudness,
+			e.audible,
+			table.concat(e.layers, "+")
+		)
+		else "nothing played"
+end
+local function groundAt(x: number, z: number): Vector3?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { char }
+	local hit = workspace:Raycast(Vector3.new(x, 120, z), Vector3.new(0, -260, 0), params)
+	return hit and hit.Position
+end
+-- A real physics drop: an egg-sized ball, its contacts detected like the steered egg's (velocity, never Touched).
+local function drop(x: number, z: number, height: number, elasticity: number, seconds: number)
+	local ground = groundAt(x, z)
+	if not ground then
+		return {}
+	end
+	tp(ground + Vector3.new(7, 4, 7))
+	task.wait(0.8)
+	local ball = Instance.new("Part")
+	ball.Name = "AudioTestEgg"
+	ball.Shape = Enum.PartType.Ball
+	ball.Size = Vector3.new(2.4, 2.4, 2.4)
+	ball.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, elasticity, 1, 100)
+	ball.Position = ground + Vector3.new(0, 1.2 + height, 0)
+	ball.Parent = workspace
+	local from = #Audio.history
+	local st = SoundBank.newContact()
+	local last = os.clock()
+	local conn = game:GetService("RunService").Heartbeat:Connect(function()
+		local t = os.clock()
+		local kind, speed = SoundBank.contactStep(st, t - last, ball.AssemblyLinearVelocity.Y, t)
+		last = t
+		if kind then
+			Audio.landing(ball, speed, kind == "bounce", nil, { key = "drop" })
+		end
+	end)
+	task.wait(seconds)
+	conn:Disconnect()
+	ball:Destroy()
+	task.wait(0.4)
+	return audioEntries(from, "Egg")
+end
+
+step("audio: scenarios 1-3, egg drops (real physics)", function()
+	local gentle = drop(16, -24, 1, 0, 2.5) -- plaza = grass
+	check(
+		"scenario 1: a gentle drop on grass = one soft thump",
+		#gentle == 1 and gentle[1].event == "EggLand_grass" and gentle[1].tier == 1 and gentle[1].loaded,
+		describe(gentle[1])
+	)
+	local stone = drop(0, 850, 5, 0.05, 2.5) -- Volcano = stone
+	check(
+		"scenario 2: a drop on stone = a short solid contact",
+		#stone >= 1 and #stone <= 3 and string.find(stone[1].event, "_stone") ~= nil and stone[1].audible < 0.6,
+		describe(stone[1])
+	)
+	local bouncy = drop(16, -24, 9, 0.75, 4)
+	local bounces, spaced = 0, true
+	for i, e in bouncy do
+		bounces += if string.find(e.event, "Bounce") then 1 else 0
+		if i > 1 and e.t - bouncy[i - 1].t < SoundBank.Landing.cooldown - 0.01 then
+			spaced = false
+		end
+	end
+	check(
+		"scenario 3: a bouncing egg = several short pops, never stacked",
+		bounces >= 2 and #bouncy <= 10 and spaced,
+		`{bounces} bounces, {#bouncy} sounds`
+	)
+	local bounceOnly = {}
+	for _, e in bouncy do
+		if string.find(e.event, "Bounce") then
+			table.insert(bounceOnly, e)
+		end
+	end
+	local settle = bouncy[#bouncy]
+	check(
+		"scenario 3: each bounce is softer than the first, and the final settle too",
+		#bounceOnly >= 2
+			and bounceOnly[1].loudness > bounceOnly[#bounceOnly].loudness
+			and settle.loudness <= bounceOnly[1].loudness,
+		#bounceOnly >= 2
+				and string.format(
+					"first bounce %.0f, last bounce %.0f, final %s %.0f",
+					bounceOnly[1].loudness,
+					bounceOnly[#bounceOnly].loudness,
+					settle.event,
+					settle.loudness
+				)
+			or nil
+	)
+	local all = {}
+	for _, e in gentle do
+		table.insert(all, describe(e))
+	end
+	for _, e in stone do
+		table.insert(all, describe(e))
+	end
+	note("drops: " .. table.concat(all, " | "))
+end)
+
+step("audio: scenarios 9-10, hatching a Common and a Secret pet", function()
+	local mine = myBase()
+	local area = mine and mine:FindFirstChild("PenArea", true)
+	if not area then
+		check("a pen to hatch in", false)
+		return
+	end
+	local measured = {}
+	for i, rarity in { "Common", "Secret" } do
+		local before = {}
+		for _, row in Data.state.eggs or {} do
+			before[row.uid] = true
+		end
+		hook:FireServer("giveEgg", rarity)
+		local uid = waitFor(function()
+			for _, row in Data.state.eggs or {} do
+				if not before[row.uid] then
+					return row.uid
+				end
+			end
+			return nil
+		end, 4)
+		if not uid then
+			check(`a {rarity} egg to hatch`, false)
+			continue
+		end
+		local spot = area.Position + area.CFrame.RightVector * (i == 1 and 9 or -9) + area.CFrame.LookVector * 6
+		tp(spot + Vector3.new(0, 4, 0))
+		task.wait(0.6)
+		Remotes.get("EquipEgg"):FireServer(uid)
+		waitFor(function()
+			local t = char:FindFirstChildOfClass("Tool")
+			return t and t:GetAttribute("EggUid") == uid
+		end, 3)
+		Remotes.get("PlaceEgg"):FireServer(uid, spot)
+		waitFor(function()
+			return (Data.state.plots or {})[uid]
+		end, 3)
+		local from = #Audio.history
+		hook:FireServer("hatch")
+		local name = SoundBank.hatchEvent(rarity)
+		local e = waitFor(function()
+			local list = audioEntries(from, name)
+			return list[1]
+		end, 6)
+		task.wait(2)
+		measured[rarity] = e
+		check(
+			`scenario {if rarity == "Common" then 9 else 10}: a {rarity} hatch = {name}`,
+			e ~= nil and e.loaded,
+			describe(e)
+		)
+	end
+	local c, s = measured.Common, measured.Secret
+	check(
+		"a Secret hatch is bigger than a Common one (louder and longer, in the engine)",
+		c ~= nil and s ~= nil and s.loudness > c.loudness and s.audible > c.audible,
+		c
+				and s
+				and string.format(
+					"Common %.0f / %.2f s, Secret %.0f / %.2f s",
+					c.loudness,
+					c.audible,
+					s.loudness,
+					s.audible
+				)
+			or nil
+	)
+end)
+
 step("shop", function()
 	local shop = map:FindFirstChild("BoxingSackShop", true)
 	check("Boxing Sack Shop is in the world", shop ~= nil)
@@ -569,6 +764,182 @@ end)
 -- BUG 6: Shift Lock + the sack. The camera must stay on the Humanoid and not turn by itself. Scripts can't press
 -- Shift or reach the PlayerModule's MouseLockController (RobloxScript only), so the probe does what Shift Lock does
 -- to the character: UserGameSettings.RotationType = CameraRelative (the character turns with the camera).
+step("audio: scenarios 7-8, punching a basic and a premium sack", function()
+	local function punch(tier: number)
+		local from = #Audio.history
+		SackGear.toggle()
+		waitFor(holdingSack, 3)
+		task.wait(1.8) -- the bag drops onto its chain
+		local tool = char:FindFirstChildOfClass("Tool")
+		if tool then
+			tool:Activate()
+		end
+		local e = waitFor(function()
+			return audioEntries(from, `Sack{tier}.impact`)[1]
+		end, 3)
+		task.wait(0.8)
+		local equip = audioEntries(from, `Sack{tier}.equip`)[1]
+		SackGear.toggle()
+		waitFor(function()
+			return not holdingSack()
+		end, 3)
+		return e, equip
+	end
+	tp(onPad + Vector3.new(0, 0, -30))
+	task.wait(1)
+	local basic, basicEquip = punch(Data.state.rackLevel or 1)
+	local basicMagic = basic ~= nil and table.find(basic.layers, "tone") ~= nil
+	check(
+		"scenario 7: a basic sack punch = a dry thud (thump + tap, no magic, no thunder)",
+		basic ~= nil and basic.loaded and basic.tier == 1 and not basicMagic and table.find(basic.layers, "boom") == nil,
+		describe(basic)
+	)
+	check("the sack's drop onto its chain plays (equip)", basicEquip ~= nil and basicEquip.loaded, describe(basicEquip))
+	hook:FireServer("sack", 20)
+	waitFor(function()
+		return Data.state.rackLevel == 20
+	end, 4)
+	task.wait(1.5)
+	local premium = punch(20)
+	check(
+		"scenario 8: a Rainbow God punch = physical hit + short sparkle",
+		premium ~= nil
+			and premium.loaded
+			and table.find(premium.layers, "thump") ~= nil
+			and table.find(premium.layers, "tone") ~= nil
+			and table.find(premium.layers, "boom") == nil
+			and premium.audible < 0.9,
+		describe(premium)
+	)
+end)
+
+step("audio: scenarios 4-6 and the loop's sounds, live", function()
+	-- 5 / 6: the real kick was a Perfect one (timing 0.95); a normal and a weak kick through the same path
+	local perfect = Audio.last("KickPerfect")
+	check(
+		"scenario 6: the Perfect Kick played KickPerfect (whoosh + impact + flourish)",
+		perfect ~= nil and perfect.loaded,
+		describe(perfect)
+	)
+	local anchor = Instance.new("Part")
+	anchor.Anchored, anchor.CanCollide, anchor.Transparency = true, false, 1
+	anchor.CFrame = hrp.CFrame * CFrame.new(0, -1, -3)
+	anchor.Parent = workspace
+	local VFX = require(Shared.VFX)
+	VFX.play("KickImpact", anchor, { power = 12, cutscene = true, own = true, band = "good" })
+	task.wait(1)
+	VFX.play("KickImpact", anchor, { power = 12, cutscene = true, own = true, band = "weak" })
+	task.wait(1)
+	anchor:Destroy()
+	local good, weak = Audio.last("KickGood"), Audio.last("KickWeak")
+	check(
+		"scenario 5: a normal kick = KickGood (controlled impact)",
+		good ~= nil and good.loaded and table.find(good.layers, "boom") == nil,
+		describe(good)
+	)
+	check(
+		"kicks scale: weak < normal < perfect (loudness in the engine)",
+		weak ~= nil
+			and good ~= nil
+			and perfect ~= nil
+			and weak.loudness < good.loudness
+			and good.loudness < perfect.loudness,
+		weak
+				and good
+				and perfect
+				and string.format("%.0f < %.0f < %.0f", weak.loudness, good.loudness, perfect.loudness)
+			or nil
+	)
+	-- 4: the running egg
+	local steps = 0
+	for _, e in Audio.history do
+		steps += if e.event == "EggStep" then 1 else 0
+	end
+	check("scenario 4: the steered egg's light steps played while it ran", steps >= 5, steps)
+	-- the rest of the loop
+	-- (SpinStop plays only when the last slot-machine spin finishes before touchdown, i.e. on long flights)
+	note("SpinStop: " .. describe(Audio.last("SpinStop")))
+	for _, name in
+		{
+			"ZoneEnter",
+			"LegsSprout",
+			"AvalancheStart",
+			"AvalancheStop",
+			"EggSecured",
+			"EggHold",
+			"EggPlace",
+			"PetPickup",
+			"PetPlace",
+		}
+	do
+		local e = Audio.last(name)
+		check(`sound plays and loads: {name}`, e ~= nil and e.loaded, describe(e))
+	end
+	check("the avalanche rolls with a looping roar", Audio.last("AvalancheRoll") ~= nil)
+	if result then
+		local surface = SoundBank.ZoneSurface[result.landZone]
+		local land = Audio.last("EggLand_" .. surface)
+		check(
+			`the flight egg's landing sounds like its zone's ground ({surface})`,
+			land ~= nil and land.loaded,
+			describe(land)
+		)
+	end
+	Modal.toast("Sound check", "good")
+	task.wait(0.3)
+	Modal.toast("Sound check", "error")
+	task.wait(0.5)
+	local ok, bad = Audio.last("UISuccess"), Audio.last("UIError")
+	check("UI: success and error sounds (2D)", ok ~= nil and ok.loaded and bad ~= nil and bad.loaded and ok.at == nil)
+	-- thunder only where it belongs
+	local offenders = {}
+	for _, e in Audio.history do
+		if table.find(e.layers, "boom") and e.event ~= "Sack14.special" and not string.find(e.event, "Stormy") then
+			table.insert(offenders, e.event)
+		end
+	end
+	check("no thunder on any ordinary sound in the whole session", #offenders == 0, table.concat(offenders, ","))
+	-- the tiers, as heard in the engine
+	local byTier = { {}, {}, {}, {} }
+	for _, e in Audio.history do
+		if e.loudness > 0 then
+			table.insert(byTier[e.tier], e.loudness)
+		end
+	end
+	local means = {}
+	for t = 1, 4 do
+		local sum = 0
+		for _, v in byTier[t] do
+			sum += v
+		end
+		means[t] = if #byTier[t] > 0 then sum / #byTier[t] else 0
+	end
+	note(
+		string.format(
+			"mean loudness by tier (engine): T1 %.0f (%d), T2 %.0f (%d), T3 %.0f (%d), T4 %.0f (%d)",
+			means[1],
+			#byTier[1],
+			means[2],
+			#byTier[2],
+			means[3],
+			#byTier[3],
+			means[4],
+			#byTier[4]
+		)
+	)
+	check(
+		"in the engine: routine (tier 1) sounds are the quietest",
+		means[1] > 0 and means[1] < means[2] and means[1] < means[3]
+	)
+	local unloaded = {}
+	for _, e in Audio.history do
+		if e.loudness > 0 and not e.loaded then
+			table.insert(unloaded, e.event)
+		end
+	end
+	check("every measured sound loaded its asset", #unloaded == 0, table.concat(unloaded, ","))
+end)
+
 step("shift lock", function()
 	local gameSettings = UserSettings():GetService("UserGameSettings")
 	local oldRotation = gameSettings.RotationType

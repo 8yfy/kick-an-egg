@@ -19,3 +19,4 @@ preview.project.json
 playtest.project.json
 assets/sacks/*.glb
 dist/
+tools/audio/previews/

@@ -44,7 +44,7 @@ local function DataService()
 	return require(ServerScriptService.Server.Services.DataService)
 end
 
-hook.OnServerEvent:Connect(function(player, what)
+hook.OnServerEvent:Connect(function(player, what, arg)
 	local data = DataService():Get(player)
 	if not data then
 		return
@@ -59,11 +59,20 @@ hook.OnServerEvent:Connect(function(player, what)
 		end
 		DataService():Set(player, { plots = plots })
 		table.insert(lines, "[setup] hook: placed eggs hatch now")
-	elseif what == "giveEgg" then
+	elseif what == "giveEgg" then -- arg = a rarity (the first pet of it), else the first pet
+		local petId = Pets[1].id
+		for _, pet in Pets do
+			if typeof(arg) == "string" and pet.rarity == arg then
+				petId = pet.id
+				break
+			end
+		end
 		local eggs = table.clone(data.eggs)
-		table.insert(eggs, { uid = HttpService:GenerateGUID(false), petId = Pets[1].id })
+		table.insert(eggs, { uid = HttpService:GenerateGUID(false), petId = petId })
 		DataService():Set(player, { eggs = eggs })
-		table.insert(lines, "[setup] hook: gave an inventory egg")
+		table.insert(lines, "[setup] hook: gave an inventory egg (" .. petId .. ")")
+	elseif what == "sack" and typeof(arg) == "number" then -- switch the Kick Sack (the Studio /sack command)
+		require(ServerScriptService.Server.Services.SackService).command(player, "/sack " .. tostring(arg))
 	end
 end)
 

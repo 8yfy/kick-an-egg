@@ -803,7 +803,7 @@ section("Tutorial, sack sounds, mystery egg, merchants", function()
 		end
 		local sig = {}
 		for _, l in SackSfx.layers(tier, "impact") do
-			table.insert(sig, l.sound .. l.pitch)
+			table.insert(sig, l.src .. l.pitch)
 		end
 		distinct[table.concat(sig, ",")] = true
 	end
@@ -833,6 +833,261 @@ section("Tutorial, sack sounds, mystery egg, merchants", function()
 		merchantsOk = merchantsOk and typeof(m.UserId) == "number" and typeof(m.DisplayName) == "string"
 	end
 	check("merchant config is well formed (UserIds come from the owner, 0 = not provided)", merchantsOk)
+end)
+
+section("Audio: no thunder on ordinary sounds, tiers, landings, contacts, the 10 scenarios", function()
+	local Audio = require(Shared.Audio) :: any
+	local B = require(Shared.Audio.SoundBank) :: any
+	local SackSfx = require(Shared.VFX.SackSfx) :: any
+	local Zones = require(Shared.Config.Zones) :: any
+	local KickService = require(Services.KickService) :: any
+	local BUILTIN = {}
+	for _, n in
+		{
+			"action_falling.ogg",
+			"action_footsteps_plastic.mp3",
+			"action_get_up.mp3",
+			"action_jump.mp3",
+			"action_jump_land.mp3",
+			"action_swim.mp3",
+			"impact_explosion_03.mp3",
+			"impact_water.mp3",
+			"volume_slider.ogg",
+		}
+	do
+		BUILTIN["rbxasset://sounds/" .. n] = true
+	end
+	local sourcesOk = true
+	for _, src in B.Sources do
+		sourcesOk = sourcesOk and BUILTIN[src.id] == true and src.gain > 0 and src.gain <= 12
+	end
+	check("audio: every source is a sound that ships with Roblox (no invented ids)", sourcesOk)
+	check("audio: no custom ids configured yet", next(B.CUSTOM) == nil)
+
+	local function hasBoom(layers): boolean
+		for _, l in layers do
+			if l.src == "boom" then
+				return true
+			end
+		end
+		return false
+	end
+	-- 1. thunder (the explosion) only for storms / electricity
+	local eventsClean = true
+	for name, def in B.Events do
+		for _, variant in def.variants do
+			if hasBoom(variant) then
+				eventsClean = false
+				warn("boom in " .. name)
+			end
+		end
+	end
+	check("audio: no event uses the thunder / explosion sound", eventsClean)
+	local landingClean, stormy = true, false
+	for surface in B.Surfaces do
+		for _, i in { 0, 0.5, 1 } do
+			for _, bounce in { false, true } do
+				landingClean = landingClean and not hasBoom((B.landing(surface, i, bounce, nil)))
+				for mutation in B.MutationAccent do
+					local m = B.landing(surface, i, bounce, mutation)
+					if mutation == "Stormy" then
+						stormy = hasBoom(m)
+					else
+						landingClean = landingClean and not hasBoom(m)
+					end
+				end
+			end
+		end
+	end
+	check("audio: egg landings never thunder (any surface, speed, bounce, mutation but Stormy)", landingClean)
+	check("audio: a Stormy egg may add a quiet far-off crack (storm = thunder is right)", stormy)
+	local sacksClean, thunderSpecial = true, nil
+	for tier = 1, 20 do
+		for _, moment in { "equip", "impact", "upgrade", "idle" } do
+			sacksClean = sacksClean and not hasBoom((SackSfx.layers(tier, moment)))
+		end
+		if hasBoom((SackSfx.layers(tier, "special"))) then
+			thunderSpecial = if thunderSpecial == nil then tier else -1
+		end
+	end
+	check("audio: no Kick Sack punch, drop or upgrade uses thunder", sacksClean)
+	check("audio: only Thunder Cell's (electric) super hit cracks", thunderSpecial == 14)
+
+	-- 2. every recipe fits its tier; the tiers really are a hierarchy
+	local fits, uiFlat, spatialOk, categoriesOk = true, true, true, true
+	local byTier = { {}, {}, {}, {} }
+	for name, def in B.Events do
+		for _, variant in def.variants do
+			if B.tierFor(variant, def.tier) ~= def.tier then
+				fits = false
+				warn(`{name} does not fit tier {def.tier}`)
+			end
+			local length, _, sum = B.measure(variant)
+			table.insert(byTier[def.tier], { length = length, sum = sum })
+		end
+		if def.category == "UI" then
+			uiFlat = uiFlat and not def.spatial
+		else
+			spatialOk = spatialOk and def.spatial
+		end
+		categoriesOk = categoriesOk and table.find(B.Categories, def.category) ~= nil
+	end
+	check("audio: every event fits its tier's caps (length, layers, loudness)", fits)
+	check("audio: every event is in a real category (SoundGroup)", categoriesOk)
+	check("audio: UI sounds are 2D, world sounds are 3D", uiFlat and spatialOk)
+	local means = {}
+	for t = 1, 4 do
+		local l, v = 0, 0
+		for _, m in byTier[t] do
+			l += m.length
+			v += m.sum
+		end
+		means[t] = { length = l / math.max(1, #byTier[t]), sum = v / math.max(1, #byTier[t]) }
+	end
+	check(
+		"audio: tier 1 < 2 < 3 < 4 in length and loudness",
+		means[1].length < means[2].length
+			and means[2].length < means[3].length
+			and means[3].length < means[4].length
+			and means[1].sum < means[2].sum
+			and means[2].sum < means[3].sum
+			and means[3].sum < means[4].sum
+	)
+	for _, name in { "UIClick", "EggStep", "HatchCrack", "MoneyChime" } do
+		local def = B.Events[name]
+		check(`audio: {name} (repeated often) has variations`, #def.variants >= 2 and (def.jitter or 0) > 0)
+	end
+
+	-- 3. landings: surface, speed, bounce, mutation
+	check(
+		"audio: a soft touch is silent",
+		B.landingIntensity(3) == nil and B.landingIntensity(B.Landing.minSpeed) ~= nil
+	)
+	local _, _, soft = B.measure((B.landing("grass", 0.1, false, nil)))
+	local _, _, hard = B.measure((B.landing("grass", 1, false, nil)))
+	local bounceLayers, bounceTier = B.landing("grass", 0.5, true, nil)
+	local landLayers = B.landing("grass", 0.5, false, nil)
+	local bl, _, bs = B.measure(bounceLayers)
+	local ll, _, ls = B.measure(landLayers)
+	check("audio: a faster landing is louder", hard > soft)
+	check("audio: a bounce is a short, lighter pop", bounceTier == 1 and bl <= ll and bs < ls)
+	local _, hardTier = B.landing("stone", 1, false, nil)
+	check("audio: even the hardest plain landing stays a tier 2 physical impact", hardTier <= 2)
+	local void = B.landing("stone", 0.5, false, "Starfall")
+	local fxCount = 0
+	for _, l in void do
+		fxCount += if l.fx then 1 else 0
+	end
+	check("audio: a cosmic (Starfall) egg adds a quiet resonance on top of the thump", fxCount >= 1 and fxCount < #void)
+	check(
+		"audio: surfaces follow the zone (plaza grass, Meadow grass, Volcano stone, Snowy Peaks snow)",
+		B.surfaceAt(Vector3.new(0, 11, -20), Zones, Chase.SafeLineZ) == "grass"
+			and B.surfaceAt(Vector3.new(0, 0, 50), Zones, Chase.SafeLineZ) == "grass"
+			and B.surfaceAt(Vector3.new(0, 0, 850), Zones, Chase.SafeLineZ) == "stone"
+			and B.surfaceAt(Vector3.new(0, 0, 550), Zones, Chase.SafeLineZ) == "snow"
+	)
+
+	-- 4. contacts come from the egg's velocity, with a minimum speed and a cooldown (never from Touched)
+	local function run(samples: { number }, dt: number): { string }
+		local st, out, t = B.newContact(), {}, 0
+		for _, vy in samples do
+			t += dt
+			local kind = B.contactStep(st, dt, vy, t)
+			if kind then
+				table.insert(out, kind)
+			end
+		end
+		return out
+	end
+	local fall = {}
+	for _ = 1, 30 do
+		table.insert(fall, -30)
+	end
+	for _ = 1, 10 do
+		table.insert(fall, 0)
+	end
+	local fallKinds = run(fall, 1 / 60)
+	check("audio: a long fall that stops = one landing", #fallKinds == 1 and fallKinds[1] == "land")
+	check("audio: contact chatter can't stack sounds (cooldown)", #run({ -12, 0, -12, 0, -12, 0, -12, 0 }, 1 / 60) <= 1)
+	local slope = {}
+	for _ = 1, 60 do
+		table.insert(slope, -3)
+	end
+	check("audio: running down a slope makes no impact sounds", #run(slope, 1 / 60) == 0)
+	local bounceKinds = run({ -20, -24, 12, 6, 0, -6, -12, -14, 0, 0 }, 1 / 20) -- hits, flies up, lands again
+	check(
+		"audio: a contact that flies back up = a bounce, the one that stays = the landing",
+		#bounceKinds == 2 and bounceKinds[1] == "bounce" and bounceKinds[2] == "land"
+	)
+
+	-- 5. kicks: the server's timing band picks the sound
+	check(
+		"audio: kick band from the timing",
+		KickService.band(0.95) == "perfect" and KickService.band(0.7) == "good" and KickService.band(0.2) == "weak"
+	)
+	local hasWhoosh, hasFx, hasImpact = false, false, false
+	for _, l in B.Events[B.kickEvent("perfect")].variants[1] do
+		hasWhoosh = hasWhoosh or l.src == "wind"
+		hasFx = hasFx or l.fx == true
+		hasImpact = hasImpact or l.src == "thump"
+	end
+	check("audio: Perfect Kick = whoosh + punchy impact + bright flourish", hasWhoosh and hasImpact and hasFx)
+	local goodFx = false
+	for _, l in B.Events[B.kickEvent("good")].variants[1] do
+		goodFx = goodFx or l.fx == true
+	end
+	check(
+		"audio: a normal kick is a controlled physical impact (no flourish)",
+		not goodFx and B.Events.KickGood.tier == 2
+	)
+
+	-- 6. the 10 required scenarios
+	local function physical(layers): boolean
+		for _, l in layers do
+			if l.src == "thump" or string.sub(l.src, 1, 3) == "tap" then
+				return true
+			end
+		end
+		return false
+	end
+	local grass, grassTier = B.landing("grass", 0.2, false, nil)
+	local stone = B.landing("stone", 0.6, false, nil)
+	local bounce = B.landing("grass", 0.4, true, nil)
+	local basic, basicTier = SackSfx.layers(1, "impact")
+	local premium = SackSfx.layers(20, "impact")
+	local premiumFx, basicFx = 0, false
+	for _, l in premium do
+		premiumFx += if l.fx then 1 else 0
+	end
+	for _, l in basic do
+		basicFx = basicFx or l.fx == true
+	end
+	check("scenario 1: a gentle drop on grass = a soft tier 1 thump", grassTier == 1 and grass[1].src == "thump")
+	check("scenario 2: a drop on stone = a short solid tap", stone[1].src == "tap3" and (B.measure(stone)) < 0.5)
+	check("scenario 3: bounces = short pops", (B.measure(bounce)) < 0.4)
+	check(
+		"scenario 4: the running egg = very quiet steps",
+		B.Events.EggStep.tier == 1 and B.Events.EggStep.variants[1][1].volume <= 0.1
+	)
+	check("scenario 5: a normal kick = KickGood", B.kickEvent("good") == "KickGood")
+	check("scenario 6: a Perfect Kick = KickPerfect (tier 3)", B.Events.KickPerfect.tier == 3)
+	check(
+		"scenario 7: a basic sack punch = a dry tier 1 thud, no magic",
+		basicTier == 1 and not basicFx and physical(basic)
+	)
+	check(
+		"scenario 8: a premium sack punch = physical hit + short sparkle",
+		physical(premium) and premiumFx >= 1 and premiumFx <= 3
+	)
+	check(
+		"scenario 9: a Common hatch = crack + pop (tier 2)",
+		B.hatchEvent("Common") == "HatchCommon" and B.Events.HatchCommon.tier == 2
+	)
+	check(
+		"scenario 10: a Secret hatch = the spectacular one (tier 4)",
+		B.hatchEvent("Secret") == "HatchSecret" and B.Events.HatchSecret.tier == 4
+	)
+	check("audio: an unknown event is ignored", Audio.play("NoSuchSound") == false)
 end)
 
 section("every service loads", function()
