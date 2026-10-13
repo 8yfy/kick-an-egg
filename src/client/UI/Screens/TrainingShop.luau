@@ -8,7 +8,8 @@
 --     the same price disabled when you can't afford it / LOCKED (buy the one before first) / BUYING... while
 --     the request is pending / an inline error if it fails. Buying makes the new sack yours right away
 --     (that is what UpgradeTraining does).
---   Speed: Run Speed (= how fast your egg runs home), next value, level/cap, exact price, UPGRADE or MAXED.
+--   Speed: Run Speed (= how fast your egg runs home), next value, level (no cap: each level adds a little less,
+--   approaching Economy.RunSpeed.max), exact price, UPGRADE.
 --     One step per purchase (BuyUpgrade "RunSpeed"); no bulk buying: the server sells +1 at a time.
 -- Cards are authored at the contract's reference size (444 x 566) and scaled as a whole to the grid cell.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -112,7 +113,7 @@ local function buildCard(parent: Instance, row: Data.SackRow, onBuy: (card: Card
 	sub.Position = UDim2.fromOffset(10, 52)
 	sub.Size = UDim2.new(1, -20, 0, 28)
 	sub.ZIndex = 3
-	local benefit = Ui.text(bg, `+{Ui.number(row.gain)} Kick Power per kick`, 26, {
+	local benefit = Ui.text(bg, `+{Ui.number(row.gain)} Kick Power per kick, up to {Ui.number(row.cap)}`, 24, {
 		align = Enum.TextXAlignment.Center,
 		stroke = 3,
 		name = "Benefit",
@@ -319,10 +320,12 @@ local function buildSpeed(
 		now.Text = tostring(info2.current)
 		arrow.Visible = not info2.maxed
 		nextValue.Visible = not info2.maxed
-		nextValue.Text = tostring(info2.current + 1)
-		local levels = info2.max - info2.base
-		local level = info2.current - info2.base
-		bar.set(level / math.max(1, levels), `LEVEL {level} / {levels}`)
+		nextValue.Text = tostring(info2.nextSpeed)
+		-- no level cap: the bar shows how close the speed is to the top speed every level approaches
+		bar.set(
+			(info2.current - info2.base) / math.max(1, info2.max - info2.base),
+			`LEVEL {info2.level}  ·  TOP SPEED {info2.max}`
+		)
 		button.gui.Visible = not info2.maxed
 		maxPill.Visible = info2.maxed
 		if info2.maxed then
@@ -335,7 +338,8 @@ local function buildSpeed(
 			button.setPending(pending, "UPGRADING...")
 			bIcon.Visible = not pending
 			bPrice.Visible = not pending
-			note.Text = if short > 0 then `Need {Ui.money(short)} more` else "+1 Run Speed per upgrade"
+			local step = math.floor((info2.nextSpeed - info2.current) * 10 + 0.5) / 10
+			note.Text = if short > 0 then `Need {Ui.money(short)} more` else `+{step} Run Speed per upgrade`
 			note.TextColor3 = if short > 0 then C.power else C.text
 		end
 	end

@@ -10,6 +10,9 @@
 -- CLAIM when eligible, pending during the request, claimed only after the server's DataChanged confirms
 -- it. No reward is configured today, so the panel shows the zone's progress instead (never "$0" or "free").
 -- Footer: DISCOVERED found / total. Short screens: the detail becomes a sheet that slides over the list.
+-- Top of the list: COMPLETION REWARDS (Economy.IndexMilestones: 10 / 25 / 40 / 60 / all 79 discovered): total
+-- found and %, a bar to the next milestone with its reward, and one chip per milestone (CLAIM when reached,
+-- CLAIMED after the server confirms, LOCKED before). Claims go to Remotes.ClaimIndexMilestone (IndexService).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local System = script.Parent.Parent.System
@@ -67,6 +70,119 @@ function PetIndex.define()
 			local list = Ui.scroll(body, "Zones")
 			Ui.padding(list, 4)
 			Ui.list(list, 14)
+
+			-- Completion rewards (milestones) ------------------------------------------------------------------
+			local mPanel = Instance.new("Frame")
+			mPanel.Name = "Milestones"
+			mPanel.LayoutOrder = -1
+			mPanel.Size = UDim2.new(1, -8, 0, 196)
+			mPanel.BackgroundColor3 = C.card
+			Ui.corner(mPanel)
+			Ui.stroke(mPanel, 4)
+			mPanel.Parent = list
+			local mTitle = Ui.text(mPanel, "COMPLETION REWARDS", 30, { stroke = 4, color = C.power, name = "Title" })
+			mTitle.Position = UDim2.fromOffset(16, 8)
+			mTitle.Size = UDim2.new(0.6, 0, 0, 36)
+			local mTotal = Ui.text(mPanel, "", 26, { align = Enum.TextXAlignment.Right, stroke = 3, name = "Total" })
+			mTotal.AnchorPoint = Vector2.new(1, 0)
+			mTotal.Position = UDim2.new(1, -16, 0, 10)
+			mTotal.Size = UDim2.new(0.4, -16, 0, 32)
+			local mBarHolder = Ui.frame(mPanel, "Bar", UDim2.new(1, -32, 0, 34), UDim2.fromOffset(16, 50))
+			local mBar = Ui.progress(mBarHolder, Theme.Buttons.cyan, 34, 22)
+			local mNext = Ui.text(mPanel, "", 20, { stroke = 3, color = C.muted, name = "Next" })
+			mNext.Position = UDim2.fromOffset(16, 88)
+			mNext.Size = UDim2.new(1, -32, 0, 24)
+			local chips = Ui.frame(mPanel, "Chips", UDim2.new(1, -32, 0, 70), UDim2.fromOffset(16, 118))
+			local chipList = Ui.list(chips, 10, true)
+			chipList.VerticalAlignment = Enum.VerticalAlignment.Center
+			type Chip = { gui: Frame, label: TextLabel, button: Ui.Button }
+			local chipUi: { [number]: Chip } = {}
+			local milestonePending: { [number]: boolean } = {}
+			local paintMilestones: () -> ()
+			local function claimMilestone(count: number)
+				if milestonePending[count] then
+					return
+				end
+				milestonePending[count] = true
+				paintMilestones()
+				remote("ClaimIndexMilestone"):FireServer(count)
+				Data.expect(
+					function()
+						local claimed = Data.state.indexMilestones
+						return typeof(claimed) == "table" and claimed[tostring(count)] == true
+					end,
+					5,
+					function(ok: boolean)
+						milestonePending[count] = nil
+						if ok then
+							Modal.toast(`Index reward claimed: {count} pets!`, "good")
+						else
+							Modal.toast("Couldn't claim that reward. Try again.", "error")
+						end
+						paintMilestones()
+					end
+				)
+			end
+			paintMilestones = function()
+				local found, all, rows = Data.milestones()
+				mTotal.Text = `{found} / {all}  ({math.floor(found / math.max(1, all) * 100)}%)`
+				local nextRow: Data.Milestone? = nil
+				for _, r in rows do
+					if not nextRow and r.state ~= "Claimed" then
+						nextRow = r
+					end
+				end
+				if nextRow then
+					mBar.set(math.min(1, found / nextRow.count), `{math.min(found, nextRow.count)} / {nextRow.count}`)
+					mNext.Text = `Next: {nextRow.count} pets = {Ui.money(nextRow.money)}{if nextRow.incomeBonus
+						then ` + {math.floor(nextRow.incomeBonus * 100)}% pet income forever`
+						else ""}`
+				else
+					mBar.set(1, "ALL CLAIMED")
+					mNext.Text = "Every completion reward claimed!"
+				end
+				for i, r in rows do
+					local chip = chipUi[r.count]
+					if not chip then
+						local f = Instance.new("Frame")
+						f.Name = "Milestone" .. r.count
+						f.LayoutOrder = i
+						f.Size = UDim2.new(0.2, -8, 1, 0)
+						f.BackgroundColor3 = C.body
+						Ui.corner(f, 10)
+						Ui.stroke(f, 3)
+						f.Parent = chips
+						local l = Ui.text(f, "", 18, { align = Enum.TextXAlignment.Center, stroke = 3, name = "Label" })
+						l.Position = UDim2.fromOffset(4, 2)
+						l.Size = UDim2.new(1, -8, 0, 22)
+						local count = r.count
+						local b = Ui.button(f, {
+							text = "CLAIM",
+							style = "lime",
+							size = UDim2.new(1, -10, 0, 36),
+							textSize = 20,
+							name = "Claim",
+							onClick = function()
+								claimMilestone(count)
+							end,
+						})
+						b.gui.AnchorPoint = Vector2.new(0.5, 1)
+						b.gui.Position = UDim2.new(0.5, 0, 1, -4)
+						chip = { gui = f, label = l, button = b }
+						chipUi[r.count] = chip
+					end
+					local c = chip :: Chip
+					c.label.Text = `{r.count} PETS`
+					c.button.setText(
+						if r.state == "Claimed"
+							then "CLAIMED"
+							elseif r.state == "Claim" then "CLAIM"
+							else Ui.money(r.money)
+					)
+					c.button.setEnabled(r.state == "Claim" and not milestonePending[r.count])
+					c.button.setPending(milestonePending[r.count] == true, "...")
+				end
+			end
 
 			-- Footer: DISCOVERED + overall bar.
 			local fIcon = Ui.frame(footer, "Icon", UDim2.fromOffset(64, 64), UDim2.fromOffset(0, 1))
@@ -379,6 +495,7 @@ function PetIndex.define()
 				end
 				fBar.set(found / math.max(1, all), `{found} / {all}`)
 				paintZonePanel()
+				paintMilestones()
 				local keep = selected
 				if keep and selectedChanged and detail.Visible then -- only rebuild the preview when it changed
 					showDetail(keep)

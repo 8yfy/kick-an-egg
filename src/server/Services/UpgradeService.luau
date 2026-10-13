@@ -1,5 +1,6 @@
 --!strict
--- The shop's speed card: BuyUpgrade("RunSpeed") = +1 Run Speed (= egg speed) for Economy.upgradeCost.
+-- The shop's speed card: BuyUpgrade("RunSpeed") = +1 Run Speed LEVEL (no cap) for Economy.speedCost(level); the
+-- speed itself (egg speed and walk speed) is Economy.runSpeedAt(level), which approaches RunSpeed.max.
 -- Strength (kickPower) is trained at the rack and better racks are bought (RackService), so
 -- BuyUpgrade("KickPower") is ignored. Rebirth(): only at the strength cap; resets Economy.Rebirth.resets (money, strength
 -- and Run Speed), keeps the rest (eggs, pets, sacks, pen, index), +1 rebirth (more income, higher strength cap).
@@ -28,31 +29,22 @@ local RESET_TO: { [string]: number } = {
 
 local limiter = RateLimiter.new()
 
-local DATA_KEY: { [Economy.UpgradeKind]: string } = {
-	KickPower = "kickPower",
-	RunSpeed = "runSpeed",
-}
-
-local function capFor(kind: Economy.UpgradeKind, rebirths: number): number
-	return if kind == "KickPower" then Economy.maxKickPower(rebirths) else Economy.RunSpeed.max
-end
-
--- Returns true if bought. Exposed for tests and for a future auto-buy.
+-- Returns true if bought. Exposed for tests and for a future auto-buy. Only RunSpeed is sold.
 function UpgradeService:Buy(player: Player, kind: Economy.UpgradeKind): boolean
 	local data = DataService:Get(player)
-	local key = DATA_KEY[kind]
-	if not data or not key then
+	if not data or kind ~= "RunSpeed" then
 		return false
 	end
-	local value: number = data[key]
-	if value >= capFor(kind, data.rebirths) then
+	local level: number = data.speedLevel
+	local cost = Economy.speedCost(level)
+	if cost ~= cost or cost == math.huge or cost < 0 or data.money < cost then
 		return false
 	end
-	local cost = Economy.upgradeCost(kind, value)
-	if data.money < cost then
-		return false
-	end
-	DataService:Set(player, { money = data.money - cost, [key] = value + 1 })
+	DataService:Set(player, {
+		money = data.money - cost,
+		speedLevel = level + 1,
+		runSpeed = Economy.runSpeedAt(level + 1),
+	})
 	Analytics.money(player, "Sink", cost, "Shop", kind)
 	Analytics.funnel(player, Analytics.Funnel.FirstUpgrade, "FirstUpgrade")
 	if kind == "RunSpeed" then
@@ -77,6 +69,9 @@ function UpgradeService:Rebirth(player: Player): boolean
 	local partial: { [string]: any } = { rebirths = data.rebirths + 1 }
 	for _, key in Economy.Rebirth.resets do
 		partial[key] = RESET_TO[key]
+	end
+	if partial.runSpeed then
+		partial.speedLevel = 0 -- the speed level goes with the speed
 	end
 	DataService:Set(player, partial)
 	ChaseService:RefreshWalkSpeed(player)
