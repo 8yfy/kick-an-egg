@@ -264,6 +264,7 @@ function Drawers.new(parent: Instance): Drawers
 			function(ok: boolean)
 				penPending = false
 				if ok then
+					Modal.sfx("PenUpgrade")
 					Modal.toast(`Pen upgraded: room for {Data.pen().slots}!`, "good")
 				else
 					Modal.toast("Pen upgrade failed. Try again.", "error")

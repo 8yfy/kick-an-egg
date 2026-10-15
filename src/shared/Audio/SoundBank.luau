@@ -81,7 +81,10 @@ SoundBank.Tiers = {
 	{ maxVolume = 1.2, maxLayers = 16, maxSeconds = 3.2, maxSum = 4.5 },
 }
 SoundBank.Categories = { "UI", "Gameplay", "Ambience", "Music", "SpecialEffects" } :: { Category }
-SoundBank.CUSTOM = {} :: { [string]: { id: string, volume: number? } }
+-- id = the first (or only) asset; ids = variants (a different one each play); tune = transposed like a tune layer;
+-- seconds = the file's length (cleanup and voice counting).
+export type Custom = { id: string, ids: { string }?, volume: number?, tune: boolean?, seconds: number? }
+SoundBank.CUSTOM = {} :: { [string]: Custom }
 
 -- Musical notes for the `tone` source (fundamental ~393 Hz): PlaybackSpeed that plays that note.
 local BASE_HZ = 393
@@ -352,9 +355,69 @@ SoundBank.Events = {
 			L("tap4", 0.75, 0.14, { delay = 0.16 }),
 		},
 	}, { rolloff = { 20, 160 } }),
+	-- Added with the Premium SFX set (PremiumSfx.luau). These built-in recipes are the fallbacks until the
+	-- uploaded sounds are configured. --------------------------------------------------------------------------
+	EggThrow = ev("Gameplay", 1, true, 0.2, 2, { { whoosh(2.4, 0.12, 0.25) } }, { rolloff = { 12, 120 } }),
+	SpinTick = ev("Gameplay", 1, true, 0.03, 3, {
+		{ L("tap1", 3.1, 0.05, { eq = { -8, 0, 0 } }) },
+	}, { jitter = 0.04, rolloff = { 20, 160 } }),
+	Toast = ev("UI", 1, false, 0.25, 1, { { chime(G6, 0.16), chime(C7, 0.14, 0.05) } }, { masked = true }),
+	InventoryOpen = ev("UI", 1, false, 0.15, 1, { { L("hop", 1.8, 0.12), chime(C6, 0.1, 0.04) } }),
+	InventoryClose = ev("UI", 1, false, 0.15, 1, { { L("hop", 1.35, 0.1) } }),
+	Equip = ev("UI", 1, false, 0.08, 2, { { chime(C6, 0.14), chime(G6, 0.14, 0.045) } }),
+	Unequip = ev("UI", 1, false, 0.08, 2, { { chime(G6, 0.12), chime(C6, 0.12, 0.045) } }),
+	ShopPurchase = ev("UI", 3, false, 0.3, 1, {
+		{ L("tone", A6, 0.18), L("tone", E7, 0.18, { delay = 0.055 }), chime(C7, 0.2, 0.11), L("thump", 1.2, 0.2) },
+	}),
+	SpeedUpgrade = ev("UI", 3, false, 0.3, 1, {
+		{
+			whoosh(2.2, 0.14, 0.3),
+			chime(C6, 0.2, 0.14),
+			chime(E6, 0.21, 0.18),
+			chime(G6, 0.22, 0.22),
+			chime(C7, 0.24, 0.26),
+		},
+	}),
+	TreadmillUpgrade = ev("UI", 3, false, 0.3, 1, {
+		{ L("thump", 1, 0.25), L("hop", 1.4, 0.12), chime(G5, 0.2, 0.07), chime(C6, 0.21, 0.11), chime(E6, 0.22, 0.15) },
+	}),
+	PenUpgrade = ev("UI", 3, false, 0.3, 1, {
+		{
+			L("tap3", 1.1, 0.3),
+			L("thump", 1.15, 0.25),
+			L("tap3", 1.2, 0.3, { delay = 0.09 }),
+			chime(C6, 0.2, 0.17),
+			chime(G6, 0.22, 0.22),
+			chime(C7, 0.24, 0.27),
+		},
+	}),
+	TrainTick = ev("Gameplay", 1, true, 0.05, 2, { { L("tap1", 2.6, 0.06) } }, { jitter = 0.06, rolloff = { 6, 50 } }),
+	StrengthMax = ev("UI", 3, false, 1, 1, {
+		{
+			whoosh(2, 0.12, 0.3),
+			chime(C6, 0.2, 0.15),
+			chime(E6, 0.21, 0.2),
+			chime(G6, 0.22, 0.25),
+			chime(C7, 0.24, 0.3),
+			chime(E7, 0.1, 0.35, true),
+		},
+	}),
+	TradeRequest = ev("UI", 2, false, 0.5, 1, { { chime(G6, 0.2), chime(C6, 0.2, 0.14) } }),
+	TradeComplete = ev("UI", 2, false, 0.5, 1, {
+		{ chime(C6, 0.18), chime(E6, 0.19, 0.045), chime(G6, 0.2, 0.09), chime(C7, 0.22, 0.135), L("tone", A6, 0.12, { delay = 0.2 }) },
+	}),
+	MoneyCollect = ev("Gameplay", 2, true, 0.5, 1, {
+		{ L("tone", A6, 0.14), L("tone", E7, 0.14, { delay = 0.05 }), L("tone", A6 * 2, 0.12, { delay = 0.1 }), chime(C7, 0.14, 0.2) },
+	}, { rolloff = { 8, 70 } }),
+	WheelSpinStart = ev("UI", 2, false, 0.5, 1, { { whoosh(1.8, 0.14, 0.3), L("tap3", 1.4, 0.2) } }),
+	WheelTick = ev("UI", 1, false, 0.02, 4, { { L("tap1", 2.9, 0.14, { eq = { -8, 0, 0 } }) } }, { jitter = 0.03 }),
+	WheelWin = ev("UI", 3, false, 0.5, 1, {
+		{ chime(C6, 0.24), chime(E6, 0.25, 0.06), chime(G6, 0.26, 0.12), chime(C7, 0.28, 0.18), L("tone", A6, 0.14, { delay = 0.26 }) },
+	}),
 } :: { [string]: Event }
 
 SoundBank.Events.GrandReward = SoundBank.Events.Rebirth -- every pet discovered: the same spectacular flourish
+SoundBank.Events.WheelJackpot = ev("UI", 4, false, 1, 1, SoundBank.Events.Rebirth.variants)
 SoundBank.SoftAvalanche = { Snow = true, Sand = true, Coral = true, Candy = true } :: { [string]: boolean }
 
 function SoundBank.kickEvent(band: string?): string
@@ -757,6 +820,20 @@ function SoundBank.tierFor(layers: { Layer }, minTier: number): number
 		end
 	end
 	return #SoundBank.Tiers
+end
+
+-- The uploaded Premium SFX (Audio/PremiumSfx) replace their events. Events without an id keep the recipe above.
+local Premium = require(script.Parent.PremiumSfx)
+for event, ids in Premium.ids do
+	if #ids > 0 then
+		SoundBank.CUSTOM[event] = {
+			id = ids[1],
+			ids = ids,
+			volume = Premium.volume * (Premium.gain[event] or 1),
+			tune = Premium.tune[event],
+			seconds = Premium.seconds[event],
+		}
+	end
 end
 
 return SoundBank

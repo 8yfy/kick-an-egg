@@ -1083,7 +1083,25 @@ section("Audio: no thunder on ordinary sounds, tiers, landings, contacts, the 10
 		sourcesOk = sourcesOk and BUILTIN[src.id] == true and src.gain > 0 and src.gain <= 12
 	end
 	check("audio: every source is a sound that ships with Roblox (no invented ids)", sourcesOk)
-	check("audio: no custom ids configured yet", next(B.CUSTOM) == nil)
+	-- custom ids come only from the Premium SFX upload (Audio/PremiumSfx) and each one replaces something real
+	local customOk = true
+	for event, c in B.CUSTOM do
+		local tier, moment = string.match(event, "^Sack(%d+)%.(%a+)$")
+		local surface = string.match(event, "^Egg%a+_(%a+)$")
+		local mutation = string.match(event, "^MutationAccent_(%a+)$")
+		local known = B.Events[event] ~= nil
+			or (tier ~= nil and tonumber(tier) <= #B.SackMaterial and moment ~= nil)
+			or (surface ~= nil and B.Surfaces[surface] ~= nil)
+			or (mutation ~= nil and B.MutationAccent[mutation] ~= nil)
+		for _, id in c.ids or { c.id } do
+			customOk = customOk and string.match(id, "^rbxassetid://%d+$") ~= nil
+		end
+		if not known then
+			customOk = false
+			warn("custom id for an unknown sound: " .. event)
+		end
+	end
+	check("audio: every custom id is an uploaded asset for a sound the game plays", customOk)
 
 	local function hasBoom(layers): boolean
 		for _, l in layers do
