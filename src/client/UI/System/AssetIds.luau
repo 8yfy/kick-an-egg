@@ -126,7 +126,7 @@ local A: { [string]: Entry } = {
 	hud_index = { source = "Approved-Icons/Index.png", id = "rbxassetid://129632301300395" },
 	hud_rebirth = { source = "Approved-Icons/Rebirth.png", id = "rbxassetid://114455910779142" },
 	hud_eggs = { source = "Approved-Icons/Eggs.png", id = "rbxassetid://90997219081318" },
-	hud_pets = { source = "assets/ui-icons/approved/Pets.png", id = "rbxassetid://103394620461054" },
+	hud_pets = { source = "Approved-Icons/Pets.png", id = "rbxassetid://84890738919357" },
 	hud_settings = { source = "Approved-Icons/Settings.png", id = "rbxassetid://121688620921925" },
 	hud_sound = { source = "Approved-Icons/Sound.png", id = "rbxassetid://102220234745257" },
 	hud_money = { source = "Approved-Icons/Money.png", id = "rbxassetid://97122527077619" },
