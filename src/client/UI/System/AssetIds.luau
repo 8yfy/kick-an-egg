@@ -142,7 +142,7 @@ local A: { [string]: Entry } = {
 		source = "Targeted-Fixes/PNG_Assets/Auto_Kick_Button.png",
 		id = "rbxassetid://133970296249456",
 	},
-	hud_trade = { source = "Targeted-Fixes/PNG_Assets/Trade_Button.png", id = "rbxassetid://103666995924889" },
+	hud_trade = { source = "assets/ui-icons/approved/Trade.png", id = "rbxassetid://112475659466025" },
 	kick_meter_track = {
 		source = "Targeted-Fixes/PNG_Assets/Kick_Meter_Track.png",
 		id = "rbxassetid://114311291241712",
