@@ -1,6 +1,6 @@
 --!strict
 -- Pens, eggs and pets (server). Rework 2026-10-13 (docs/Rework.md): no more pedestals.
---   * Pens: one of the map's 6 bases per player (Base<i>, PenArea = the pen's floor and frame). No free pen ->
+--   * Pens: one of the map's bases per player (5: MapBuilder.PenCount) (Base<i>, PenArea = the pen's floor and frame). No free pen ->
 --     the player waits (attribute PenWaiting) and gets the next one that frees up.
 --   * Eggs: a secured egg goes into the inventory (data.eggs). EquipEgg(uid) puts it in the player's hand as an
 --     "Egg" Tool (one at a time); PlaceEgg(uid, position) puts the held egg down anywhere valid inside the
@@ -919,7 +919,7 @@ local function assignBase(player: Player)
 			table.insert(waiting, player)
 		end
 		player:SetAttribute("PenWaiting", true)
-		announce:FireClient(player, "All 6 pens are taken: you'll get one as soon as a player leaves.", "Rare")
+		announce:FireClient(player, "All pens are taken: you'll get one as soon as a player leaves.", "Rare")
 		warn(`[PlotService] no free pen for {player.Name}; waiting`)
 		return
 	end

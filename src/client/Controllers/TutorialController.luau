@@ -268,7 +268,16 @@ local function view(step: number): (string?, Vector3?, GuiObject?, Instance?)
 	elseif step == 6 then
 		local base = myBase()
 		local area = base and base:FindFirstChild("PenArea")
-		local penPos = if area and area:IsA("BasePart") then area.Position + Vector3.new(0, 6, 0) else nil
+		local penPos: Vector3? = nil
+		if area and area:IsA("BasePart") then
+			-- from outside: the pen's gate (the trail walks you in through it, never across a fence); inside: its middle
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local here = if root and root:IsA("BasePart") then area.CFrame:PointToObjectSpace(root.Position) else nil
+			local inside = here ~= nil and math.abs(here.X) < area.Size.X / 2 and math.abs(here.Z) < area.Size.Z / 2
+			penPos = if inside
+				then area.Position + Vector3.new(0, 6, 0)
+				else (area.CFrame * CFrame.new(0, 6, -area.Size.Z / 2 - 3)).Position
+		end
 		if holdingEgg() then
 			return if touch then "Tap a spot in your pen" else "Click a spot in your pen", penPos, nil, nil
 		end
@@ -280,7 +289,12 @@ local function view(step: number): (string?, Vector3?, GuiObject?, Instance?)
 		return "Your pet earns money!", nil, hud("Cash"), firstOf("Pet")
 	elseif step == 9 then
 		local shop = map and map:FindFirstChild("BoxingSackShop", true)
-		local shopPos = if shop and shop:IsA("Model") then shop:GetPivot().Position + Vector3.new(0, 18, 0) else nil
+		-- in front of the entrance (map "Approach"), not the roof
+		local approach = shop and shop:FindFirstChild("Approach")
+		local shopPos = if approach and approach:IsA("BasePart")
+			then approach.Position + Vector3.new(0, 5, 0)
+			elseif shop and shop:IsA("Model") then shop:GetPivot().Position + Vector3.new(0, 18, 0)
+			else nil
 		local money = if typeof(data.money) == "number" then data.money else 0
 		return if money >= cheapestUpgrade() then "Buy an upgrade" else "Save up for an upgrade", shopPos, nil, shop
 	end

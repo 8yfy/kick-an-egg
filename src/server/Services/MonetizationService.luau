@@ -4,7 +4,8 @@
 -- - Gamepass ownership is checked on join and after PromptGamePassPurchaseFinished.
 --   PlotService reads :GetIncomeMultiplier(player) for the income tick.
 -- - ProcessReceipt grants each PurchaseId once: it is recorded in data.receipts and saved
---   before PurchaseGranted is returned.
+--   before PurchaseGranted is returned. Prize Wheel packs (Config/Wheel.Products) add banked spins;
+--   donations (Config/Leaderboards.Donations) add to data.donated (LeaderboardService).
 -- Studio command bar: MonetizationService:SetOwned(game.Players.<Name>, "DoubleMoney", true)
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -13,10 +14,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
+local Wheel = require(Shared.Config.Wheel)
+local Leaderboards = require(Shared.Config.Leaderboards)
 
 local DataService = require(script.Parent.DataService)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
 local PlotService = require(script.Parent.PlotService)
+local LeaderboardService = require(script.Parent.LeaderboardService)
 
 local MAX_RECEIPTS = 50
 
@@ -40,6 +44,24 @@ local function productById(id: number): (string?, { id: number, money: number }?
 		end
 	end
 	return nil, nil
+end
+
+local function wheelPackById(id: number): (string?, Wheel.Product?)
+	for name, pack in Wheel.Products do
+		if pack.id ~= 0 and pack.id == id then
+			return name, pack
+		end
+	end
+	return nil, nil
+end
+
+local function donationById(id: number): Leaderboards.Donation?
+	for _, d in Leaderboards.Donations do
+		if d.id ~= 0 and d.id == id then
+			return d
+		end
+	end
+	return nil
 end
 
 local function loadOwnership(player: Player)
@@ -89,7 +111,9 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 		return Enum.ProductPurchaseDecision.PurchaseGranted -- already granted earlier
 	end
 	local productName, product = productById(receipt.ProductId)
-	if not productName or not product then
+	local packName, pack = wheelPackById(receipt.ProductId)
+	local donation = donationById(receipt.ProductId)
+	if not (productName and product) and not (packName and pack) and not donation then
 		warn(`[MonetizationService] unknown product {receipt.ProductId}`)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
@@ -98,8 +122,21 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 	while #receipts > MAX_RECEIPTS do
 		table.remove(receipts, 1)
 	end
-	DataService:Set(player, { money = data.money + product.money, receipts = receipts })
-	Analytics.money(player, "Source", product.money, "IAP", productName)
+	if productName and product then
+		DataService:Set(player, { money = data.money + product.money, receipts = receipts })
+		Analytics.money(player, "Source", product.money, "IAP", productName)
+	elseif packName and pack then -- Prize Wheel spins, banked (WheelService spends them)
+		DataService:Set(player, { wheelSpins = (data.wheelSpins or 0) + pack.spins, receipts = receipts })
+		Analytics.custom(player, "WheelSpinsBought", pack.spins, packName)
+	elseif donation then -- counts what Roblox says was spent (TOP DONATORS board)
+		local spent = receipt.CurrencySpent
+		DataService:Set(player, { receipts = receipts })
+		LeaderboardService:AddDonation(
+			player,
+			if typeof(spent) == "number" and spent > 0 then spent else donation.robux
+		)
+		Analytics.custom(player, "Donation", donation.robux)
+	end
 	if not DataService:SaveNow(player) then
 		return Enum.ProductPurchaseDecision.NotProcessedYet -- the receipt id is kept in memory; no double grant
 	end

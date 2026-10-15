@@ -114,15 +114,22 @@ local function screenPoint(): Vector2
 	return UserInputService:GetMouseLocation()
 end
 
--- Where the aim meets your pen's floor (nil if it doesn't).
-local function aim(base: Model): Vector3?
+-- Where the aim at screen `point` meets your pen's floor (nil if it doesn't). The floor tiles live in the pen's
+-- rebuilt "Pen" folder (MapBuilder.buildPen); older maps had them straight under the base.
+local function aim(base: Model, point: Vector2): Vector3?
 	local cam = workspace.CurrentCamera
-	local point = screenPoint()
 	local ray = cam:ViewportPointToRay(point.X, point.Y)
 	local floors: { Instance } = {}
-	for _, child in base:GetChildren() do
-		if child:IsA("BasePart") and child.Name == "Floor" then
-			table.insert(floors, child)
+	local holders: { Instance } = { base }
+	local pen = base:FindFirstChild("Pen")
+	if pen then
+		table.insert(holders, pen)
+	end
+	for _, holder in holders do
+		for _, child in holder:GetChildren() do
+			if child:IsA("BasePart") and child.Name == "Floor" then
+				table.insert(floors, child)
+			end
 		end
 	end
 	local params = RaycastParams.new()
@@ -175,7 +182,7 @@ local function update()
 	if not tool or not ghost or not base or not area or not area:IsA("BasePart") then
 		return
 	end
-	local pos = aim(base)
+	local pos = aim(base, screenPoint())
 	if not pos then
 		aimPos = nil
 		valid = false
@@ -211,6 +218,21 @@ local function update()
 	)
 end
 
+-- What a click at screen `point` would do with the held item: the floor spot it aims at (nil = misses your pen's
+-- floor) and why it would be refused (nil = valid). Used by tools/playtest to drive the real aim path.
+function PlacementController.preview(point: Vector2): (Vector3?, string?)
+	local base = myBase()
+	local area = base and base:FindFirstChild("PenArea")
+	if not base or not area or not area:IsA("BasePart") then
+		return nil, "No pen"
+	end
+	local pos = aim(base, point)
+	if not pos then
+		return nil, "Not on your pen's floor"
+	end
+	return pos, problem(area, pos, kindOf(held) or "Egg")
+end
+
 local function onActivated()
 	local tool = held
 	local kind = kindOf(tool)
@@ -235,7 +257,11 @@ local function hold(tool: Tool?)
 		return
 	end
 	makeGhost(tool)
-	Audio.play("EggHold", tool:FindFirstChild("Handle") or tool.Parent)
+	-- at the character: on the frame the tool is equipped its Handle hasn't reached the hand yet (it can still be at the
+	-- tool's spawn spot, far from the camera in the five-pen hub, and the sound would be culled)
+	local holder = tool.Parent
+	local root = holder and holder:FindFirstChild("HumanoidRootPart")
+	Audio.play("EggHold", root or tool:FindFirstChild("Handle") or holder)
 	table.insert(conns, tool.Activated:Connect(onActivated))
 end
 

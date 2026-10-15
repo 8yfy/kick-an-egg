@@ -12,7 +12,7 @@ local NO = { collide = false }
 
 local Merchants = {}
 
-type Kind = "Coach" | "Professor"
+type Kind = "Coach" | "Professor" | "PetSeller"
 
 local function body(m: Model, at: (number, number, number) -> CFrame, pants: Color3, shirt: Color3, shoes: Color3)
 	for _, x in { -0.75, 0.75 } do
@@ -66,13 +66,27 @@ local BUILD: { [Kind]: (Model, (number, number, number) -> CFrame) -> () } = {
 		P(m, "Tassel", Vector3.new(0.2, 1.2, 0.2), at(1.3, 9.6, -1.3), rgb(255, 210, 60), NO)
 		P(m, "Book", Vector3.new(1.8, 2.4, 0.6), at(2.1, 3.6, -0.9), rgb(220, 50, 60), NO)
 	end,
+	PetSeller = function(m, at)
+		local orange = rgb(255, 150, 40)
+		body(m, at, rgb(90, 70, 50), rgb(70, 170, 95), rgb(60, 40, 30))
+		P(m, "Apron", Vector3.new(2.6, 3.6, 0.3), at(0, 4.4, -0.92), rgb(250, 240, 220), NO)
+		P(m, "Pocket", Vector3.new(1.2, 0.8, 0.12), at(0, 3.7, -1.1), orange, NO)
+		P(m, "Head", Vector3.new(2.2, 2.2, 2.2), at(0, 7.7, 0), SKIN, NO)
+		P(m, "Cap", Vector3.new(2.4, 0.7, 2.4), at(0, 9.15, 0), orange, NO)
+		P(m, "Brim", Vector3.new(2.2, 0.25, 1.2), at(0, 8.9, -1.6), orange, NO)
+		for _, x in { -0.5, 0.5 } do
+			P(m, "Eye", Vector3.new(0.3, 0.4, 0.1), at(x, 7.95, -1.12), rgb(25, 25, 35), NO)
+		end
+		P(m, "Smile", Vector3.new(1, 0.2, 0.1), at(0, 7.2, -1.12), rgb(25, 25, 35), NO)
+	end,
 }
 
 local GREETING: { [Kind]: string } = {
 	Coach = "Need more speed? Step right up!",
 	Professor = "Every egg you find goes in my Index!",
+	PetSeller = "Got pets to sell? I pay a fair price!",
 }
-local NAME: { [Kind]: string } = { Coach = "Coach Kicks", Professor = "Professor Yolk" }
+local NAME: { [Kind]: string } = { Coach = "Coach Kicks", Professor = "Professor Yolk", PetSeller = "Pet Trader" }
 
 function Merchants.build(kind: Kind, parent: Instance, feet: CFrame): Model
 	local m = Bricks.model(parent, NAME[kind])

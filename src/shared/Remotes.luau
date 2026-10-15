@@ -42,6 +42,11 @@
 -- C->S  Train()                                   -- one Kick Sack kick (equipped sack tool; rate: Config/Upgrades.Sack.interval)
 -- C->S  UpgradeTraining()                         -- buy the next Kick Sack (Config/Upgrades.Sack.tiers)
 -- C->S  UpgradePen()                              -- buy the next pen level (Config/Upgrades.Pen)
+-- C->S  SpinWheel()                               -- spend one banked Prize Wheel spin (near the wheel; Config/Wheel)
+-- S->C  WheelResult({ segment: number, key: string, kind: "Cash" | "Egg", amount: number?, petId: string?,
+--                      rarity: string?, spinSeconds: number })  -- the server's roll; granted when the wheel stops
+-- C->S  WheelTestSpins(pack: string)              -- STUDIO ONLY: grant a Config/Wheel pack whose product id is 0
+-- C->S  DonateTest(index: number)                 -- STUDIO ONLY: count a Config/Leaderboards donation whose id is 0
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -79,6 +84,10 @@ local EVENTS = {
 	"PlacePet",
 	"ClaimIndexMilestone",
 	"SkipTutorial",
+	"SpinWheel",
+	"WheelResult",
+	"WheelTestSpins",
+	"DonateTest",
 }
 
 local folder: Folder

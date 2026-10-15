@@ -211,6 +211,45 @@ step("hud", function()
 	)
 end)
 
+step("pet selling stand", function()
+	local zone = map:FindFirstChild("SafeZone")
+	local stand = zone and zone:FindFirstChild("PetSellingStand")
+	check("the Pet Selling Stand is in the hub", stand ~= nil)
+	local prompt = stand and stand:FindFirstChildWhichIsA("ProximityPrompt", true)
+	local approach = stand and stand:FindFirstChild("Approach")
+	local character = player.Character or player.CharacterAdded:Wait()
+	local hrp = character:WaitForChild("HumanoidRootPart")
+	if prompt and approach then
+		local sold = 0
+		local conn = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("PetsSold").OnClientEvent:Connect(function()
+			sold += 1
+		end)
+		local back = hrp.CFrame
+		hrp.CFrame = approach.CFrame + Vector3.new(0, 2.5, 0)
+		local Modal = require(player.PlayerScripts:WaitForChild("Client"):WaitForChild("UI"):WaitForChild("System"):WaitForChild("Modal"))
+		local opened = false
+		for _ = 1, 8 do -- the prompt shows once you're in range and the HUD has wired its handler
+			task.wait(0.6)
+			prompt:InputHoldBegin()
+			task.wait(0.1)
+			prompt:InputHoldEnd()
+			if waitFor(function()
+				return Modal.current() == "Inventory"
+			end, 0.8) then
+				opened = true
+				break
+			end
+		end
+		check("its counter opens the existing Sell Pets screen", opened, Modal.current())
+		task.wait(0.5)
+		Modal.close()
+		check("opening the stand sells nothing", sold == 0, sold)
+		conn:Disconnect()
+		hrp.CFrame = back
+		task.wait(0.3)
+	end
+end)
+
 step("pens", function()
 	local mine, bases = myBase()
 	local n, stands = 0, 0
@@ -222,7 +261,7 @@ step("pens", function()
 			stands += 1
 		end
 	end
-	check("6 pens on the map", n == 6, n)
+	check("5 pens on the map (map overhaul)", n == 5, n)
 	check("no old sack stands", stands == 0 and not map:FindFirstChild("SackStand", true), stands)
 	check("you own a pen", mine ~= nil)
 	-- owner display: only the avatar headshot + the username, high above an occupied pen; nothing on free pens
@@ -566,6 +605,7 @@ step("egg placement", function()
 	end
 	tp(area.Position + Vector3.new(0, 4, 0))
 	task.wait(1)
+	note(string.format("camera %.0f studs from you when you take the egg", (workspace.CurrentCamera.CFrame.Position - area.Position).Magnitude))
 	Remotes.get("EquipEgg"):FireServer(securedUid)
 	local tool = waitFor(function()
 		local t = char:FindFirstChildOfClass("Tool")
@@ -579,7 +619,21 @@ step("egg placement", function()
 	Remotes.get("PlaceEgg"):FireServer(securedUid, area.Position + area.CFrame.LookVector * 200)
 	task.wait(1)
 	check("placing outside your pen is refused", not (Data.state.plots or {})[securedUid])
-	Remotes.get("PlaceEgg"):FireServer(securedUid, area.Position)
+	-- aim like a player does: a screen point over your pen's floor, through PlacementController's own raycast
+	local Placement = require(player.PlayerScripts.Client.Controllers.PlacementController)
+	local cam = workspace.CurrentCamera
+	local aimed, why
+	for _, offset in { Vector3.new(0, 0, 0), Vector3.new(0, 0, 8), Vector3.new(8, 0, 0), Vector3.new(-8, 0, 0), Vector3.new(0, 0, -8) } do
+		local sp, onScreen = cam:WorldToViewportPoint((area.CFrame * CFrame.new(offset)).Position)
+		if onScreen then
+			aimed, why = Placement.preview(Vector2.new(sp.X, sp.Y))
+			if aimed and not why then
+				break
+			end
+		end
+	end
+	check("aiming at your pen's floor shows a valid (green) spot", aimed ~= nil and why == nil, why)
+	Remotes.get("PlaceEgg"):FireServer(securedUid, aimed or area.Position)
 	check("placing in your pen works", waitFor(function()
 		return (Data.state.plots or {})[securedUid]
 	end, 3) ~= nil)
@@ -1187,6 +1241,23 @@ step("audio: scenarios 4-6 and the loop's sounds, live", function()
 	-- the rest of the loop
 	-- (SpinStop plays only when the last slot-machine spin finishes before touchdown, i.e. on long flights)
 	note("SpinStop: " .. describe(Audio.last("SpinStop")))
+	do -- what the sound history holds (it keeps the last 400 plays)
+		local counts, order = {}, {}
+		for _, e in Audio.history do
+			if not counts[e.event] then
+				table.insert(order, e.event)
+			end
+			counts[e.event] = (counts[e.event] or 0) + 1
+		end
+		table.sort(order, function(x, y)
+			return counts[x] > counts[y]
+		end)
+		local parts = {}
+		for i = 1, math.min(8, #order) do
+			table.insert(parts, `{order[i]} {counts[order[i]]}`)
+		end
+		note(`sound history: {#Audio.history} plays; top: {table.concat(parts, ", ")}`)
+	end
 	for _, name in
 		{
 			"ZoneEnter",
@@ -1325,7 +1396,7 @@ step("sack vfx lod", function()
 		task.wait(4) -- effects are built nearest first, one per 0.25 s
 		local l, text = levels()
 		note("sack effects at the shop counter: " .. text)
-		check("sack vfx: the shop's sacks run at Full up close", l.Full >= 1, text)
+		check("the shop's display sacks run no effects (props, Display)", l.Full + l.Reduced + l.Minimal == 0, text)
 	end
 	tp(Vector3.new(0, 60, 900)) -- far out in the zones: every map sack is > 180 studs away
 	task.wait(1.5)

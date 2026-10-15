@@ -1,6 +1,7 @@
 --!strict
--- Sell Pets / inventory (UI handoff v2 01-Mockups/04-Sell-Pets.png). Green header, left sidebar (Sort By:
--- Value / Income / Rarity / Name, SELECT ALL, "Hide on pedestal"), a 4-column grid of pet cards (name, live 3D
+-- Sell Pets / inventory (UI handoff v2 01-Mockups/04-Sell-Pets.png; also opened by the map's Pet Selling Stand).
+-- Green header, left sidebar (Sort By: Value / Income / Rarity / Name, RARITY filter, SELECT ALL, SELECT
+-- DUPLICATES, "Hide on pedestal"), a 4-column grid of pet cards (name, live 3D
 -- pet, sale value bar, check badge when selected), footer "N SELECTED | TOTAL $x | SELL SELECTED" and a
 -- CONFIRMATION panel. No Weight sort: the game has no pet weight.
 -- Pets on a pedestal are PROTECTED (they earn money): marked ON PEDESTAL, skipped by SELECT ALL and hideable;
@@ -21,6 +22,15 @@ local C = Theme.Colors
 local PetInventory = {}
 
 local MAX_BATCH = 100 -- TradeService MAX_SELL_BATCH
+local Rarities = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config.Rarities)
+-- the rarity filter cycles ALL -> Common -> ... -> Secret (Config/Rarities order)
+local RARITY_ORDER: { string } = {}
+for name in Rarities do
+	table.insert(RARITY_ORDER, name)
+end
+table.sort(RARITY_ORDER, function(a, b)
+	return Rarities[a].order < Rarities[b].order
+end)
 local SIDEBAR = 250
 local SORTS = { "Value", "Income", "Rarity", "Name" }
 
@@ -49,6 +59,7 @@ function PetInventory.define()
 			local selected: { [string]: boolean } = {}
 			local sortIndex = 1
 			local hideProtected = false
+			local rarityFilter = 0 -- 0 = every rarity, else RARITY_ORDER[rarityFilter]
 			local sending = false
 			local errorText = ""
 			local refresh: () -> ()
@@ -113,19 +124,83 @@ function PetInventory.define()
 				end,
 			})
 			selectAll.gui.LayoutOrder = 10
+			-- the Pet Selling Stand's extras: show one rarity, and select every duplicate (keeping your best copy)
+			local rarityButton: Ui.Button
+			rarityButton = Ui.button(sideList, {
+				text = "RARITY: ALL",
+				style = "dark",
+				size = UDim2.new(1, 0, 0, 52),
+				textSize = 22,
+				name = "RarityFilter",
+				onClick = function()
+					rarityFilter = (rarityFilter + 1) % (#RARITY_ORDER + 1)
+					local name = if rarityFilter == 0 then "ALL" else string.upper(RARITY_ORDER[rarityFilter])
+					rarityButton.setText(`RARITY: {name}`)
+					rarityButton.setStyle(if rarityFilter == 0 then "dark" else "cyan")
+					refresh()
+				end,
+			})
+			rarityButton.gui.LayoutOrder = 5
+			local dupes = Ui.button(sideList, {
+				text = "SELECT DUPLICATES",
+				style = "lime",
+				size = UDim2.new(1, 0, 0, 52),
+				textSize = 21,
+				name = "SelectDuplicates",
+				onClick = function()
+					if sending then
+						return
+					end
+					-- among the shown, unprotected pets: keep the most valuable of each kind, select the others
+					local byKind: { [string]: { Card } } = {}
+					for _, card in cards do
+						if card.gui.Visible and card.row.slot == nil then
+							local list = byKind[card.row.petId] or {}
+							table.insert(list, card)
+							byKind[card.row.petId] = list
+						end
+					end
+					local n = 0
+					for _ in selected do
+						n += 1
+					end
+					local added = 0
+					for _, list in byKind do
+						table.sort(list, function(a, b)
+							return a.row.sellValue > b.row.sellValue
+						end)
+						for k = 2, #list do
+							local uid = list[k].row.uid
+							if n >= MAX_BATCH then
+								break
+							end
+							if not selected[uid] then
+								selected[uid] = true
+								n += 1
+								added += 1
+							end
+						end
+					end
+					if added == 0 then
+						Modal.toast("No duplicates to select.", "info")
+					end
+					refresh()
+				end,
+			})
+			dupes.gui.LayoutOrder = 11
 			local divider = Instance.new("Frame")
 			divider.Name = "Divider"
 			divider.BackgroundColor3 = C.cardEdge
 			divider.BorderSizePixel = 0
 			divider.Size = UDim2.new(1, 0, 0, 4)
-			divider.LayoutOrder = 11
+			divider.LayoutOrder = 12
 			divider.Parent = sideList
 			local hideRow = Instance.new("TextButton")
 			hideRow.Name = "HideProtected"
 			hideRow.Text = ""
 			hideRow.BackgroundTransparency = 1
 			hideRow.Size = UDim2.new(1, 0, 0, 52)
-			hideRow.LayoutOrder = 12
+			hideRow.LayoutOrder = 13
 			hideRow.Parent = sideList
 			local box = Instance.new("Frame")
 			box.Name = "Box"
@@ -148,7 +223,7 @@ function PetInventory.define()
 				refresh()
 			end)
 			local count = Ui.text(sideList, "", 20, { color = C.muted, wrap = true, name = "Count" })
-			count.LayoutOrder = 13
+			count.LayoutOrder = 14
 
 			-- Grid ------------------------------------------------------------------------------------------
 			local scroll = Ui.scroll(body, "Pets")
@@ -443,6 +518,7 @@ function PetInventory.define()
 					local card = cards[row.uid]
 					card.gui.LayoutOrder = i
 					local show = not (hideProtected and row.slot ~= nil)
+						and (rarityFilter == 0 or row.rarity == RARITY_ORDER[rarityFilter])
 					card.gui.Visible = show
 					if show then
 						shown += 1
@@ -577,6 +653,8 @@ function PetInventory.define()
 						b.gui.Size = UDim2.new(1, 0, 0, if compact then 48 else 58)
 					end
 					selectAll.gui.Size = UDim2.new(1, 0, 0, if compact then 54 else 62)
+					rarityButton.gui.Size = UDim2.new(1, 0, 0, if compact then 46 else 52)
+					dupes.gui.Size = UDim2.new(1, 0, 0, if compact then 46 else 52)
 				end,
 			}
 		end

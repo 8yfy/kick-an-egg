@@ -7,20 +7,20 @@
 -- Never put an id here that the owner of that account hasn't agreed to.
 --
 -- Kinds are the merchant spots the map builds (Builders/Map/Merchants): "Coach" stands behind the Boxing Sack
--- Shop counter, "Professor" behind the Index stall.
+-- Shop counter, "PetSeller" behind the Pet Selling Stand counter (map overhaul; the Index stall is gone).
 
 export type Merchant = { UserId: number, DisplayName: string, Kind: string }
 
 local MerchantConfig: { [string]: Merchant } = {
 	BoxingSackMerchant = {
-		UserId = 0, -- BLOCKED: waiting for the real UserId to use
+		UserId = 3953001499, -- Krono808 (the game owner's own avatar, at their request 2026-10-14)
 		DisplayName = "Boxing Sack Merchant",
 		Kind = "Coach",
 	},
-	IndexMerchant = {
+	PetSellerMerchant = {
 		UserId = 0, -- BLOCKED: waiting for the real UserId to use
-		DisplayName = "Index Merchant",
-		Kind = "Professor",
+		DisplayName = "Pet Merchant",
+		Kind = "PetSeller",
 	},
 }
 

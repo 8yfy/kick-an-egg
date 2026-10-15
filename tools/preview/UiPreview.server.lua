@@ -3,12 +3,14 @@
 -- SCREEN / STAGE below, launches Studio headless-style with run-in-roblox and captures the window.
 -- Data shown is a DESIGN FIXTURE (fake balances / pets), clearly not game data.
 local SCREEN = "Training" -- Training | Shop | Index | Inventory | Rebirth | HUD | Eggs | Pets | Proof | Proof2 | Showcase | GameSacks | Showroom | Heroes | Kick | SackShop
-local STAGE = "desktop" -- desktop (1600x900) | phone (844x390)
+local STAGE = "desktop" -- desktop (1600x900) | phone (844x390) | tablet (1024x768, touch)
 local HOLD = 30
 local FROM = 1 -- first sack tier for Showcase / GameSacks (five in a row); Heroes: 1 = eggs, 2 = pets, 3 = both, 10 + n = pair n close-up; Kick: 1 idle, 2 timing, 3 Perfect, 4 Great, 5 Miss
 local STANDIN = true -- build GLB stand-ins (needs the KTE_Dev folder: preview.sh with STANDIN=1)
 local PROFILE = "HIGH" -- Kick Sack VFX quality profile for the 3D sack modes (VFX/SackLod; preview.sh PROFILE=...)
 local CAMERA: CFrame? = nil -- 3D modes: the shot (re-applied every frame)
+local TOUR: { { name: string, cf: CFrame } } = {} -- MapTour: the shots, in order
+local TOUR_LABEL: TextLabel? = nil
 
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,8 +21,28 @@ local Data = require(UI.System.Data)
 local Modal = require(UI.System.Modal)
 local Kit = require(UI.Kit)
 
-local size = if STAGE == "phone" then Vector2.new(844, 390) else Vector2.new(1600, 900)
-local touch = STAGE == "phone"
+-- The weather icons are not uploaded yet (design review): show the local renders (tools/weather-icons, staged into
+-- Studio's content folder by stage-art.sh) for "weather_*" keys.
+do
+	local AssetIds = require(UI.System.AssetIds) :: any
+	local get = AssetIds.get
+	AssetIds.get = function(key: string): string?
+		if string.sub(key, 1, 8) == "weather_" and key ~= "weather_heatwave" then
+			return "rbxasset://textures/KickTheEggUI/" .. key .. ".png"
+		end
+		return get(key)
+	end
+end
+local WEATHERS = { "Sunny", "Rainy", "Snowy", "Stormy", "Starfall", "Rainbow" } -- Config/Mutations.Weather
+local function weatherClock(): number
+	return os.clock()
+end
+
+local size = if STAGE == "phone"
+	then Vector2.new(844, 390)
+	elseif STAGE == "tablet" then Vector2.new(1024, 768)
+	else Vector2.new(1600, 900)
+local touch = STAGE ~= "desktop"
 
 local old = CoreGui:FindFirstChild("KTE_Preview")
 if old then
@@ -169,7 +191,7 @@ if SCREEN == "Settings" then -- the Settings window (FROM 1 = top, 2 = scrolled 
 			)
 		end
 	end)
-elseif SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kick" then
+elseif SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kick" or SCREEN == "Weather" then
 	Kit.setPreview(size, touch)
 	local hud = Instance.new("Frame")
 	hud.Name = "HUD"
@@ -213,7 +235,11 @@ elseif SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kic
 	rail.update()
 	counters.update()
 	drawers.update()
-	if SCREEN == "HUD" then -- keep one toast on screen to check the toast lane sits below the quest bar
+	if SCREEN == "Weather" then -- the weather card (FROM = Config/Mutations.Weather in WEATHERS order) with 1:51 left
+		local card = require(UI.Hud.WeatherHud).new(hud, { clock = weatherClock })
+		card.set(WEATHERS[math.clamp(FROM, 1, #WEATHERS)], weatherClock() + 110.5)
+	end
+	if SCREEN == "HUD" or SCREEN == "Weather" then -- keep one toast on screen to check the toast lane sits below the quest bar
 		task.spawn(function()
 			for _ = 1, 20 do
 				Modal.toast("Sprout Pup hatched!", "good")
@@ -223,6 +249,55 @@ elseif SCREEN == "HUD" or SCREEN == "Eggs" or SCREEN == "Pets" or SCREEN == "Kic
 	end
 	if SCREEN == "Eggs" or SCREEN == "Pets" then
 		drawers.open(SCREEN)
+	end
+elseif SCREEN == "WeatherSheet" or SCREEN == "WeatherAnim" then
+	-- every weather card side by side (+ the last-10-seconds state and an unknown future weather), or one big card
+	-- running a scripted sequence of server messages (frames captured by tools/preview/weather.sh)
+	local WeatherHud = require(UI.Hud.WeatherHud)
+	local Ui = require(UI.System.Ui)
+	local function cardAt(x: number, y: number, scale: number, caption: string?, clock: (() -> number)?)
+		local holder = Instance.new("Frame")
+		holder.BackgroundTransparency = 1
+		holder.Size = UDim2.fromScale(1, 1)
+		holder.Parent = stage
+		local card = WeatherHud.new(holder, { clock = clock or weatherClock, layout = false })
+		card.root.AnchorPoint = Vector2.new(0.5, 0)
+		card.root.Position = UDim2.fromOffset(x, y)
+		card.root:FindFirstChildOfClass("UIScale").Scale = scale
+		if caption then
+			local t = Ui.text(holder, caption, 22, { align = Enum.TextXAlignment.Center, stroke = 3 })
+			t.AnchorPoint = Vector2.new(0.5, 0)
+			t.Size = UDim2.fromOffset(260, 30)
+			t.Position = UDim2.fromOffset(x, y + 226 * scale + 8)
+		end
+		return card
+	end
+	if SCREEN == "WeatherSheet" then
+		for i, w in WEATHERS do
+			cardAt(140 + (i - 1) * 264, 40, 1.25, w).set(w, weatherClock() + 110.5)
+		end
+		local frozen = os.clock()
+		cardAt(560, 420, 1.25, "last 10 s", function()
+			return frozen
+		end).set("Stormy", frozen + 7.5)
+		cardAt(1040, 420, 1.25, "unknown future weather").set("HeatWave", weatherClock() + 95.5)
+	else
+		local card = cardAt(800, 120, 2.4)
+		local steps = {
+			{ 4.0, "Stormy", 95.5, "1 STORMY starts" },
+			{ 6.6, "Stormy", 93.5, "2 the same weather sent again: no animation" },
+			{ 8.0, "Snowy", 180.5, "3 weather changes to SNOWY" },
+			{ 11.0, "Rainbow", 9.5, "4 RAINBOW with 10 s left (warm countdown)" },
+			{ 14.2, nil, nil, "5 weather ends (server sends nil)" },
+		}
+		task.spawn(function()
+			local t0 = os.clock()
+			for _, step in steps do
+				task.wait(math.max(0, t0 + step[1] - os.clock()))
+				print("ANIM", DateTime.now().UnixTimestampMillis, step[4])
+				card.set(step[2], if step[3] then weatherClock() + step[3] else nil)
+			end
+		end)
 	end
 elseif SCREEN == "Showcase" or SCREEN == "GameSacks" or SCREEN == "Showroom" then
 	-- 3D sack renders (Kick Sacks package check): GLB stand-ins built from the original GLBs (tools/sacks/StandIn),
@@ -417,6 +492,127 @@ elseif SCREEN == "Heroes" then
 			then CFrame.lookAt(origin + Vector3.new(0, 7, 31), origin + Vector3.new(0, 3, 0))
 			else CFrame.lookAt(origin + Vector3.new(0, 11, 48), origin + Vector3.new(0, 5, 0))
 	end
+elseif SCREEN == "MapTour" then
+	-- builds the real map (MapBuilder) and flies the camera through labelled shots: the hub (spawn view, overview,
+	-- shops, starter / max pen, wheel + boards, launch, return ramp) and every zone outward + on the way home.
+	-- Run with FRAMES capture (tools/preview/maptour.sh).
+	stage.BackgroundTransparency = 1
+	stage.ClipsDescendants = false
+	local MapBuilder = require(ReplicatedStorage.Shared.Builders.Map.MapBuilder)
+	local Zones = require(ReplicatedStorage.Shared.Config.Zones)
+	local t0 = os.clock()
+	local map = MapBuilder.build()
+	local parts = 0
+	for _, d in map:GetDescendants() do
+		if d:IsA("BasePart") then
+			parts += 1
+		end
+	end
+	print(string.format("MAP_BUILT %.2fs, %d parts", os.clock() - t0, parts))
+	local bases = map.SafeZone.Bases
+	bases.Base2:SetAttribute("PenLevel", MapBuilder.PenMaxLevel) -- one pen at its last level for comparison
+	bases.Base4:SetAttribute("PenLevel", 4)
+	local y = MapBuilder.PlazaY
+	local function look(name: string, from: Vector3, to: Vector3)
+		table.insert(TOUR, { name = name, cf = CFrame.lookAt(from, to) })
+	end
+	look("HUB spawn view toward the launch pad", Vector3.new(0, y + 7, -86), Vector3.new(0, y + 4, 0))
+	look("HUB overview (five pens, shops, fountain)", Vector3.new(0, y + 300, -120), Vector3.new(0, y, -200))
+	look("HUB from the launch side", Vector3.new(0, y + 110, 60), Vector3.new(0, y, -170))
+	look("HUB Boxing Sack Shop + Pet Selling Stand", Vector3.new(0, y + 22, -100), Vector3.new(0, y + 10, -32))
+	look("HUB Pet Selling Stand", Vector3.new(40, y + 12, -66), Vector3.new(52, y + 8, -32))
+	look("HUB starter pen (Base1, level 1)", Vector3.new(-50, y + 38, -120), Vector3.new(-125, y, -100))
+	look("HUB max pen (Base2, last level)", Vector3.new(50, y + 38, -120), Vector3.new(125, y, -100))
+	look("HUB pen 5 + fountain", Vector3.new(30, y + 40, -150), Vector3.new(0, y, -300))
+	look("HUB Prize Wheel wall", Vector3.new(110, y + 22, -155), Vector3.new(195, y + 24, -155))
+	look("HUB leaderboards wall", Vector3.new(-110, y + 22, -155), Vector3.new(-195, y + 26, -155))
+	look("HUB launch pad (no arch) + KICK THE EGG sign", Vector3.new(-26, y + 16, -46), Vector3.new(8, y + 4, 0))
+	look("RETURN ramp from zone 1", Vector3.new(0, 16, 110), Vector3.new(0, 8, 0))
+	for _, zone in Zones do
+		local z0 = zone.start
+		look(`ZONE {zone.id} {zone.name}: outward`, Vector3.new(0, 62, z0 - 26), Vector3.new(0, 30, z0 + 70))
+		look(`ZONE {zone.id} {zone.name}: on the way home`, Vector3.new(0, 16, z0 + zone.length + 4), Vector3.new(0, 10, z0 + 4))
+	end
+	local label = Instance.new("TextLabel")
+	label.Name = "ShotLabel"
+	label.BackgroundColor3 = Color3.new(0, 0, 0)
+	label.BackgroundTransparency = 0.35
+	label.Position = UDim2.fromOffset(20, 20)
+	label.Size = UDim2.fromOffset(760, 44)
+	label.Font = Enum.Font.FredokaOne
+	label.TextSize = 30
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = gui
+	TOUR_LABEL = label
+elseif SCREEN == "Models" then
+	-- contact sheet of the real egg / pet models as the UI shows them (ViewportFrame, same camera as Ui.petArt /
+	-- Ui.eggArt). FROM 1-2 = eggs 1-40 / 41+, FROM 3-4 = pets 1-40 / 41+.
+	local Models = require(ReplicatedStorage.Shared.Builders.Models)
+	local Pets = require(ReplicatedStorage.Shared.Config.Pets)
+	local Theme = require(UI.System.Theme)
+	stage.BackgroundColor3 = Color3.fromRGB(30, 33, 48)
+	bg:Destroy()
+	local eggs = FROM <= 2
+	local first = if FROM % 2 == 1 then 1 else 41
+	local cw, ch = 156, 218
+	for i = first, math.min(first + 39, #Pets) do
+		local p = Pets[i]
+		local n = i - first
+		local cell = Instance.new("Frame")
+		cell.Size = UDim2.fromOffset(cw - 6, ch - 6)
+		cell.Position = UDim2.fromOffset(8 + (n % 10) * (cw + 3), 8 + (n // 10) * (ch + 4))
+		cell.BackgroundColor3 = Color3.new(1, 1, 1)
+		cell.BorderSizePixel = 0
+		local pair = Theme.Rarity[p.rarity] or Theme.Rarity.Common
+		local g = Instance.new("UIGradient")
+		g.Rotation = 90
+		g.Color = ColorSequence.new(
+			pair[1]:Lerp(Color3.fromRGB(23, 27, 38), 0.35),
+			pair[2]:Lerp(Color3.fromRGB(23, 27, 38), 0.55)
+		)
+		g.Parent = cell
+		Instance.new("UICorner").Parent = cell
+		cell.Parent = stage
+		local vp = Instance.new("ViewportFrame")
+		vp.BackgroundTransparency = 1
+		vp.Size = UDim2.fromOffset(cw - 6, cw - 6)
+		vp.Ambient = Color3.fromRGB(200, 200, 210)
+		vp.LightColor = Color3.new(1, 1, 1)
+		vp.LightDirection = Vector3.new(-0.5, -1, -0.8)
+		vp.Parent = cell
+		local model = if eggs then Models.egg(p.model) else Models.pet(p.model)
+		model:PivotTo(CFrame.new())
+		model.Parent = vp
+		local cf, sz = model:GetBoundingBox()
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 30
+		local dist = sz.Magnitude / 2 / math.tan(math.rad(15)) * (if eggs then 0.95 else 0.92)
+		local dir = (CFrame.Angles(0, math.rad(200), 0) * CFrame.Angles(math.rad(if eggs then -10 else -12), 0, 0)).LookVector
+		cam.CFrame = CFrame.lookAt(cf.Position - dir * dist, cf.Position)
+		cam.Parent = vp
+		vp.CurrentCamera = cam
+		for row, t in
+			{
+				{ p.name, 17, Color3.new(1, 1, 1) },
+				{ string.upper(p.rarity), 14, Theme.RarityText[p.rarity] or Color3.new(1, 1, 1) },
+			}
+		do
+			local l = Instance.new("TextLabel")
+			l.BackgroundTransparency = 1
+			l.Size = UDim2.new(1, -4, 0, 22)
+			l.Position = UDim2.fromOffset(2, cw - 6 + (row - 1) * 24)
+			l.Font = Theme.Font
+			l.Text = t[1]
+			l.TextSize = t[2]
+			l.TextColor3 = t[3]
+			l.TextScaled = row == 1
+			local s = Instance.new("UIStroke")
+			s.Thickness = 2
+			s.Parent = l
+			l.Parent = cell
+		end
+	end
 elseif SCREEN == "Proof" or SCREEN == "Proof2" then
 	-- Asset-proof view: the supplied PNGs as plain ImageLabels (Fit, white tint), each with its name + key.
 	local AssetIds = require(UI.System.AssetIds)
@@ -518,6 +714,7 @@ if
 	or SCREEN == "Showroom"
 	or SCREEN == "Heroes"
 	or SCREEN == "SackShop"
+	or SCREEN == "MapTour"
 then
 	HOLD = 50 -- 3D previews take longer to build; keep the window up for the capture
 	-- Studio's camera controller fights script moves: make it scriptable and keep re-asserting the shot
@@ -530,5 +727,17 @@ then
 	end)
 end
 print("PREVIEW_READY", SCREEN, STAGE, size)
+if SCREEN == "MapTour" then
+	local SHOT = tonumber(string.match(tostring(FROM), "%d+")) or 3
+	for i, shot in TOUR do
+		CAMERA = shot.cf
+		if TOUR_LABEL then
+			TOUR_LABEL.Text = `  {i}/{#TOUR}  {shot.name}`
+		end
+		print("SHOT", i, DateTime.now().UnixTimestampMillis, shot.name)
+		task.wait(SHOT)
+	end
+	HOLD = 1
+end
 task.wait(HOLD)
 print("PREVIEW_DONE")

@@ -19,7 +19,7 @@ sed -e "s/^local SCREEN = .*/local SCREEN = \"$screen\"/" -e "s/^local STAGE = .
 	-e "s/^local PROFILE = .*/local PROFILE = \"${PROFILE:-HIGH}\"/" \
 	"$dir/UiPreview.server.lua" > "$tmp/run.server.lua"
 [ -f "$tmp/place.rbxl" ] && [ "$KEEP_PLACE" = "1" ] || rojo build "$project" -o "$tmp/place.rbxl" > /dev/null
-if [ "$stage" = "phone" ]; then w=844; h=390; else w=1600; h=900; fi
+if [ "$stage" = "phone" ]; then w=844; h=390; elif [ "$stage" = "tablet" ]; then w=1024; h=768; else w=1600; h=900; fi
 timeout 200 run-in-roblox --place "$tmp/place.rbxl" --script "$tmp/run.server.lua" > "$tmp/run.log" 2>&1 &
 run=$!
 sleep 1

@@ -33,6 +33,8 @@ local Shop = require(script.Screens.Shop)
 local PetIndex = require(script.Screens.PetIndex)
 local PetInventory = require(script.Screens.PetInventory)
 local Rebirth = require(script.Screens.Rebirth)
+local WheelScreen = require(script.Screens.Wheel)
+local Donate = require(script.Screens.Donate)
 
 local UI = {}
 
@@ -48,7 +50,14 @@ local drawers: Drawers.Drawers
 local interactUpdate: ((data: { [string]: any }) -> ())?
 
 -- World prompts (Interact: "OpenMenu:<name>") open the new screens; anything else stays A's window.
-local PROMPT_SCREENS: { [string]: string } = { Store = "Training", Index = "Index", Rebirth = "Rebirth" }
+local PROMPT_SCREENS: { [string]: string } = {
+	Store = "Training",
+	Index = "Index",
+	Rebirth = "Rebirth",
+	Wheel = "Wheel",
+	Donate = "Donate",
+	Inventory = "Inventory",
+}
 
 function UI:Init()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -92,6 +101,8 @@ function UI:Init()
 	PetIndex.define()
 	PetInventory.define()
 	Rebirth.define()
+	WheelScreen.define()
+	Donate.define()
 
 	menus = Menus.new(root, { tiles = false }) -- Settings gear + Trade window; the rail replaces the tiles
 	quest = QuestBar.new(root)

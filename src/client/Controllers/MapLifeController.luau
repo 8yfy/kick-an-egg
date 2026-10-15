@@ -59,7 +59,13 @@ local frameNo = 0
 local profile = SackLod.profile()
 
 local function addStandSack(model: Instance)
-	if model:IsA("Model") and model.Name == "Sack" and typeof(model:GetAttribute("Tier")) == "number" then
+	-- (display props, e.g. the Boxing Sack Shop's six sacks, carry Display = true: no effect, light or sound)
+	if
+		model:IsA("Model")
+		and model.Name == "Sack"
+		and typeof(model:GetAttribute("Tier")) == "number"
+		and model:GetAttribute("Display") ~= true
+	then
 		standSacks[model] = false
 	end
 end

@@ -53,6 +53,9 @@ local TEMPLATE: Data = {
 	indexClaims = {}, -- { [zoneId as string]: true } claimed Pet Index zone rewards (Economy.IndexRewards)
 	indexMilestones = {}, -- { [count as string]: true } claimed Pet Index milestones (Economy.IndexMilestones)
 	tutorial = { done = false, skipped = false }, -- the step itself is worked out from the data (TutorialService)
+	wheelSpins = 0, -- banked Prize Wheel spins (bought with Robux; Config/Wheel)
+	wheelPending = false, -- the rolled prize of a spin still turning (WheelService grants it, also on the next join)
+	donated = 0, -- Robux donated in total (Config/Leaderboards donations; the TOP DONATORS board)
 }
 
 local DataService = {}
@@ -176,6 +179,11 @@ local function sanitize(data: Data)
 		then math.clamp(math.floor(data.rackLevel), 1, #Upgrades.Sack.tiers)
 		else 1
 	data.penLevel = if isFinite(data.penLevel) then math.max(1, math.floor(data.penLevel)) else 1
+	data.wheelSpins = if isFinite(data.wheelSpins) then math.max(0, math.floor(data.wheelSpins)) else 0
+	data.donated = if isFinite(data.donated) then math.max(0, math.floor(data.donated)) else 0
+	if typeof(data.wheelPending) ~= "table" then
+		data.wheelPending = false
+	end
 	-- The Pet Index only reveals pets you have had: keep `discovered` to booleans and backfill it from
 	-- owned pets (saves from before the index existed)
 	local discovered = {}

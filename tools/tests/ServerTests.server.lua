@@ -444,6 +444,24 @@ section("SackService + pens + collecting", function()
 		end
 		check("boxing sack shop opens the existing sack screen", opens)
 		check("boxing sack shop shows 6 sack models", sacks == 6)
+		-- the remodel: its sacks are display props (no effects), few soft lights, the Coach behind the counter
+		local displayOnly, lights, coach = true, 0, false
+		for _, d in if shop then shop:GetDescendants() else {} do
+			if d:IsA("Model") and d.Name == "Sack" and d:GetAttribute("Display") ~= true then
+				displayOnly = false
+			elseif d:IsA("Light") then
+				lights += 1
+				if d.Brightness > 1 then
+					displayOnly = false
+				end
+			elseif d:IsA("Model") and d:GetAttribute("MerchantKind") == "Coach" then
+				coach = true
+			end
+		end
+		check(`shop sacks are display props without effects; {lights} soft lights (<= 4)`, displayOnly and lights <= 4)
+		check("the shop's Coach stands behind its counter", coach)
+		local MerchantConfig = require(SSS.Server.Data.MerchantConfig) :: any
+		check("the shop's merchant wears the owner's avatar (Krono808)", MerchantConfig.BoxingSackMerchant.UserId == 3953001499)
 		local trainPrompts, stands, rackSigns = 0, 0, 0
 		for _, d in map:GetDescendants() do
 			if d:IsA("ProximityPrompt") and d:GetAttribute("Action") == "EquipSack" then
@@ -456,7 +474,7 @@ section("SackService + pens + collecting", function()
 		end
 		check("old sack stands, Train prompts and sack signs are gone", trainPrompts + stands + rackSigns == 0)
 		local bases = map.SafeZone.Bases:GetChildren()
-		check("six pens", #bases == 6)
+		check("five pens", #bases == 5)
 		local areas = 0
 		for _, base in bases do
 			local area = base:FindFirstChild("PenArea")
@@ -469,7 +487,7 @@ section("SackService + pens + collecting", function()
 				areas += 1
 			end
 		end
-		check("every pen has its floor frame and owner anchor, no pedestals", areas == 6)
+		check("every pen has its floor frame and owner anchor, no pedestals", areas == 5)
 		local CollectionService = game:GetService("CollectionService")
 		check("lanes + ramp are the landing surfaces", #CollectionService:GetTagged("LandingSurface") == 21)
 		local Physics = game:GetService("PhysicsService")
@@ -1291,6 +1309,496 @@ section("Audio: no thunder on ordinary sounds, tiers, landings, contacts, the 10
 		B.hatchEvent("Secret") == "HatchSecret" and B.Events.HatchSecret.tier == 4
 	)
 	check("audio: an unknown event is ignored", Audio.play("NoSuchSound") == false)
+end)
+
+section("Prize Wheel: odds, prizes, granting, save data, map", function()
+	local Wheel = require(Shared.Config.Wheel) :: any
+	local WS = require(Services.WheelService) :: any
+	local DataService = require(Services.DataService) :: any
+	local Pets = require(Shared.Config.Pets) :: any
+	local total = 0
+	for _, s in Wheel.Segments do
+		total += s.weight
+	end
+	check("wheel: 8 segments, weights sum to 100 (weight = percent)", #Wheel.Segments == 8 and total == 100)
+	-- the roll follows the weights
+	local counts = {}
+	local rng = Random.new(7)
+	local N = 100000
+	for _ = 1, N do
+		local i = WS.roll(rng)
+		counts[i] = (counts[i] or 0) + 1
+	end
+	local close = true
+	for i, s in Wheel.Segments do
+		local share = (counts[i] or 0) / N * 100
+		if math.abs(share - s.weight) > 0.6 then
+			close = false
+			warn(`wheel segment {i}: {share}% vs {s.weight}%`)
+		end
+	end
+	check("wheel: 100k rolls land on each segment at its weight (+-0.6%)", close)
+	-- cash: income-scaled with a floor
+	local data = { money = 100, eggs = {}, pets = {}, plots = {}, discovered = {} }
+	local small = WS.prize(1, data, 0, rng)
+	check("wheel cash: no income -> the minimum", small.kind == "Cash" and small.amount == Wheel.Segments[1].min)
+	local rich = WS.prize(1, data, 1000, rng)
+	check("wheel cash: 1000 $/s x 300 s = 300000", rich.amount == 300000)
+	local p1 = WS.grantPartial(data, rich)
+	check("wheel cash: granted once into money, pending cleared", p1.money == 300100 and p1.wheelPending == false)
+	-- eggs: rarity, and from zones the player has reached
+	local zoneOf, rarityOf = {}, {}
+	for _, p in Pets do
+		zoneOf[p.id], rarityOf[p.id] = p.zone, p.rarity
+	end
+	local okEggs = true
+	for i, s in Wheel.Segments do
+		if s.kind == "Egg" then
+			for _ = 1, 50 do
+				local prize = WS.prize(i, data, 0, rng)
+				if not prize.petId or rarityOf[prize.petId] ~= s.rarity then
+					okEggs = false
+				end
+			end
+		end
+	end
+	check("wheel eggs: always a real pet of the segment's rarity", okEggs)
+	local early = true
+	for _ = 1, 100 do
+		local prize = WS.prize(4, { eggs = {}, pets = {}, plots = {}, discovered = { sprout_pup = true } }, 0, rng)
+		if zoneOf[prize.petId] > 1 then
+			early = false
+		end
+	end
+	check("wheel eggs: a zone-1 player gets a zone-1 Rare egg", early)
+	check(
+		"wheel: reached zone counts discovered pets",
+		WS.reachedZone({ discovered = { [Pets[#Pets].id] = true } }) == Pets[#Pets].zone
+	)
+	local egg = WS.prize(2, data, 0, rng)
+	local p2 = WS.grantPartial(data, egg)
+	check(
+		"wheel egg: added to the inventory with its own uid",
+		#p2.eggs == 1 and p2.eggs[1].uid == egg.uid and p2.eggs[1].petId == egg.petId
+	)
+	local again = WS.grantPartial({ money = 0, eggs = p2.eggs }, egg)
+	check("wheel egg: granting twice gives one egg", again.eggs == nil and again.wheelPending == false)
+	-- save data
+	local d = {
+		wheelSpins = -3.5,
+		wheelPending = "x",
+		money = 0,
+		kickPower = 1,
+		speedLevel = 0,
+		rebirths = 0,
+		penLevel = 1,
+		rackLevel = 1,
+	}
+	DataService.sanitize(d)
+	check("wheel save: spins whole and >= 0, junk pending cleared", d.wheelSpins == 0 and d.wheelPending == false)
+	local d2 = {
+		wheelSpins = 4,
+		wheelPending = { kind = "Cash", amount = 5 },
+		money = 0,
+		kickPower = 1,
+		speedLevel = 0,
+		rebirths = 0,
+		penLevel = 1,
+		rackLevel = 1,
+	}
+	DataService.sanitize(d2)
+	check(
+		"wheel save: banked spins and a pending prize survive",
+		d2.wheelSpins == 4 and typeof(d2.wheelPending) == "table"
+	)
+	-- packs: no invented product ids
+	local ids = true
+	for _, p in Wheel.Products do
+		if p.id ~= 0 or p.spins < 1 then
+			ids = false
+		end
+	end
+	check("wheel packs: product ids are 0 until created on Roblox", ids)
+	-- the map's wheel
+	local folder = Instance.new("Folder")
+	local WB = require(Shared.Builders.Map.Wheel) :: any
+	local face = CFrame.fromMatrix(Vector3.new(170, 26, -120), Vector3.new(0, 0, 1), Vector3.new(0, 1, 0))
+	local m = WB.build(folder, face, 23, 0)
+	local rotor = m:FindFirstChild("Rotor")
+	local podium = m:FindFirstChild("Podium")
+	local prompt = podium and podium:FindFirstChildOfClass("ProximityPrompt")
+	local labels = 0
+	local within = true
+	for _, part in m:GetDescendants() do
+		if part:IsA("BasePart") then
+			if part:GetAttribute("Segment") then
+				labels += 1
+			end
+			if part.Position.X > 170.01 then
+				within = false -- nothing pokes into the wall
+			end
+		end
+	end
+	local _, size = m:GetBoundingBox()
+	check(
+		"wheel model: rotor, 8 labels, podium with the OpenMenu:Wheel prompt",
+		rotor ~= nil and labels == 8 and prompt ~= nil and prompt:GetAttribute("Action") == "OpenMenu:Wheel"
+	)
+	check(`wheel model: as tall as the 50-stud wall (height {math.floor(size.Y)})`, size.Y >= 48 and size.Y <= 56)
+	check("wheel model: in front of the wall face", within)
+	-- segment 1 sits under the pointer at rest; segment k after turning by (2pi - alpha_k)
+	local function top(): number?
+		local best, bestY = nil, -math.huge
+		for _, part in rotor:GetChildren() do
+			local i = part:GetAttribute("Segment")
+			if i and part.Position.Y > bestY then
+				best, bestY = i, part.Position.Y
+			end
+		end
+		return best
+	end
+	check("wheel: segment 1 under the pointer at rest", top() == 1)
+	local pivot = rotor:GetPivot()
+	rotor:PivotTo(pivot * CFrame.Angles(0, 0, -(2 * math.pi - 3 * (2 * math.pi / 8))))
+	check("wheel: turning clockwise by 2pi - alpha brings segment 4 to the pointer", top() == 4)
+	folder:Destroy()
+end)
+
+section("Leaderboards: formatting, ranking, boards, donations", function()
+	local LS = require(Services.LeaderboardService) :: any
+	local LB = require(Shared.Config.Leaderboards) :: any
+	local DataService = require(Services.DataService) :: any
+	check("format: whole below 1000", LS.format(999) == "999" and LS.format(12.7) == "12")
+	check("format: 1.23K / 2.5T / 15M", LS.format(1234) == "1.23K" and LS.format(2.5e12) == "2.5T" and LS.format(15e6) == "15M")
+	check("format: 100K, 1K", LS.format(100000) == "100K" and LS.format(1000) == "1K")
+	local top = LS.top({
+		{ userId = 3, value = 50 },
+		{ userId = 1, value = 900 },
+		{ userId = 2, value = 900 },
+		{ userId = 4, value = 0 },
+		{ userId = 5, value = 7 },
+	}, 3)
+	check("top: highest first, ties by id, zeros dropped, cut to rows", #top == 3 and top[1].userId == 1 and top[2].userId == 2 and top[3].userId == 3)
+	check("two boards: Kick Power and donations", LB.Boards.Power.stat == "kickPower" and LB.Boards.Donations.stat == "donated" and LB.Rows == 10)
+	local ids = true
+	for _, d in LB.Donations do
+		if d.id ~= 0 or d.robux <= 0 then
+			ids = false
+		end
+	end
+	check("donation products: ids 0 until created on Roblox", ids and #LB.Donations == 5)
+	local d = { donated = 12.9, money = 0, kickPower = 1, speedLevel = 0, rebirths = 0, penLevel = 1, rackLevel = 1 }
+	DataService.sanitize(d)
+	check("save: donated is a whole number", d.donated == 12)
+	local folder = Instance.new("Folder")
+	local Boards = require(Shared.Builders.Map.Boards) :: any
+	local face = CFrame.fromMatrix(Vector3.new(-170, 19, -106), Vector3.new(0, 0, -1), Vector3.new(0, 1, 0))
+	local power = Boards.build(folder, face, "Power", Color3.new(1, 0.8, 0.2), 0)
+	local don = Boards.build(folder, face * CFrame.new(-28, 0, 0), "Donations", Color3.new(0.8, 0.3, 1), 0)
+	local rows = power.Screen.Rows.List:GetChildren()
+	local n = 0
+	for _, r in rows do
+		if r:IsA("Frame") and r:FindFirstChild("Name") and r:FindFirstChild("Value") and r:FindFirstChild("Avatar") then
+			n += 1
+		end
+	end
+	check("board: 10 rows with rank, avatar, name and value", n == 10)
+	local prompt = don:FindFirstChild("Podium") and don.Podium:FindFirstChildOfClass("ProximityPrompt")
+	check("donations board: Donate podium prompt", prompt ~= nil and prompt:GetAttribute("Action") == "OpenMenu:Donate" and power:FindFirstChild("Podium") == nil)
+	local inWall = false
+	for _, p in power:GetDescendants() do
+		if p:IsA("BasePart") and p.Position.X < -170 then
+			inWall = true
+		end
+	end
+	check("board: in front of the wall face", not inWall)
+	folder:Destroy()
+end)
+
+section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
+	local MapBuilder = require(Shared.Builders.Map.MapBuilder) :: any
+	local Zones = require(Shared.Config.Zones) :: any
+	local map = workspace:FindFirstChild("Map") or MapBuilder.build()
+	local zone = map.SafeZone
+	-- five bases, BaseIndex 1..5, nothing else claimable
+	local seen = {}
+	for _, b in zone.Bases:GetChildren() do
+		seen[b:GetAttribute("BaseIndex")] = b
+	end
+	check("pens: exactly Base1..Base5 (no Base6)", MapBuilder.PenCount == 5 and seen[5] ~= nil and seen[6] == nil and #zone.Bases:GetChildren() == 5)
+	local start, max = MapBuilder.penSize(1), MapBuilder.penSize(MapBuilder.PenMaxLevel)
+	check(
+		`pens: start {start.X}x{start.Y} is bigger than the old 52x44, max {max.X}x{max.Y} = the reserve`,
+		start.X > 52 and start.Y > 44 and max == MapBuilder.PenReserve
+	)
+	local mono = true
+	for l = 2, MapBuilder.PenMaxLevel + 2 do
+		local a, b = MapBuilder.penSize(l - 1), MapBuilder.penSize(l)
+		if b.X < a.X or b.Y < a.Y then
+			mono = false
+		end
+	end
+	check("pens: size grows monotonically with the level and stops at the reserve", mono)
+	-- grow a real pen through every level: area resized around a fixed centre, everything inside the reserve
+	local base = seen[1]
+	local area = base.PenArea
+	local centre = area.CFrame
+	-- PlacementController aims with a raycast that only hits the pen's "Floor" tiles (Base.Pen): every usable spot
+	-- (the floor minus PlotService's 3.5 margin) must be on a tile, at the PenArea's height
+	local function floorCovered(b): (boolean, string?)
+		local a = b.PenArea
+		local floors = {}
+		for _, d in b.Pen:GetChildren() do
+			if d:IsA("BasePart") and d.Name == "Floor" then
+				table.insert(floors, d)
+			end
+		end
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Include
+		params.FilterDescendantsInstances = floors
+		local hx, hz = a.Size.X / 2 - 3.5, a.Size.Z / 2 - 3.5
+		for _, uv in { { 0, 0 }, { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 }, { 0.5, -0.3 } } do
+			local top = (a.CFrame * CFrame.new(uv[1] * hx, 20, uv[2] * hz)).Position
+			local hit = workspace:Raycast(top, Vector3.new(0, -40, 0), params)
+			if not hit or math.abs(a.CFrame:PointToObjectSpace(hit.Position).Y) > 1 then
+				return false, `{b.Name} ({#floors} floor tiles) misses at {uv[1]},{uv[2]}`
+			end
+		end
+		return true
+	end
+	local covered, coverWhy = true, nil
+	for i = 1, 5 do
+		local ok, why = floorCovered(seen[i])
+		if not ok then
+			covered, coverWhy = false, why
+		end
+	end
+	local okGrow, okInside, worst = true, true, 0
+	for l = 1, MapBuilder.PenMaxLevel do
+		base:SetAttribute("PenLevel", l)
+		task.wait()
+		local ok, why = floorCovered(base)
+		if not ok then
+			covered, coverWhy = false, `level {l}: {why}`
+		end
+		local want = MapBuilder.penSize(l)
+		if math.abs(area.Size.X - want.X) > 0.01 or math.abs(area.Size.Z - want.Y) > 0.01 or area.CFrame ~= centre then
+			okGrow = false
+		end
+		for _, d in base.Pen:GetDescendants() do
+			if d:IsA("BasePart") then
+				local p = centre:PointToObjectSpace(d.Position)
+				local over = math.max(math.abs(p.X) - max.X / 2, math.abs(p.Z) - max.Y / 2 - 3)
+				worst = math.max(worst, over)
+				if over > 1.5 then
+					okInside = false
+				end
+			end
+		end
+	end
+	check(`pens: egg placement aim hits the floor tiles everywhere usable, every pen and level {coverWhy or ""}`, covered)
+	check("pens: every level resizes the floor frame around the same centre", okGrow)
+	check(`pens: fences and dressing stay inside the reserve at every level (worst {math.floor(worst * 10) / 10})`, okInside)
+	base:SetAttribute("PenLevel", 1)
+	task.wait()
+	check("pens: back to level 1 shrinks it again", math.abs(area.Size.X - start.X) < 0.01)
+	-- reserves don't overlap each other, the paths' spine or the shops, and stay inside the hub
+	local boxes = {}
+	for i = 1, 5 do
+		local c = seen[i].PenArea.CFrame
+		local ext = c:VectorToWorldSpace(Vector3.new(max.X, 0, max.Y))
+		table.insert(boxes, { x = c.Position.X, z = c.Position.Z, hx = math.abs(ext.X) / 2, hz = math.abs(ext.Z) / 2 })
+	end
+	local function overlap(a, b)
+		return math.abs(a.x - b.x) < a.hx + b.hx and math.abs(a.z - b.z) < a.hz + b.hz
+	end
+	local clean = true
+	for i = 1, 5 do
+		for j = i + 1, 5 do
+			if overlap(boxes[i], boxes[j]) then
+				clean = false
+			end
+		end
+		local spine = { x = 0, z = -150, hx = 12, hz = 135 }
+		if i < 5 and overlap(boxes[i], spine) then
+			clean = false
+		end
+		local b = boxes[i]
+		if math.abs(b.x) + b.hx > 184 or b.z - b.hz < -386 then
+			clean = false
+		end
+	end
+	for _, name in { "BoxingSackShop", "PetSellingStand" } do
+		local m = zone:FindFirstChild(name)
+		if m then
+			local cf, size = m:GetBoundingBox()
+			local box = { x = cf.Position.X, z = cf.Position.Z, hx = size.X / 2, hz = size.Z / 2 }
+			for i = 1, 5 do
+				if overlap(box, boxes[i]) then
+					clean = false
+				end
+			end
+		end
+	end
+	check("pens: the five reserves, the central path and the shops never overlap", clean)
+	-- the tutorial's ground trail is a straight line: from the arrival point and from the pad to every pen's gate
+	-- (TutorialController aims at the gate from outside) and to both shops' approach, it must not cross a pen, the
+	-- fountain or a shop
+	local fountain = zone.Decor.Fountain.Water.Position
+	local obstacles = {}
+	for i = 1, 5 do
+		table.insert(obstacles, { name = "Base" .. i, box = boxes[i] })
+	end
+	for _, name in { "BoxingSackShop", "PetSellingStand" } do
+		-- the solid building (not its invisible anchors / effects)
+		local x0, x1, z0, z1 = math.huge, -math.huge, math.huge, -math.huge
+		for _, d in zone[name]:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 1 then
+				x0, x1 = math.min(x0, d.Position.X - d.Size.X / 2), math.max(x1, d.Position.X + d.Size.X / 2)
+				z0, z1 = math.min(z0, d.Position.Z - d.Size.Z / 2), math.max(z1, d.Position.Z + d.Size.Z / 2)
+			end
+		end
+		table.insert(obstacles, { name = name, box = { x = (x0 + x1) / 2, z = (z0 + z1) / 2, hx = (x1 - x0) / 2, hz = (z1 - z0) / 2 } })
+	end
+	local function blocked(from: Vector3, to: Vector3, skip: string?): string?
+		for k = 1, 99 do
+			local p = from:Lerp(to, k / 100 * 0.92) -- the trail stops short of the target (TutorialController)
+			if (Vector3.new(p.X, 0, p.Z) - Vector3.new(fountain.X, 0, fountain.Z)).Magnitude < 11 then
+				return "fountain"
+			end
+			for _, o in obstacles do
+				if o.name ~= skip and math.abs(p.X - o.box.x) < o.box.hx and math.abs(p.Z - o.box.z) < o.box.hz then
+					return o.name
+				end
+			end
+		end
+		return nil
+	end
+	local y = MapBuilder.PlazaY
+	local starts = { arrival = Vector3.new(0, y, -72), pad = Vector3.new(0, y, 0) }
+	local trails = true
+	for sname, from in starts do
+		for i = 1, 5 do
+			local a = seen[i].PenArea
+			local gate = (a.CFrame * CFrame.new(0, 0, -a.Size.Z / 2 - 3)).Position
+			local hit = blocked(from, gate, nil)
+			if hit then
+				trails = false
+				warn(`trail {sname} -> Base{i} gate crosses {hit}`)
+			end
+		end
+		for _, name in { "BoxingSackShop", "PetSellingStand" } do
+			local hit = blocked(from, zone[name].Approach.Position, name)
+			if hit then
+				trails = false
+				warn(`trail {sname} -> {name} crosses {hit}`)
+			end
+		end
+	end
+	check("tutorial trails reach every pen gate and both shops without crossing fences, the fountain or a shop", trails)
+	-- the hub's objects
+	local stand = zone:FindFirstChild("PetSellingStand")
+	local sellPrompt = nil
+	for _, d in if stand then stand:GetDescendants() else {} do
+		if d:IsA("ProximityPrompt") then
+			sellPrompt = d
+		end
+	end
+	check("pet selling stand opens the Sell Pets screen", sellPrompt ~= nil and sellPrompt:GetAttribute("Action") == "OpenMenu:Inventory")
+	check("both shops have an approach spot (tutorial)", stand and stand:FindFirstChild("Approach") and zone.BoxingSackShop:FindFirstChild("Approach"))
+	local gone = true
+	for _, d in map:GetDescendants() do
+		if d.Name == "IndexStall" or d.Name == "ArchBeam" or d.Name == "ArchPillar" or string.sub(d.Name, 1, 6) == "Banner" and d.Parent and d.Parent.Name == "Hub" then
+			gone = false
+		end
+		if d:IsA("ProximityPrompt") and (d:GetAttribute("Action") == "OpenMenu:Index" or d:GetAttribute("Action") == "OpenMenu:Rebirth") then
+			gone = false
+		end
+	end
+	check("no Index / Rebirth stands and no launch arch", gone)
+	check("the egg fountain is off the central path", zone.Decor.Fountain ~= nil and math.abs(zone.Decor.Fountain.Water.Position.X) > 20)
+	-- 20 zones, canonical order, straight +Z, each with its scenery
+	local NAMES = { "Meadow", "Sandy Beach", "Autumn Forest", "Mushroom Grove", "Desert Dunes", "Snowy Peaks", "Candy Land", "Coral Reef", "Volcano", "Crystal Caves", "Jungle Ruins", "Neon City", "Haunted Graveyard", "Sky Islands", "Toxic Swamp", "Clockwork Factory", "Frozen Aurora", "Lava Core", "Galaxy Void", "Rainbow Heaven" }
+	local order, dressed, contiguous = #Zones == 20, true, true
+	for i, z in Zones do
+		if z.name ~= NAMES[i] then
+			order = false
+		end
+		local f = map.Runway:FindFirstChild("Zone" .. i)
+		if not (f and f:FindFirstChild("Ledges") and f:FindFirstChild("Backdrop") and f:FindFirstChild("Landmark") and f:FindFirstChild("Blend")) then
+			dressed = false
+		end
+		if i > 1 and z.start ~= Zones[i - 1].start + Zones[i - 1].length then
+			contiguous = false
+		end
+	end
+	check("20 zones in the canonical order, contiguous along +Z", order and contiguous and map.Runway:FindFirstChild("Zone21") == nil)
+	check("every zone has its landmark, ledges, backdrop and blend", dressed)
+	-- nothing stands in the running lane (|x| <= half the runway width) above the floor
+	local half = require(Shared.Config.Chase).RunwayWidth / 2
+	local blockers = {}
+	for _, d in map.Runway:GetDescendants() do
+		if d:IsA("BasePart") and d.Transparency < 1 and d.Name ~= "Lane" then
+			local cf, size = d.CFrame, d.Size
+			local ex = math.abs(cf.RightVector.X) * size.X + math.abs(cf.UpVector.X) * size.Y + math.abs(cf.LookVector.X) * size.Z
+			local ey = math.abs(cf.RightVector.Y) * size.X + math.abs(cf.UpVector.Y) * size.Y + math.abs(cf.LookVector.Y) * size.Z
+			local lo, hi = cf.Position.Y - ey / 2, cf.Position.Y + ey / 2
+			if math.abs(cf.Position.X) - ex / 2 < half and hi > 0.5 and lo < 60 then
+				table.insert(blockers, d:GetFullName())
+			end
+		end
+	end
+	local kinds = {}
+	for _, name in blockers do
+		local parts = string.split(name, ".")
+		local key = parts[5] .. "." .. (parts[6] or "")
+		kinds[key] = (kinds[key] or 0) + 1
+	end
+	for k, n in kinds do
+		print(`[Lane] {k} x{n}`)
+		end
+		for _, name in blockers do
+			print("[LaneItem] " .. name)
+	end
+	check(`no scenery in the running lane ({#blockers} found{if #blockers > 0 then ": " .. blockers[1] else ""})`, #blockers == 0)
+	local parts = 0
+	for _, d in map:GetDescendants() do
+		if d:IsA("BasePart") then
+			parts += 1
+		end
+	end
+	print(`[Map] {parts} parts in workspace.Map`)
+	check("map stays within a sane part budget (< 40000)", parts < 40000)
+end)
+
+section("Weather: /weather Studio command", function()
+	local WS = require(Services.WeatherService) :: any
+	local Mutations = require(Shared.Config.Mutations) :: any
+	local p = WS.parseCommand
+	check("/weather alone shows the status", p("/weather").action == "status" and p("  /weather   help").action == "status")
+	local ok = true
+	for name in Mutations.Weather do -- every Config weather, any letter case
+		local c = p("/weather " .. string.upper(name))
+		if c.action ~= "start" or c.weather ~= name or c.seconds ~= nil then
+			ok = false
+		end
+	end
+	check("/weather <name> starts every Config weather (any case, normal length)", ok)
+	local timed = p("/WEATHER stormy 30")
+	check("/weather Stormy 30 starts Stormy for 30 s", timed.action == "start" and timed.weather == "Stormy" and timed.seconds == 30)
+	check("lengths are clamped to 5 s .. 1 h", p("/weather rainy 1").seconds == 5 and p("/weather rainy 99999").seconds == 3600)
+	local r = p("/weather random 12")
+	check("/weather random picks like the schedule", r.action == "start" and r.random == true and r.weather == nil and r.seconds == 12)
+	check("/weather off ends it", p("/weather off").action == "stop" and p("/weather stop").action == "stop")
+	check("an unknown name is reported, not started", p("/weather heatwave").action == "unknown")
+	-- start / stop on the real service (its remotes made by Init)
+	WS:Init()
+	WS:StartEvent("Snowy", 30)
+	check("StartEvent makes it the active weather", WS:GetActive() == "Snowy")
+	WS:StartEvent("Rainbow", 30)
+	check("a new event replaces the running one", WS:GetActive() == "Rainbow")
+	WS:StopEvent()
+	check("StopEvent ends it", WS:GetActive() == nil)
 end)
 
 section("every service loads", function()

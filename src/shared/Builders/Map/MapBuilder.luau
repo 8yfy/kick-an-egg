@@ -1,32 +1,35 @@
 --!strict
 -- Partner A. Builds the whole map from Config (once on server start, or from the command bar):
 --   require(game.ReplicatedStorage.Shared.Builders.Map.MapBuilder).build()
--- Layout (Config/Chase axes): a compact grass plaza (the safe zone, Z < SafeLineZ) on a cliff above the
--- ocean, walled on three sides by plain studded dirt walls; the runway canyon leaves the plaza's wall at
--- the kick pad (origin) and runs +Z through the 20 zones. 6 fenced pens in two rows face a middle avenue
--- (fountain), each with a kick-training station beside its entrance; the Boxing Sack Shop and the Index
--- stall by the spawn.
+-- Layout (Config/Chase axes; map overhaul 2026-10-14): a grass hub (the safe zone, Z < SafeLineZ) on a cliff above
+-- the ocean, walled on three sides by stepped, planted dirt walls; the runway canyon leaves the hub's wall at the
+-- kick pad (origin) and runs straight +Z through the 20 zones. The hub: an open launch pad (no arch) with a side
+-- "KICK THE EGG!" sign and two egg monuments, a clear central path (spine) from the pad to pen 5, the Boxing
+-- Sack Shop and the Pet Selling Stand either side of it near the pad, an egg fountain off the spine, and FIVE large
+-- pens (two each side, one at the end) that grow with their PenLevel inside a fixed reserve. The Prize Wheel and
+-- the two global boards sit on the side walls between the pens.
 -- No zone signs: the HUD's zone bar names zones. Every part butts against its neighbours (no coplanar
 -- overlaps), so nothing z-fights.
--- Map v3 (Partner B, at A's request): the plaza and launch hub (arch, tiers, egg statues, braziers)
--- sit PLAZA_Y = 11 above the zones; a launch ramp (Map.Drop.Ramp, z 10..76) is the climb home for
--- steered eggs; Map.Drop.PlayerBarrier (collision group "PlayerBarrier") stops characters ("Players")
--- but not eggs ("Eggs"). Each zone has a rim plateau, a landmark (Landmarks.luau), rim decor and lane
--- lights. The Shop/Index stalls are market halls with merchants (Merchants.luau). Lighting gets
+-- Map v3 (Partner B, at A's request): the hub sits PLAZA_Y = 11 above the zones; a launch ramp (Map.Drop.Ramp,
+-- z 10..76) is the climb home for steered eggs; Map.Drop.PlayerBarrier (collision group "PlayerBarrier") stops
+-- characters ("Players") but not eggs ("Eggs"). Each zone has a rim plateau, a landmark (Landmarks.luau), themed
+-- walls, background silhouettes and boundary blends (Scenery.luau), rim decor and lane lights. Lighting gets
 -- Atmosphere, Bloom, SunRays and ColorCorrection.
 --
 -- Stable names for Partner B:
 --   workspace.Map.KickPad                         Part; players stand on it (top at y = MapBuilder.KickPadTop)
---   workspace.Map.SafeZone.Bases.Base<i>          Model, attribute BaseIndex = i (1..8). The server may set
---                                                 OwnerUserId / RackLevel / PenLevel (Config/Upgrades).
---     .SpawnPoint                                 invisible Part where the owner (re)spawns
---     .Sign.Board.SurfaceGui.OwnerLabel           TextLabel with the owner's name
---     .Pedestals.Pedestal<n>                      invisible egg spot on the open pen floor: attribute Slot = n,
---                                                 PrimaryPart = Top (egg sits at Top.Position + up * 0.15)
---     .SackStand                                  Model: gallows with the next Kick Sack hanging ("Sack", Spin)
+--   workspace.Map.SafeZone.Bases.Base<i>          Model, attribute BaseIndex = i (1..MapBuilder.PenCount = 5). The
+--                                                 server sets OwnerUserId / RackLevel / PenLevel (Config/Upgrades).
+--     .PenArea                                    invisible floor frame (origin = pen centre, -Z toward the gate);
+--                                                 its Size grows with PenLevel (MapBuilder.penSize), centre fixed
+--     .Pen                                        the level's floor, fence and dressing (rebuilt on PenLevel)
+--     .SpawnPoint / .OwnerAnchor / .PenSign       fixed, outside the largest pen
+--   workspace.Map.SafeZone.BoxingSackShop         Model ("OpenMenu:Store"); .Approach = where to walk to
+--   workspace.Map.SafeZone.PetSellingStand        Model ("OpenMenu:Inventory" = the Sell Pets screen); .Approach
 --   workspace.Map.Runway.Zone<id>                 Folder per zone
 -- ProximityPrompts carry an "Action" attribute the client UI handles:
---   "UpgradePen" | "UpgradeTraining" | "EquipSack" | "OpenMenu:Store" (Boxing Sack Shop) | "OpenMenu:Index"
+--   "UpgradePen" | "UpgradeTraining" | "EquipSack" | "OpenMenu:Store" (Boxing Sack Shop)
+--   | "OpenMenu:Inventory" (Pet Selling Stand)
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local PhysicsService = game:GetService("PhysicsService")
@@ -38,6 +41,9 @@ local MapFx = require(script.Parent.MapFx)
 local Bricks = require(script.Parent.Bricks)
 local Landmarks = require(script.Parent.Landmarks)
 local Merchants = require(script.Parent.Merchants)
+local WheelBuilder = require(script.Parent.Wheel)
+local Boards = require(script.Parent.Boards)
+local Scenery = require(script.Parent.Scenery)
 local Config = script.Parent.Parent.Parent.Config
 local Chase = require(Config.Chase)
 local Zones = require(Config.Zones)
@@ -50,12 +56,11 @@ local MapBuilder = {}
 local HALF = Chase.RunwayWidth / 2
 local SAFE_Z = Chase.SafeLineZ
 local INNER = 40 -- canyon floor half-width
-local W = 170 -- plaza half-width
-local DEPTH = 200 -- plaza runs from z = 0 to z = -DEPTH (open cliff edge)
+local W = 195 -- hub half-width
+local DEPTH = 390 -- the hub runs from z = 0 to z = -DEPTH (open cliff edge)
 local WALL_T, WALL_H = 24, 50
 local CLIFF = 40 -- plaza height above the ocean
-local PEN_W, PEN_D = 52, 44
-local PROP_BAND = { 15, 20.5 }
+local PROP_BAND = { HALF + 5, HALF + 8 } -- low props on the shoulders: the 48-stud lane stays clear (map overhaul)
 -- Map v3: the plaza and launch hub sit PLAZA_Y above the zones, so every kick dives into the
 -- valley. The launch ramp (RAMP_START -> RAMP_END along +Z) is the climb home for steered eggs;
 -- a player-only barrier across the canyon mouth keeps characters up top (eggs pass through).
@@ -75,20 +80,41 @@ local GRASS, GRASS_DARK = rgb(120, 215, 75), rgb(104, 196, 64)
 local YELLOW = rgb(255, 220, 80)
 local SHIELD_ICON = "rbxassetid://77216163319959"
 local SIGN = rgb(32, 38, 52)
--- Pens (6, rework 2026-10-13): three each side of the central avenue. Back row flanks the canyon mouth
--- (entrances face -Z), the outer front pens face it across the avenue; the middle of the front row is left open
--- (fountain square) for future mechanics.
-type PenSlot = { cx: number, zE: number, out: number }
+-- Pens (5, map overhaul 2026-10-14): two on each side of the central path, gates facing it, and one at the end
+-- facing the pad. Each has the same size at the same level: width (along the gate side) x depth grows from
+-- PEN_START (level 1) to PEN_MAX (the last level, Config/Upgrades.Pen) around a fixed centre, so saved pen-local
+-- positions stay valid. PEN_MAX is the reserve kept free around every pen.
+type PenSlot = { cx: number, cz: number, dir: Vector3 }
 local PENS: { PenSlot } = {
-	{ cx = -76, zE = -56, out = -1 },
-	{ cx = 76, zE = -56, out = -1 },
-	{ cx = -136, zE = -56, out = -1 },
-	{ cx = 136, zE = -56, out = -1 },
-	{ cx = -99, zE = -100, out = 1 },
-	{ cx = 99, zE = -100, out = 1 },
+	{ cx = -125, cz = -100, dir = Vector3.new(1, 0, 0) },
+	{ cx = 125, cz = -100, dir = Vector3.new(-1, 0, 0) },
+	{ cx = -125, cz = -210, dir = Vector3.new(1, 0, 0) },
+	{ cx = 125, cz = -210, dir = Vector3.new(-1, 0, 0) },
+	{ cx = 0, cz = -315, dir = Vector3.new(0, 0, 1) },
 }
 MapBuilder.PenCount = #PENS
 MapBuilder.LandingTag = Chase.Landing.tag
+local PEN_START = Vector2.new(64, 56)
+local PEN_MAX = Vector2.new(76, 72)
+local PEN_MAX_LEVEL = 1 + math.ceil((Economy.PlotSlots.max - Economy.PlotSlots.base) / Upgrades.Pen.slotsPerLevel)
+MapBuilder.PenReserve = PEN_MAX
+MapBuilder.PenMaxLevel = PEN_MAX_LEVEL
+
+-- A pen's floor size (width along the gate side, depth) at `level`: monotonic, PEN_START .. PEN_MAX.
+function MapBuilder.penSize(level: number): Vector2
+	local t = math.clamp((level - 1) / math.max(1, PEN_MAX_LEVEL - 1), 0, 1)
+	return Vector2.new(
+		math.floor(PEN_START.X + (PEN_MAX.X - PEN_START.X) * t + 0.5),
+		math.floor(PEN_START.Y + (PEN_MAX.Y - PEN_START.Y) * t + 0.5)
+	)
+end
+
+-- Pen i's centre on the hub floor as built (before the lift), -Z (LookVector) toward its gate.
+function MapBuilder.penFrame(i: number): CFrame
+	local slot = PENS[i]
+	local c = Vector3.new(slot.cx, 0, slot.cz)
+	return CFrame.lookAt(c, c + slot.dir)
+end
 
 type River = { color: Color3, material: Enum.Material?, transparency: number? }
 local WATER: River = { color = rgb(80, 170, 240), transparency = 0.15 }
@@ -408,28 +434,24 @@ local function buildKickPad(map: Instance)
 	)
 	MapFx.emit(anchor(map, "PadFx", Vector3.new(9, 0.2, 9), Vector3.new(0, 0.6, 0)), "PadRise")
 
-	-- Launch arch framing the drop, with one hanging banner per zone (zone accent colours).
-	local archZ, span = 5, INNER - 4
-	for _, x in { -span, span } do
-		block(hub, "ArchFoot", Vector3.new(7, 2, 7), CFrame.new(x, 1, archZ), stoneDark, { sideStuds = true })
-		block(hub, "ArchPillar", Vector3.new(5, 30, 5), CFrame.new(x, 17, archZ), stone, { sideStuds = true })
-		block(hub, "ArchCap", Vector3.new(6, 1, 6), CFrame.new(x, 32.5, archZ), YELLOW)
-	end
-	local beam = block(hub, "ArchBeam", Vector3.new(2 * span + 6, 5, 6), CFrame.new(0, 35.5, archZ), rgb(255, 120, 40))
-	surface(beam, Enum.NormalId.Front, { { "Title", "KICK THE EGG!", 0.08, 0.84 } }, 12)
-	block(hub, "ArchTrim", Vector3.new(2 * span + 6.4, 0.6, 6.4), CFrame.new(0, 32.7, archZ), rgb(255, 240, 110), glow)
-	local n = #Zones
-	for i, zone in Zones do
-		local x = -span + 5 + (i - 1) * (2 * span - 10) / (n - 1)
+	-- No arch over the launch (map overhaul): a side-mounted sign angled toward the arrival point instead
+	local signAt = Vector3.new(30, 0, 3) -- on the deck, clear of the pad (radius 12) and the shops
+	local signCF = CFrame.lookAt(signAt, Vector3.new(0, 0, -72))
+	for _, sx in { -7, 7 } do
 		block(
 			hub,
-			"Banner" .. i,
-			Vector3.new(2.4, 5.4, 0.3), -- hangs from the arch trim
-			CFrame.new(x, 29.7, archZ - 2.4),
-			zone.accent,
-			{ collide = false, studs = false }
+			"SignPost",
+			Vector3.new(1.6, 9, 1.6),
+			signCF * CFrame.new(sx, 4.5, 0),
+			stoneDark,
+			{ sideStuds = true }
 		)
 	end
+	local kickSign =
+		block(hub, "KickSign", Vector3.new(17, 5.4, 1.2), signCF * CFrame.new(0, 10.2, 0), rgb(255, 120, 40))
+	block(hub, "KickSignTrim", Vector3.new(18, 6.4, 0.8), signCF * CFrame.new(0, 10.2, 0.8), YELLOW)
+	surface(kickSign, Enum.NormalId.Front, { { "Title", "KICK THE EGG!", 0.1, 0.8 } }, 20)
+	Bricks.light(kickSign, rgb(255, 170, 80), 16, 1)
 
 	eggStatue(hub, -24, -9, rgb(255, 200, 50))
 	eggStatue(hub, 24, -9, rgb(180, 120, 255))
@@ -631,92 +653,6 @@ local function lamp(parent: Instance, pos: Vector3)
 	MapFx.emit(bulb, "Firefly")
 end
 
--- Market stall; `dir` = +1 faces +Z, -1 faces -Z.
-local function stall(
-	parent: Instance,
-	x: number,
-	z: number,
-	dir: number,
-	title: string,
-	colors: { Color3 },
-	action: string,
-	merchant: ("Coach" | "Professor")?
-)
-	-- Market hall (map v3): open front toward the customers, striped gable roof, big sign,
-	-- lanterns, wares on the counter and a merchant behind it. Built in a local frame whose
-	-- LookVector (-Z) faces the customers.
-	local m = Instance.new("Model")
-	m.Name = title .. "Stall"
-	m.Parent = parent
-	local origin = Vector3.new(x, 0, z)
-	local frame = CFrame.lookAt(origin, origin + Vector3.new(0, 0, dir))
-	local function at(lx: number, ly: number, lz: number): CFrame
-		return frame * CFrame.new(lx, ly, lz)
-	end
-	local wood, cream = rgb(160, 105, 60), rgb(240, 228, 205)
-	block(m, "Floor", Vector3.new(20, 0.6, 14), at(0, 0.3, 0), rgb(205, 165, 110))
-	block(m, "BackWall", Vector3.new(20, 12, 1), at(0, 6.6, 6.5), colors[2], { sideStuds = true })
-	for _, sx in { -9.5, 9.5 } do
-		block(m, "SideWall", Vector3.new(1, 12, 7), at(sx, 6.6, 3.5), colors[2], { sideStuds = true })
-		block(m, "Pillar", Vector3.new(1.4, 13, 1.4), at(sx, 6.5, -6.4), wood)
-		local lantern =
-			Bricks.glow(m, "Lantern", Vector3.new(1.6, 1.6, 1.6), at(sx, 10.6, -7.6), rgb(255, 220, 140), "Ball")
-		Bricks.light(lantern, rgb(255, 210, 140), 16, 1.2)
-	end
-	-- Gable roof: ridge along local X, stripes alternate the stall colours
-	for i = 0, 9 do
-		local lx = -9 + i * 2
-		local c = colors[(i % 2) + 1]
-		block(m, "RoofFront", Vector3.new(2.05, 0.5, 9), at(lx, 14.3, -3.7) * CFrame.Angles(math.rad(-22), 0, 0), c)
-		block(m, "RoofBack", Vector3.new(2.05, 0.5, 9), at(lx, 14.3, 3.7) * CFrame.Angles(math.rad(22), 0, 0), c)
-	end
-	block(m, "Ridge", Vector3.new(21, 0.9, 0.9), at(0, 15.9, 0), wood)
-	local board = block(m, "Board", Vector3.new(14, 3.6, 0.6), at(0, 18.15, -0.4), colors[1], { sideStuds = true }) -- sits on the ridge
-	surface(board, Enum.NormalId.Front, { { "Title", string.upper(title), 0.08, 0.84 } })
-	local counter = block(m, "Counter", Vector3.new(16, 3.4, 2.4), at(0, 2.3, -4.6), wood)
-	block(m, "CounterTop", Vector3.new(16.6, 0.4, 3), at(0, 4.2, -4.6), cream)
-	MapFx.emit(anchor(m, "GoodsFx", Vector3.new(12, 1, 2), at(0, 5.4, -4.6).Position), "StallSparkle")
-
-	if merchant == "Coach" then
-		-- Chalkboard of today's upgrades, boots and a dumbbell on the counter
-		local chalk =
-			block(m, "Chalkboard", Vector3.new(7, 4.6, 0.3), at(-5, 7.6, 5.9), rgb(40, 52, 60), { studs = false })
-		surface(chalk, Enum.NormalId.Front, {
-			{ "Today", "TODAY", 0.04, 0.2, rgb(255, 215, 60) },
-			{ "Speed", "+ RUN SPEED", 0.28, 0.2 },
-			{ "Rack", "RACK TIERS", 0.52, 0.2 },
-			{ "Pen", "BIGGER PEN", 0.76, 0.2 },
-		}, 16)
-		for _, bx in { 4.2, 5.8 } do
-			block(m, "Boot", Vector3.new(1.2, 1.4, 2), at(bx, 5.1, -4.6), rgb(230, 50, 50))
-		end
-		Bricks.cyl(m, "DumbbellBar", 0.4, 3, at(-4, 5.1, -4.6) * CFrame.Angles(0, 0, math.rad(90)), rgb(90, 90, 100))
-		for _, dx in { -5.3, -2.7 } do
-			Bricks.ball(m, "DumbbellWeight", 1.6, at(dx, 5.1, -4.6), rgb(50, 50, 60))
-		end
-	elseif merchant == "Professor" then
-		-- Shelves of collected eggs on the back wall and the big red Index on the counter
-		for row = 0, 2 do
-			block(m, "Shelf", Vector3.new(16, 0.4, 1.4), at(0, 4.2 + row * 3, 5.4), wood)
-			for col = 0, 6 do
-				local zone = Zones[(row * 7 + col) % #Zones + 1]
-				Bricks.ball(
-					m,
-					"ShelfEgg",
-					1.5,
-					at(-6.6 + col * 2.2, 5.15 + row * 3, 5.4),
-					zone.ground:Lerp(zone.accent, 0.35)
-				)
-			end
-		end
-		block(m, "Index", Vector3.new(2.4, 0.8, 3.2), at(5, 4.8, -4.6), rgb(220, 50, 60))
-	end
-	if merchant then
-		Merchants.build(merchant, m, at(0, 0.6, -1.4))
-	end
-	prompt(counter, action, "Open", title)
-end
-
 -- A Kick Sack hanging from its chain with its hub at `hang` (stands, the Boxing Sack Shop): the original
 -- imported GLB sack when available (Builders/SackGeometry), else the part-built remodel. Anchored, no physics;
 -- named "Sack" with a Tier attribute so MapLife spins it (`spin` deg/s) and shows its idle VFX.
@@ -754,12 +690,16 @@ local function hangSack(parent: Instance, tier: number, hang: CFrame, spin: numb
 	return sack
 end
 
--- The Boxing Sack Shop (replaces the old Training menu button): a studded red-and-white hall with a big sign
--- over an open entrance, six of the 20 Kick Sacks hanging on a display rack (their real models + idle VFX via
--- MapLife), lanterns and display lights, and the Coach behind the counter. The counter's prompt
--- ("OpenMenu:Store") opens the existing sack purchasing screen (UI/Screens/TrainingShop); nothing is bought
--- here. `dir` = +1 faces +Z, -1 faces -Z.
-local SHOP_TIERS = { 1, 5, 9, 14, 18, 20 } -- display picks across the 20 sacks (burlap -> rainbow god)
+-- The Boxing Sack Shop (remodel 2026-10-14): an open gym storefront instead of a closed box with a small door.
+-- Stone plinth, red back wall and white side walls with stripes, two chunky front pillars under a header beam and a
+-- striped awning, a flat roof with the sign standing on its front edge (nothing overlaps it). Inside: the counter
+-- right at the front with the Coach (the shop's avatar NPC, MerchantService) behind it, a mini boxing ring at the
+-- back with four display sacks on a gantry and two more on wall brackets, gloves and a champion poster. The six
+-- display sacks are props: attribute Display = true, so MapLifeController builds no effects / lights / sounds for
+-- them (they only turn slowly); the sacks you own are untouched. Lighting is a few soft warm lights.
+-- The counter's prompt ("OpenMenu:Store") opens the existing sack purchasing screen (UI/Screens/TrainingShop);
+-- nothing is bought here. `dir` = +1 faces +Z, -1 faces -Z.
+local SHOP_TIERS = { 9, 14, 18, 20, 1, 5 } -- gantry (premium) first, then the two wall brackets (burlap, tire)
 local function sackShop(parent: Instance, x: number, z: number, dir: number)
 	local m = Instance.new("Model")
 	m.Name = "BoxingSackShop"
@@ -769,83 +709,254 @@ local function sackShop(parent: Instance, x: number, z: number, dir: number)
 	local function at(lx: number, ly: number, lz: number): CFrame
 		return frame * CFrame.new(lx, ly, lz)
 	end
-	local red, redDark, white = rgb(215, 45, 50), rgb(160, 30, 36), rgb(250, 248, 244)
-	local gold, wood, mat = rgb(255, 200, 60), rgb(150, 98, 60), rgb(40, 110, 210)
-	local H = 14 -- wall height
-	-- floor: a blue boxing-ring mat with a white rope line, plus the wooden walkway in front of the counter
-	block(m, "Floor", Vector3.new(30, 0.6, 20), at(0, 0.3, 0), mat)
-	block(m, "MatLine", Vector3.new(26, 0.1, 0.4), at(0, 0.65, 3.4), white, { studs = false })
-	block(m, "Walkway", Vector3.new(12, 0.62, 8), at(0, 0.31, -6), wood)
-	-- walls: back, sides, and a front facade with a 12-wide entrance in the middle
-	block(m, "BackWall", Vector3.new(30, H, 1), at(0, H / 2 + 0.6, 9.5), red, { sideStuds = true })
-	for _, sx in { -14.5, 14.5 } do
-		block(m, "SideWall", Vector3.new(1, H, 18), at(sx, H / 2 + 0.6, 0.5), white, { sideStuds = true })
-		block(m, "Facade", Vector3.new(8, H, 1), at(sx * 0.69, H / 2 + 0.6, -9.5), red, { sideStuds = true })
-		block(m, "FacadeTrim", Vector3.new(8.2, 0.8, 1.2), at(sx * 0.69, 3.2, -9.6), white)
-		-- entrance posts with lanterns
-		block(m, "EntrancePost", Vector3.new(1.6, H + 1, 1.6), at(sx * 0.42, (H + 1) / 2 + 0.6, -10), gold)
+	local red, redDark, white = rgb(215, 45, 50), rgb(150, 28, 34), rgb(250, 248, 244)
+	local gold, wood, mat, stone = rgb(255, 200, 60), rgb(150, 98, 60), rgb(40, 110, 210), rgb(205, 205, 215)
+	local W, D, H = 34, 24, 16 -- footprint and wall height
+	local FLOOR = 1 -- top of the ring mat
+	-- plinth, front step and the blue mat floor
+	block(m, "Plinth", Vector3.new(W + 1, 0.8, D + 1), at(0, 0.4, 0), stone, { sideStuds = true })
+	block(m, "Step", Vector3.new(W - 6, 0.4, 2), at(0, 0.2, -D / 2 - 1.5), stone)
+	block(m, "Floor", Vector3.new(W - 2, 0.2, D - 2), at(0, 0.9, 0), mat)
+	-- back wall (red, white stripe) and side walls (white, red stripe)
+	block(m, "BackWall", Vector3.new(W, H, 1), at(0, 0.8 + H / 2, D / 2 - 0.5), red, { sideStuds = true })
+	block(m, "BackStripe", Vector3.new(W + 0.1, 1.2, 1.2), at(0, 4.6, D / 2 - 0.5), white, { studs = false })
+	for _, sx in { -1, 1 } do
+		block(
+			m,
+			"SideWall",
+			Vector3.new(1, H, D - 3),
+			at(sx * (W / 2 - 0.5), 0.8 + H / 2, 1.5),
+			white,
+			{ sideStuds = true }
+		)
+		block(m, "SideStripe", Vector3.new(1.2, 1.2, D - 2.9), at(sx * (W / 2 - 0.5), 4.6, 1.5), red, { studs = false })
+		-- chunky front pillars with a gold cap and a warm lantern each (soft)
+		block(
+			m,
+			"Pillar",
+			Vector3.new(2.6, H + 1.4, 2.6),
+			at(sx * (W / 2 - 1.3), 0.8 + (H + 1.4) / 2, -D / 2 + 1.3),
+			redDark
+		)
+		block(m, "PillarBand", Vector3.new(2.8, 0.8, 2.8), at(sx * (W / 2 - 1.3), 4.6, -D / 2 + 1.3), gold)
 		local lantern = Bricks.glow(
 			m,
 			"Lantern",
-			Vector3.new(1.6, 1.6, 1.6),
-			at(sx * 0.42, H - 2, -11.2),
-			rgb(255, 220, 140),
+			Vector3.new(1.4, 1.4, 1.4),
+			at(sx * (W / 2 - 1.3), 11, -D / 2 - 0.4),
+			rgb(255, 214, 150),
 			"Ball"
 		)
-		Bricks.light(lantern, rgb(255, 210, 140), 18, 1.3)
+		Bricks.light(lantern, rgb(255, 205, 140), 14, 0.6)
+		-- gloves hanging on the inside of the side walls
+		for _, lz in { 0, 5 } do
+			Bricks.ball(m, "Glove", 1.7, at(sx * (W / 2 - 1.6), 9, lz), rgb(230, 40, 40))
+			block(m, "GloveCuff", Vector3.new(0.9, 0.9, 0.9), at(sx * (W / 2 - 1.6), 10.1, lz), white)
+		end
 	end
-	block(m, "EntranceHeader", Vector3.new(14, 2, 1.4), at(0, H - 0.4, -10), white)
-	-- flat studded roof with a gold rim and crenellations
-	block(m, "Roof", Vector3.new(31, 1, 21), at(0, H + 1.1, 0), redDark)
-	for i = 0, 7 do
-		block(m, "Merlon", Vector3.new(2, 1.2, 1.2), at(-13 + i * 3.7, H + 2.2, -10), gold)
+	-- header beam over the open front, the striped awning and the flat roof
+	block(m, "Header", Vector3.new(W, 2.4, 2.2), at(0, 0.8 + H + 0.6, -D / 2 + 1.1), redDark)
+	block(m, "HeaderTrim", Vector3.new(W + 0.2, 0.5, 2.4), at(0, 0.8 + H - 0.4, -D / 2 + 1.1), gold, { studs = false })
+	for k = 0, 15 do
+		local lx = -W / 2 + 1.05 + k * 2.13
+		block(
+			m,
+			"Awning",
+			Vector3.new(2.15, 0.4, 4.4),
+			at(lx, 0.8 + H - 1.6, -D / 2 - 1.6) * CFrame.Angles(math.rad(-18), 0, 0),
+			if k % 2 == 0 then red else white
+		)
 	end
-	-- the big sign over the entrance
-	local board = block(m, "Sign", Vector3.new(26, 5.6, 0.8), at(0, H + 5, -10.2), red, { sideStuds = true })
-	block(m, "SignFrame", Vector3.new(27, 6.6, 0.6), at(0, H + 5, -9.7), gold)
+	local roofTop = 0.8 + H + 1
+	block(m, "Roof", Vector3.new(W + 1, 1, D + 1), at(0, roofTop - 0.5, 0.5), redDark) -- sits on the walls
+	block(m, "RoofTrim", Vector3.new(W + 1.4, 0.6, D + 1.4), at(0, roofTop - 0.5, 0.5), gold, { studs = false })
+	-- the sign stands on the roof's front edge, on two posts
+	local signY = roofTop + 5.6
+	for _, sx in { -9, 9 } do
+		block(m, "SignPost", Vector3.new(1, 3, 1), at(sx, roofTop + 1.5, -D / 2 + 2.4), redDark)
+	end
+	local board = block(m, "Sign", Vector3.new(28, 6, 0.8), at(0, signY, -D / 2 + 1.6), red, { sideStuds = true })
+	block(m, "SignFrame", Vector3.new(29.2, 7.2, 0.6), at(0, signY, -D / 2 + 2.3), gold)
 	local signGui = surface(board, Enum.NormalId.Front, {
 		{ "Title", "BOXING SACK SHOP", 0.08, 0.6, white },
 		{ "Sub", "TRAIN STRONGER - KICK FARTHER", 0.68, 0.24, rgb(255, 225, 120) },
 	}, 24)
 	signGui.Name = "SignGui"
-	Bricks.light(board, rgb(255, 120, 110), 22, 1.1)
-	-- boxing gloves hanging on the side walls
-	for _, sx in { -13.6, 13.6 } do
-		for _, lz in { -3, 4 } do
-			Bricks.ball(m, "Glove", 1.7, at(sx, 8.5, lz), rgb(230, 40, 40))
-			block(m, "GloveCuff", Vector3.new(0.9, 0.9, 0.9), at(sx, 9.6, lz), white)
+	-- the mini boxing ring at the back: corner posts and red / white / blue ropes on three sides (open to the front)
+	local ringZ0, ringZ1, ringX = 0.5, D / 2 - 1.5, 11
+	for _, px in { -ringX, ringX } do
+		for _, pz in { ringZ0, ringZ1 } do
+			block(m, "RingPost", Vector3.new(0.9, 5.4, 0.9), at(px, FLOOR + 2.7, pz), white)
 		end
 	end
-	-- display rack along the back wall: one long beam, six hanging sacks, a nameplate and a light each
-	local hubY = Sacks.HANG + 0.9
+	for k, c in { rgb(230, 50, 60), white, rgb(50, 110, 230) } do
+		local y = FLOOR + 1.4 + k * 1.2
+		block(m, "Rope", Vector3.new(2 * ringX, 0.3, 0.3), at(0, y, ringZ1), c, { collide = false, studs = false })
+		for _, px in { -ringX, ringX } do
+			block(
+				m,
+				"Rope",
+				Vector3.new(0.3, 0.3, ringZ1 - ringZ0),
+				at(px, y, (ringZ0 + ringZ1) / 2),
+				c,
+				{ collide = false, studs = false }
+			)
+		end
+	end
+	-- a champion poster on the back wall
+	local poster =
+		block(m, "Poster", Vector3.new(9, 4.6, 0.3), at(0, 12.4, D / 2 - 1.15), rgb(32, 38, 52), { studs = false })
+	surface(poster, Enum.NormalId.Front, {
+		{ "Top", "THE CHAMP", 0.08, 0.4, rgb(255, 215, 60) },
+		{ "Bottom", "HIT HARDER", 0.55, 0.32 },
+	}, 24)
+	-- display sacks: four on a gantry inside the ring, two on wall brackets by the counter. Props only.
+	local hubY = FLOOR + Sacks.HANG
 	local beamY = hubY + Sacks.CHAIN_TOP + 0.45
-	block(m, "RackBeam", Vector3.new(28, 0.9, 1.2), at(0, beamY, 6.6), wood)
-	for _, rx in { -13.4, 0, 13.4 } do
-		block(m, "RackPost", Vector3.new(0.9, beamY - 0.15, 0.9), at(rx, (beamY + 0.75) / 2, 6.6), wood)
+	local ringMid = (ringZ0 + ringZ1) / 2
+	block(m, "Gantry", Vector3.new(2 * ringX + 1, 0.9, 1.2), at(0, beamY, ringMid), wood)
+	for _, gx in { -ringX, ringX } do
+		block(
+			m,
+			"GantryPost",
+			Vector3.new(0.9, beamY - FLOOR - 0.45, 0.9),
+			at(gx, (beamY + FLOOR - 0.45) / 2, ringMid + 0.9),
+			wood
+		)
 	end
 	local displays = folder(m, "Displays")
 	for i, tier in SHOP_TIERS do
-		local lx = -11.25 + (i - 1) * 4.5
 		local d = Instance.new("Model")
 		d.Name = "Display" .. i
 		d:SetAttribute("Tier", tier)
 		d.Parent = displays
-		hangSack(d, tier, at(lx, hubY, 6.6), 20)
-		local plate = block(d, "Plate", Vector3.new(3.8, 1.2, 0.4), at(lx, 1.5, 4.4), rgb(32, 38, 52))
-		surface(plate, Enum.NormalId.Front, {
-			{ "Name", string.upper(Upgrades.Sack.tiers[tier].name), 0.1, 0.8 },
-		}, 30)
-		local spot = anchor(d, "Spot", Vector3.new(0.4, 0.4, 0.4), at(lx, beamY + 1.5, 4).Position)
-		Bricks.light(spot, rgb(255, 240, 220), 9, 0.9)
+		local hang: CFrame
+		if i <= 4 then
+			hang = at(-7.5 + (i - 1) * 5, hubY, ringMid)
+		else
+			local sx = if i == 5 then -1 else 1
+			local bx = sx * (W / 2 - 4.2)
+			block(d, "Bracket", Vector3.new(4.4, 0.7, 0.9), at(sx * (W / 2 - 2.2), beamY, -3.5), wood)
+			hang = at(bx, hubY, -3.5)
+		end
+		local sack = hangSack(d, tier, hang, 8)
+		sack:SetAttribute("Display", true) -- a prop: no idle effects (MapLifeController)
+		if i <= 4 then -- a nameplate on the ring's front edge, under its sack
+			local plateAt = hang * CFrame.new(0, -hubY + FLOOR + 0.7, -(ringMid - ringZ0) - 0.6)
+			local plate = block(d, "Plate", Vector3.new(4, 1.2, 0.4), plateAt, rgb(32, 38, 52))
+			surface(
+				plate,
+				Enum.NormalId.Front,
+				{ { "Name", string.upper(Upgrades.Sack.tiers[tier].name), 0.1, 0.8 } },
+				30
+			)
+		end
 	end
-	-- counter + the Coach; its prompt opens the existing sack purchasing screen
-	local counter = block(m, "Counter", Vector3.new(12, 3.4, 2.4), at(0, 2.3, -0.6), wood)
-	block(m, "CounterTop", Vector3.new(12.6, 0.4, 3), at(0, 4.2, -0.6), white)
-	block(m, "CounterStripe", Vector3.new(12.1, 0.6, 0.1), at(0, 3, -1.85), red, { studs = false })
-	MapFx.emit(anchor(m, "GoodsFx", Vector3.new(10, 1, 2), at(0, 5.4, -0.6).Position), "StallSparkle")
-	Merchants.build("Coach", m, at(0, 0.6, 1.8))
+	-- one soft ceiling light for the whole room
+	local ceiling = anchor(m, "CeilingLight", Vector3.new(1, 0.4, 1), at(0, 0.8 + H - 1, 0).Position)
+	Bricks.light(ceiling, rgb(255, 240, 220), 26, 0.7)
+	-- the counter right at the front, with the Coach behind it; its prompt opens the existing sack screen
+	local counter = block(m, "Counter", Vector3.new(18, 3, 2.6), at(0, FLOOR + 1.5, -6.5), wood)
+	block(m, "CounterTop", Vector3.new(18.6, 0.4, 3.2), at(0, FLOOR + 3.2, -6.5), white)
+	block(m, "CounterStripe", Vector3.new(18.1, 0.7, 0.1), at(0, FLOOR + 1.9, -7.85), red, { studs = false })
+	Bricks.ball(m, "CounterGlove", 1.6, at(-6.5, FLOOR + 4.2, -6.5), rgb(230, 40, 40))
+	Bricks.ball(m, "CounterGlove", 1.6, at(-4.8, FLOOR + 4.2, -6.3), rgb(230, 40, 40))
+	block(m, "Bell", Vector3.new(1.2, 0.8, 1.2), at(6, FLOOR + 3.8, -6.5), gold)
+	-- the Coach stands on a raised step behind the counter, so the whole avatar shows above it
+	block(m, "MerchantStep", Vector3.new(12, 1.2, 3.6), at(0, FLOOR + 0.6, -3.2), wood)
+	Merchants.build("Coach", m, at(0, FLOOR + 1.2, -3.2))
 	local p = prompt(counter, "OpenMenu:Store", "Browse sacks", "Boxing Sack Shop")
 	p.MaxActivationDistance = 14
+	-- where to walk to (tutorial trail / arrow): in front of the storefront, on the ground
+	anchor(m, "Approach", Vector3.new(2, 1, 2), at(0, 1.5, -D / 2 - 5).Position)
+end
+
+-- The Pet Selling Stand (map overhaul): a market stand, clearly not the sack shop - four chunky posts, a striped
+-- canopy with a scalloped front, a "SELL PETS" sign with the approved paw icon, an open counter, crates of eggs,
+-- lanterns and the pet merchant behind the counter. The counter prompt ("OpenMenu:Inventory") opens the existing
+-- Sell Pets screen (UI/Screens/PetInventory): nothing is sold by walking up or opening it. `dir` as sackShop.
+local PAW_ICON = "rbxassetid://84890738919357" -- UI/System/AssetIds hud_pets (the approved Pets icon)
+local function petStand(parent: Instance, x: number, z: number, dir: number)
+	local m = Instance.new("Model")
+	m.Name = "PetSellingStand"
+	m.Parent = parent
+	local origin = Vector3.new(x, 0, z)
+	local frame = CFrame.lookAt(origin, origin + Vector3.new(0, 0, dir))
+	local function at(lx: number, ly: number, lz: number): CFrame
+		return frame * CFrame.new(lx, ly, lz)
+	end
+	local wood, woodDark, cream = rgb(175, 115, 62), rgb(115, 72, 40), rgb(250, 242, 222)
+	local teal, orange = rgb(40, 195, 175), rgb(255, 150, 40)
+	block(m, "Deck", Vector3.new(24, 0.8, 18), at(0, 0.4, 0), rgb(205, 165, 112))
+	for _, sx in { -10.5, 10.5 } do
+		for _, sz in { -7.5, 7.5 } do
+			block(m, "Post", Vector3.new(1.8, 12.4, 1.8), at(sx, 7, sz), woodDark)
+		end
+	end
+	block(m, "BackBoard", Vector3.new(19.2, 7, 0.8), at(0, 4.3, 7.5), cream, { sideStuds = true })
+	for row = 0, 1 do
+		block(m, "Shelf", Vector3.new(16, 0.4, 1.2), at(0, 3.4 + row * 2.6, 6.6), wood)
+		for col = 0, 5 do
+			local zone = Zones[(row * 6 + col) % #Zones + 1]
+			Bricks.ball(
+				m,
+				"ShelfEgg",
+				1.3,
+				at(-6.25 + col * 2.5, 4.25 + row * 2.6, 6.6),
+				zone.ground:Lerp(zone.accent, 0.4)
+			)
+		end
+	end
+	-- striped canopy sloping to the front, with a scalloped valance
+	for i = 0, 11 do
+		local lx = -11 + i * 2
+		block(
+			m,
+			"Canopy",
+			Vector3.new(2.05, 0.5, 20),
+			at(lx, 13.6, 0) * CFrame.Angles(math.rad(-9), 0, 0),
+			if i % 2 == 0 then teal else cream
+		)
+		block(m, "Valance", Vector3.new(2, 1.3, 0.4), at(lx, 11.6, -10.1), if i % 2 == 0 then teal else cream)
+	end
+	-- the sign: SELL PETS between two paws
+	local sign = block(m, "Sign", Vector3.new(17, 4.6, 0.8), at(0, 17.6, -8.6), orange, { sideStuds = true })
+	block(m, "SignFrame", Vector3.new(18, 5.6, 0.6), at(0, 17.6, -7.9), woodDark)
+	for _, sx in { -6, 6 } do
+		block(m, "SignPost", Vector3.new(0.8, 2.4, 0.8), at(sx, 14.8, -8), woodDark)
+	end
+	local gui = surface(sign, Enum.NormalId.Front, { { "Title", "SELL PETS", 0.1, 0.8 } }, 24)
+	local title = gui:FindFirstChild("Title") :: TextLabel
+	title.Position, title.Size = UDim2.fromScale(0.2, 0.1), UDim2.fromScale(0.6, 0.8)
+	for _, px in { 0.03, 0.81 } do
+		local paw = Instance.new("ImageLabel")
+		paw.BackgroundTransparency = 1
+		paw.Image = PAW_ICON
+		paw.ScaleType = Enum.ScaleType.Fit
+		paw.Position, paw.Size = UDim2.fromScale(px, 0.05), UDim2.fromScale(0.16, 0.9)
+		paw.Parent = gui
+	end
+	Bricks.light(sign, rgb(255, 190, 110), 18, 1)
+	-- counter, crates of eggs either side of the front, lanterns on the front posts
+	local counter = block(m, "Counter", Vector3.new(16, 3.4, 2.4), at(0, 2.5, -4.6), wood)
+	block(m, "CounterTop", Vector3.new(16.6, 0.4, 3), at(0, 4.4, -4.6), cream)
+	block(m, "CounterStripe", Vector3.new(16.1, 0.6, 0.1), at(0, 3.2, -5.85), teal, { studs = false })
+	for _, sx in { -9.4, 9.4 } do
+		block(m, "Crate", Vector3.new(3.6, 2.8, 3.6), at(sx, 2.2, -11.4), wood)
+		block(m, "CrateBand", Vector3.new(3.7, 0.5, 3.7), at(sx, 2.2, -11.4), woodDark, { studs = false })
+		for k = -1, 1 do
+			local zone = Zones[(math.floor(sx) + k * 3) % #Zones + 1]
+			Bricks.ball(m, "CrateEgg", 1.4, at(sx + k * 1.1, 4.2, -11.4), zone.ground:Lerp(Color3.new(1, 1, 1), 0.3))
+		end
+		local lantern =
+			Bricks.glow(m, "Lantern", Vector3.new(1.4, 1.4, 1.4), at(sx * 1.12, 10.4, -8.6), rgb(255, 220, 140), "Ball")
+		Bricks.light(lantern, rgb(255, 210, 140), 16, 1.1)
+	end
+	MapFx.emit(anchor(m, "GoodsFx", Vector3.new(12, 1, 2), at(0, 5.6, -4.6).Position), "StallSparkle")
+	Merchants.build("PetSeller", m, at(0, 0.8, 1.2))
+	local p = prompt(counter, "OpenMenu:Inventory", "Sell pets", "Pet Selling Stand")
+	p.MaxActivationDistance = 14
+	anchor(m, "Approach", Vector3.new(2, 1, 2), at(0, 1.5, -14).Position)
 end
 
 -- Octagonal studded basin, water, tiered centre column, and VFX: water jet, splashes, sparkles, light.
@@ -883,13 +994,196 @@ local function fountain(parent: Instance, c: Vector3)
 		"FountainSplash"
 	)
 	MapFx.emit(water, "FountainSparkle")
+	-- a chunky block egg on the spout (MapLife spins models with a Spin attribute)
+	local egg = Bricks.model(f, "FountainEgg")
+	local pivot = Bricks.part(egg, "Pivot", Vector3.one, CFrame.new(c + Vector3.new(0, 9.6, 0)), Color3.new(1, 1, 1), {
+		transparency = 1,
+		collide = false,
+	})
+	egg.PrimaryPart = pivot
+	local gold, shine = rgb(255, 205, 60), rgb(255, 240, 160)
+	for k, w in { 2.4, 3.4, 3.8, 3.6, 3, 2 } do
+		Bricks.part(
+			egg,
+			"Egg" .. k,
+			Vector3.new(w, 1, w),
+			CFrame.new(c + Vector3.new(0, 7.3 + k, 0)),
+			if k == 4 then shine else gold,
+			{
+				collide = false,
+			}
+		)
+	end
+	egg:SetAttribute("Spin", 24)
 	local l = Instance.new("PointLight")
 	l.Color, l.Range, l.Brightness = rgb(130, 200, 255), 18, 1
 	l.Parent = water
 end
 
+-- Upgrade panel: dark board, title, "Level a > Level b", green price bar. `cf` = the board's foot, its -Z (front, the
+-- text side) facing the visitor.
+local function upgradeSign(base: Model, name: string, title: string, cf: CFrame, action: string, object: string)
+	block(base, name .. "Post", Vector3.new(0.8, 1.4, 0.8), cf * CFrame.new(0, 0.7, 0), SIGN)
+	local board = block(base, name, Vector3.new(6, 4, 0.6), cf * CFrame.new(0, 3.4, 0), SIGN)
+	surface(board, Enum.NormalId.Front, {
+		{ "Title", title, 0.06, 0.28 },
+		{ "Level", "Level 1 > Level 2", 0.36, 0.2, rgb(140, 255, 120) },
+		{ "Cost", "$0", 0.62, 0.3, Color3.new(1, 1, 1), rgb(70, 200, 60) },
+	})
+	prompt(board, action, title, object)
+end
+
+-- Fence styles by pen level: wood (start), white posts with blue rails, then dark posts, gold rails and caps.
+local FENCES = {
+	{ post = rgb(80, 60, 55), rail = rgb(205, 120, 60), cap = rgb(64, 48, 44) },
+	{ post = rgb(245, 245, 240), rail = rgb(110, 185, 255), cap = rgb(210, 215, 225) },
+	{ post = rgb(45, 50, 66), rail = rgb(255, 200, 60), cap = rgb(255, 215, 80) },
+}
+type Fence = { post: Color3, rail: Color3, cap: Color3 }
+
+-- A fence from a to b (world points on the floor; heights are relative to them, so it works lifted too).
+local function fenceRun(parent: Instance, a: Vector3, b: Vector3, style: Fence)
+	local len = (b - a).Magnitude
+	local dir = (b - a).Unit
+	local cf = CFrame.lookAt((a + b) / 2, b)
+	for _, y in { 1.6, 3.2 } do
+		block(parent, "Rail", Vector3.new(0.4, 0.5, len), cf * CFrame.new(0, y, 0), style.rail, { studs = false })
+	end
+	local n = math.max(1, math.floor(len / 8 + 0.5))
+	for s = 0, n do
+		local p = a + dir * (len * s / n)
+		block(parent, "Post", Vector3.new(1.1, 4.4, 1.1), CFrame.new(p.X, p.Y + 2.2, p.Z), style.post)
+		block(parent, "PostCap", Vector3.new(1.4, 0.4, 1.4), CFrame.new(p.X, p.Y + 4.6, p.Z), style.cap)
+		if s < n then
+			local q = a + dir * (len * (s + 0.5) / n)
+			local seg = len / n - 1.1
+			local brace = math.sqrt(seg * seg + 1.6 * 1.6)
+			local ang = math.atan2(1.6, seg)
+			local look = CFrame.lookAt(Vector3.new(q.X, q.Y + 2.4, q.Z), Vector3.new(q.X, q.Y + 2.4, q.Z) + dir)
+			for _, sign in { 1, -1 } do
+				block(
+					parent,
+					"Brace",
+					Vector3.new(0.3, 0.3, brace),
+					look * CFrame.Angles(sign * ang, 0, 0),
+					style.rail,
+					{ studs = false }
+				)
+			end
+		end
+	end
+end
+
+-- (Re)builds a pen for `level` around its PenArea (whose CFrame never changes): resizes the area, then lays the
+-- checker floor, the fence with a 12-stud gate on the -Z side, and the level's dressing (stepping stones from 2,
+-- gate lamps and corner planters from 3, banners and premium fence from 5, a gate arch at the last level).
+local BANNER = { rgb(255, 90, 90), rgb(80, 170, 255), rgb(140, 220, 80), rgb(255, 190, 50), rgb(190, 110, 255) }
+local function buildPen(base: Model, level: number)
+	local area = base:FindFirstChild("PenArea")
+	if not (area and area:IsA("BasePart")) then
+		return
+	end
+	local old = base:FindFirstChild("Pen")
+	if old then
+		old:Destroy()
+	end
+	local pen = folder(base, "Pen")
+	local size = MapBuilder.penSize(level)
+	area.Size = Vector3.new(size.X, 0.2, size.Y)
+	local f = area.CFrame * CFrame.new(0, -0.2, 0) -- the hub floor under the pen centre
+	local hw, hd = size.X / 2, size.Y / 2
+	local function at(x: number, y: number, z: number): CFrame
+		return f * CFrame.new(x, y, z)
+	end
+	local function pt(x: number, z: number): Vector3
+		return f:PointToWorldSpace(Vector3.new(x, 0, z))
+	end
+	local tw, td = size.X / 4, size.Y / 4
+	for tx = 0, 3 do
+		for tz = 0, 3 do
+			block(
+				pen,
+				"Floor",
+				Vector3.new(tw, 0.3, td),
+				at(-hw + (tx + 0.5) * tw, 0.15, -hd + (tz + 0.5) * td),
+				if (tx + tz) % 2 == 0 then rgb(165, 232, 92) else rgb(146, 214, 78)
+			)
+		end
+	end
+	local style: Fence = FENCES[if level >= 5 then 3 elseif level >= 3 then 2 else 1]
+	local fence = folder(pen, "Fence")
+	fenceRun(fence, pt(-hw, hd), pt(hw, hd), style)
+	fenceRun(fence, pt(-hw, -hd), pt(-hw, hd), style)
+	fenceRun(fence, pt(hw, -hd), pt(hw, hd), style)
+	fenceRun(fence, pt(-hw, -hd), pt(-6, -hd), style)
+	fenceRun(fence, pt(6, -hd), pt(hw, -hd), style)
+	local dress = folder(pen, "Dressing")
+	local stone = rgb(232, 220, 196)
+	if level >= 2 then -- stepping stones into the pen (flat: nothing to trip over)
+		for k = 0, 2 do
+			block(
+				dress,
+				"Stone",
+				Vector3.new(3.4, 0.12, 2.6),
+				at(if k % 2 == 0 then -0.8 else 0.8, 0.36, -hd + 3 + k * 4),
+				stone,
+				{
+					collide = false,
+				}
+			)
+		end
+	end
+	if level >= 3 then -- lamps on the gate posts, planters on the back corners (outside the fence)
+		for _, sx in { -7.5, 7.5 } do
+			block(
+				dress,
+				"GateLampPole",
+				Vector3.new(0.6, 6, 0.6),
+				at(sx, 3.4, -hd - 1),
+				rgb(60, 60, 70),
+				{ collide = false }
+			)
+			local bulb = block(dress, "GateLamp", Vector3.new(1.3, 1.3, 1.3), at(sx, 7, -hd - 1), rgb(255, 230, 150), {
+				material = Enum.Material.Neon,
+				collide = false,
+			})
+			Bricks.light(bulb, rgb(255, 220, 150), 14, 0.8)
+		end
+		for _, sx in { -1, 1 } do
+			block(dress, "Planter", Vector3.new(3, 1.6, 3), at(sx * (hw - 1.5), 0.8, hd + 2.2), rgb(150, 98, 60))
+			stamp(Props.kit.bush, at(sx * (hw - 1.5), 1.6, hd + 2.2), 0.8, dress)
+		end
+	end
+	if level >= 5 then -- banners on the back corners in the pen's colour
+		for _, sx in { -1, 1 } do
+			block(dress, "BannerPole", Vector3.new(0.6, 11, 0.6), at(sx * (hw - 0.2), 5.5, hd + 0.8), rgb(60, 60, 70), {
+				collide = false,
+			})
+			block(
+				dress,
+				"Banner",
+				Vector3.new(0.2, 4, 2.6),
+				at(sx * (hw - 0.2), 8.6, hd + 0.8) * CFrame.Angles(0, math.rad(90), 0),
+				BANNER[((base:GetAttribute("BaseIndex") :: number?) or 1) % #BANNER + 1],
+				{ collide = false, studs = false }
+			)
+		end
+	end
+	if level >= PEN_MAX_LEVEL then -- the top level: a gold arch over the pen gate
+		for _, sx in { -6.6, 6.6 } do
+			block(dress, "ArchPost", Vector3.new(1.4, 8, 1.4), at(sx, 4, -hd), rgb(45, 50, 66))
+		end
+		block(dress, "ArchTop", Vector3.new(14.6, 1.4, 1.6), at(0, 8.7, -hd), rgb(255, 200, 60))
+		Bricks.glow(dress, "ArchStar", Vector3.new(1.6, 1.6, 0.6), at(0, 10, -hd), rgb(255, 240, 160))
+	end
+	base:SetAttribute("PenBuiltLevel", level)
+end
+
 local function refreshPen(base: Model)
 	local level = math.max(1, (base:GetAttribute("PenLevel") :: number?) or 1)
+	if base:GetAttribute("PenBuiltLevel") ~= level then
+		buildPen(base, level)
+	end
 	local slots = math.min(Economy.PlotSlots.base + (level - 1) * Upgrades.Pen.slotsPerLevel, Economy.PlotSlots.max)
 	local maxed = slots >= Economy.PlotSlots.max
 	local sign = base:FindFirstChild("PenSign")
@@ -902,131 +1196,61 @@ local function refreshPen(base: Model)
 	)
 end
 
--- Upgrade panel: dark board, title, "Level a > Level b", green price bar; text faces `face`.
-local function upgradeSign(
-	base: Model,
-	name: string,
-	title: string,
-	pos: Vector3,
-	face: Enum.NormalId,
-	action: string,
-	object: string
-)
-	block(base, name .. "Post", Vector3.new(0.8, 1.4, 0.8), CFrame.new(pos + Vector3.new(0, 0.7, 0)), SIGN)
-	local board = block(base, name, Vector3.new(6, 4, 0.6), CFrame.new(pos + Vector3.new(0, 3.4, 0)), SIGN)
-	surface(board, face, {
-		{ "Title", title, 0.06, 0.28 },
-		{ "Level", "Level 1 > Level 2", 0.36, 0.2, rgb(140, 255, 120) },
-		{ "Cost", "$0", 0.62, 0.3, Color3.new(1, 1, 1), rgb(70, 200, 60) },
-	})
-	prompt(board, action, title, object)
-end
-
-local function fenceRun(parent: Instance, a: Vector3, b: Vector3)
-	local post, rail = rgb(80, 60, 55), rgb(205, 120, 60)
-	local len = (b - a).Magnitude
-	local dir = (b - a).Unit
-	local cf = CFrame.lookAt((a + b) / 2, b)
-	for _, y in { 1.6, 3.2 } do
-		block(parent, "Rail", Vector3.new(0.4, 0.5, len), cf * CFrame.new(0, y, 0), rail, { studs = false })
-	end
-	local n = math.max(1, math.floor(len / 8 + 0.5))
-	for s = 0, n do
-		local p = a + dir * (len * s / n)
-		block(parent, "Post", Vector3.new(1.1, 4.4, 1.1), CFrame.new(p.X, 2.2, p.Z), post)
-		block(parent, "PostCap", Vector3.new(1.4, 0.4, 1.4), CFrame.new(p.X, 4.6, p.Z), post:Lerp(rgb(0, 0, 0), 0.2))
-		if s < n then
-			local q = a + dir * (len * (s + 0.5) / n)
-			local seg = len / n - 1.1
-			local brace = math.sqrt(seg * seg + 1.6 * 1.6)
-			local ang = math.atan2(1.6, seg)
-			local look = CFrame.lookAt(Vector3.new(q.X, 2.4, q.Z), Vector3.new(q.X, 2.4, q.Z) + dir)
-			block(
-				parent,
-				"Brace",
-				Vector3.new(0.3, 0.3, brace),
-				look * CFrame.Angles(ang, 0, 0),
-				rail,
-				{ studs = false }
-			)
-			block(
-				parent,
-				"Brace",
-				Vector3.new(0.3, 0.3, brace),
-				look * CFrame.Angles(-ang, 0, 0),
-				rail,
-				{ studs = false }
-			)
-		end
-	end
-end
-
 local function buildBase(parent: Instance, i: number)
-	local slot = PENS[i]
-	local cx, zE, out = slot.cx, slot.zE, slot.out
-	local zB = zE - out * PEN_D -- back fence
-	local x0, x1 = cx - PEN_W / 2, cx + PEN_W / 2
-	local face = if out < 0 then Enum.NormalId.Front else Enum.NormalId.Back -- text faces the avenue
+	local frame = MapBuilder.penFrame(i)
 	local base = Instance.new("Model")
 	base.Name = "Base" .. i
 	base:SetAttribute("BaseIndex", i)
 	base.Parent = parent
-
-	-- Open checker floor (4 x 4 tiles, top at 0.3)
-	local tw, td = PEN_W / 4, PEN_D / 4
-	for tx = 0, 3 do
-		for tz = 0, 3 do
-			block(
-				base,
-				"Floor",
-				Vector3.new(tw, 0.3, td),
-				CFrame.new(x0 + (tx + 0.5) * tw, 0.15, math.min(zE, zB) + (tz + 0.5) * td),
-				if (tx + tz) % 2 == 0 then rgb(138, 230, 92) else rgb(118, 210, 76)
-			)
-		end
+	local function at(x: number, y: number, z: number): CFrame
+		return frame * CFrame.new(x, y, z)
 	end
-
-	local fence = folder(base, "Fence")
-	fenceRun(fence, Vector3.new(x0, 0, zB), Vector3.new(x1, 0, zB))
-	fenceRun(fence, Vector3.new(x0, 0, zB), Vector3.new(x0, 0, zE))
-	fenceRun(fence, Vector3.new(x1, 0, zB), Vector3.new(x1, 0, zE))
-	fenceRun(fence, Vector3.new(x0, 0, zE), Vector3.new(cx - 6, 0, zE))
-	fenceRun(fence, Vector3.new(cx + 6, 0, zE), Vector3.new(x1, 0, zE))
-
-	-- The pen's floor and frame (PlotService / PlotController): origin = floor centre on top of the tiles, -Z
-	-- toward the entrance, size = the fenced floor. Pets roam and eggs are placed inside it (pen-local coords).
-	local center = Vector3.new(cx, 0.2, (zE + zB) / 2)
-	local area = block(
-		base,
-		"PenArea",
-		Vector3.new(PEN_W, 0.2, PEN_D),
-		CFrame.lookAt(center, center + Vector3.new(0, 0, out)),
-		Color3.new(1, 1, 1),
-		{ transparency = 1, collide = false, studs = false }
-	)
-	area.CanQuery, area.CanTouch = false, false
-	-- Floating owner display anchor (avatar headshot + name, drawn by every client: UI/PenOwner) over the back
-	-- fence. Replaces the old owner board.
-	local owner = block(
-		base,
-		"OwnerAnchor",
-		Vector3.new(1, 1, 1),
-		CFrame.new(cx, 13, zB + out * 2),
-		Color3.new(1, 1, 1),
-		{ transparency = 1, collide = false, studs = false }
-	)
-	owner.CanQuery, owner.CanTouch = false, false
-
-	upgradeSign(base, "PenSign", "Upgrade Pen", Vector3.new(cx - 10, 0, zE + out * 2.5), face, "UpgradePen", `Pen {i}`)
-	-- (No sack stand or "Next Kick Sack" sign any more: sacks are bought at the physical Boxing Sack Shop and
-	-- taken out with the bottom Kick Sack quickslot.)
-
-	block(base, "SpawnPoint", Vector3.new(2, 1, 2), CFrame.new(cx - 4, 3, zE + out * 8), Color3.new(1, 1, 1), {
+	local start = MapBuilder.penSize(1)
+	-- The pen's floor and frame (PlotService / PlotController): origin = floor centre on top of the tiles, -Z toward
+	-- the gate, Size = the fenced floor (grows with PenLevel; the centre never moves). Pets roam and eggs are placed
+	-- inside it in pen-local coords.
+	local area = block(base, "PenArea", Vector3.new(start.X, 0.2, start.Y), at(0, 0.2, 0), Color3.new(1, 1, 1), {
 		transparency = 1,
 		collide = false,
 		studs = false,
 	})
-
+	area.CanQuery, area.CanTouch = false, false
+	-- Fixed pieces sit outside the largest pen so upgrades never move them.
+	local owner = block(base, "OwnerAnchor", Vector3.new(1, 1, 1), at(0, 13, PEN_MAX.Y / 2 - 2), Color3.new(1, 1, 1), {
+		transparency = 1,
+		collide = false,
+		studs = false,
+	})
+	owner.CanQuery, owner.CanTouch = false, false
+	upgradeSign(base, "PenSign", "Upgrade Pen", at(-15, 0, -PEN_MAX.Y / 2 - 4), "UpgradePen", `Pen {i}`)
+	local spawnAt = at(6, 3, -PEN_MAX.Y / 2 - 10).Position
+	block(
+		base,
+		"SpawnPoint",
+		Vector3.new(2, 1, 2),
+		CFrame.lookAt(spawnAt, Vector3.new(0, spawnAt.Y, 0)), -- spawn looking toward the kick pad
+		Color3.new(1, 1, 1),
+		{ transparency = 1, collide = false, studs = false }
+	)
+	-- The reserved lot the pen grows into: a darker grass plate with a low stone curb (open at the gate)
+	local lot = folder(base, "Lot")
+	local lw, ld = PEN_MAX.X + 4, PEN_MAX.Y + 4
+	block(lot, "Reserve", Vector3.new(lw, 0.2, ld), at(0, 0.1, 0), rgb(92, 176, 60), { studs = false })
+	local curb = rgb(214, 200, 172)
+	block(lot, "Curb", Vector3.new(lw + 1.6, 0.6, 0.8), at(0, 0.3, ld / 2 + 0.4), curb, { collide = false })
+	for _, sx in { -1, 1 } do
+		block(lot, "Curb", Vector3.new(0.8, 0.6, ld), at(sx * (lw / 2 + 0.4), 0.3, 0), curb, { collide = false })
+		local seg = (lw - 14) / 2
+		block(
+			lot,
+			"Curb",
+			Vector3.new(seg, 0.6, 0.8),
+			at(sx * (7 + seg / 2), 0.3, -ld / 2 - 0.4),
+			curb,
+			{ collide = false }
+		)
+	end
+	buildPen(base, 1)
 	refreshPen(base)
 	base:GetAttributeChangedSignal("PenLevel"):Connect(function()
 		refreshPen(base)
@@ -1037,9 +1261,67 @@ local function tree(parent: Instance, pos: Vector3, scale: number) -- the approv
 	stamp(Props.kit.tree, CFrame.new(pos) * CFrame.Angles(0, math.rad(pos.Z * 7 % 360), 0), scale, parent)
 end
 
+-- Stepped, planted terrace against a hub wall: a low wide step and a taller narrow one (grass caps) with bushes,
+-- along the wall face a -> b; `inward` points into the hub.
+local function terrace(parent: Instance, a: Vector3, b: Vector3, inward: Vector3, seed: number)
+	local along = (b - a).Unit
+	local len = (b - a).Magnitude
+	local rot = CFrame.lookAt(Vector3.zero, along)
+	local mid = (a + b) / 2
+	local soil, soilDark = DIRT:Lerp(Color3.new(1, 1, 1), 0.06), DIRT:Lerp(Color3.new(0, 0, 0), 0.1)
+	local steps = { { depth = 11, height = 5, color = soil }, { depth = 5, height = 13, color = soilDark } }
+	for k, st in steps do
+		local c = mid + inward * (st.depth / 2) -- both steps start at the wall; the tall one is a little shorter
+		local l = if k == 1 then len else len - 0.6 -- (no coplanar end faces)
+		block(
+			parent,
+			"Terrace",
+			Vector3.new(st.depth, st.height, l),
+			CFrame.new(c.X, st.height / 2, c.Z) * rot,
+			st.color,
+			{
+				sideStuds = true,
+			}
+		)
+		block(parent, "TerraceCap", Vector3.new(st.depth, 0.8, l), CFrame.new(c.X, st.height + 0.4, c.Z) * rot, GRASS)
+	end
+	local rng = Random.new(seed)
+	local d = 4
+	while d < len - 4 do
+		local p = a + along * d + inward * 8
+		stamp(
+			Props.kit.bush,
+			CFrame.new(p.X, 5.8, p.Z) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 3) * 90), 0),
+			rng:NextNumber(0.9, 1.2),
+			parent
+		)
+		d += rng:NextNumber(10, 16)
+	end
+end
+
+-- Warm pale stone paths: the spine from the pad to pen 5, side paths to the four side gates, the walk linking the
+-- shop and the stand, and the square around the fountain. No two paths overlap (no z-fighting).
+local PATH = rgb(236, 222, 196)
+local function paths(parent: Instance)
+	local f = folder(parent, "Paths")
+	local function slab(name: string, x0: number, x1: number, z0: number, z1: number)
+		block(f, name, Vector3.new(x1 - x0, 0.15, z1 - z0), CFrame.new((x0 + x1) / 2, 0.075, (z0 + z1) / 2), PATH, {
+			studs = false,
+		})
+	end
+	slab("Spine", -12, 12, -287, -16)
+	for _, k in { -1, 1 } do
+		for _, z in { -100, -210 } do
+			slab("SidePath", if k < 0 then -91 else 12, if k < 0 then -12 else 91, z - 8, z + 8)
+		end
+		slab("ShopWalk", if k < 0 then -72 else 12, if k < 0 then -12 else 72, -54, -42)
+	end
+	slab("FountainSquare", -44, -16, -164, -136)
+end
+
 local function buildSafeZone(map: Instance)
 	local zone = folder(map, "SafeZone")
-	-- Ground: dirt cliff block + grass layer + light checker squares (20-stud tiles)
+	-- Ground: dirt cliff block + grass layer + light checker squares (26-stud tiles)
 	block(
 		zone,
 		"Cliff",
@@ -1056,7 +1338,7 @@ local function buildSafeZone(map: Instance)
 		GRASS_DARK,
 		{ sideStuds = true }
 	)
-	local tile = 20
+	local tile = 26
 	for tx = 0, (2 * W) / tile - 1 do
 		for tz = 0, DEPTH / tile - 1 do
 			if (tx + tz) % 2 == 0 then
@@ -1087,6 +1369,15 @@ local function buildSafeZone(map: Instance)
 	wall(zone, Vector3.new(INNER + 0.1, 0, 0), Vector3.new(W, 0, 0), Vector3.new(0, 0, -1), DIRT, GRASS, 102, 0, WALL_T)
 	wall(zone, Vector3.new(-W, 0, -DEPTH), Vector3.new(-W, 0, 0), Vector3.new(1, 0, 0), DIRT, GRASS, 103)
 	wall(zone, Vector3.new(W, 0, -DEPTH), Vector3.new(W, 0, 0), Vector3.new(-1, 0, 0), DIRT, GRASS, 104)
+	-- Stepped planted terraces break up the walls (not behind the wheel / boards, not at the canyon mouth)
+	local terraces = folder(zone, "Terraces")
+	terrace(terraces, Vector3.new(-W + 11, 0, 0), Vector3.new(-INNER - 12, 0, 0), Vector3.new(0, 0, -1), 201)
+	terrace(terraces, Vector3.new(INNER + 12, 0, 0), Vector3.new(W - 11, 0, 0), Vector3.new(0, 0, -1), 202)
+	for k, x in { -W, W } do
+		local inward = Vector3.new(if x < 0 then 1 else -1, 0, 0)
+		terrace(terraces, Vector3.new(x, 0, -11), Vector3.new(x, 0, -118), inward, 210 + k)
+		terrace(terraces, Vector3.new(x, 0, -192), Vector3.new(x, 0, -DEPTH + 4), inward, 220 + k)
+	end
 	-- Keep players from walking off the cliff
 	block(
 		zone,
@@ -1101,34 +1392,122 @@ local function buildSafeZone(map: Instance)
 		studs = false,
 	})
 
+	-- Shared arrival point on the central path, looking at the launch pad
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(10, 0.2, 10)
-	spawn.CFrame = CFrame.new(0, 0.2, -165)
+	spawn.CFrame = CFrame.lookAt(Vector3.new(0, 0.25, -72), Vector3.new(0, 0.25, 0))
 	spawn.Color = rgb(250, 250, 250)
 	spawn.Material = Enum.Material.Plastic
 	spawn.TopSurface = Enum.SurfaceType.Studs
 	spawn.Duration = 0
 	spawn.Parent = zone
 
-	sackShop(zone, -42, -168, 1)
-	stall(zone, 40, -170, 1, "Index", { rgb(255, 210, 60), rgb(250, 250, 255) }, "OpenMenu:Index", "Professor")
+	paths(zone)
+	-- set back toward the wall, so the straight tutorial trail from the pad to pens 1 / 2 passes in front of them
+	sackShop(zone, -58, -24, -1)
+	petStand(zone, 58, -28, -1)
 
 	local decor = folder(zone, "Decor")
-	fountain(decor, Vector3.new(0, 0, -78))
-	for _, x in { -162, 162 } do
-		lamp(decor, Vector3.new(x, 0, -66))
-		lamp(decor, Vector3.new(x, 0, -90))
-	end
-	for _, x in { -20, 20 } do
-		lamp(decor, Vector3.new(x, 0, -150))
+	fountain(decor, Vector3.new(-30, 0, -150))
+	for _, x in { -16, 16 } do -- lamps along the central path, clear of the side-path junctions
+		for _, z in { -36, -70, -130, -170, -240, -272 } do
+			lamp(decor, Vector3.new(x, 0, z))
+		end
 	end
 	for _, p in
-		{ Vector3.new(-150, 0, -175), Vector3.new(150, 0, -175), Vector3.new(-110, 0, -180), Vector3.new(110, 0, -180) }
+		{
+			Vector3.new(-30, 0, -78),
+			Vector3.new(30, 0, -78),
+			Vector3.new(30, 0, -150),
+			Vector3.new(-62, 0, -150),
+			Vector3.new(36, 0, -255),
+			Vector3.new(-36, 0, -255),
+		}
+	do
+		block(decor, "FlowerBed", Vector3.new(7, 0.8, 4), CFrame.new(p + Vector3.new(0, 0.4, 0)), rgb(120, 82, 52))
+		for _, dx in { -2, 0, 2 } do
+			stamp(Props.kit.bush, CFrame.new(p + Vector3.new(dx, 0.8, 0)), 0.55, decor)
+		end
+	end
+	-- garden islands in the open lawns: a low grass mound, a tree, bushes and flowers
+	local FLOWERS = { rgb(255, 120, 170), rgb(255, 220, 80), rgb(150, 200, 255), rgb(255, 255, 255) }
+	for k, p in
+		{
+			Vector3.new(-62, 0, -124),
+			Vector3.new(62, 0, -140),
+			Vector3.new(-58, 0, -262),
+			Vector3.new(58, 0, -262),
+			Vector3.new(-150, 0, -36),
+			Vector3.new(150, 0, -36),
+			Vector3.new(-150, 0, -300),
+			Vector3.new(150, 0, -300),
+			Vector3.new(-118, 0, -356),
+			Vector3.new(118, 0, -356),
+		}
+	do
+		local g = folder(decor, "Garden")
+		block(
+			g,
+			"Mound",
+			Vector3.new(18, 0.8, 13),
+			CFrame.new(p + Vector3.new(0, 0.4, 0)),
+			rgb(98, 186, 62),
+			{ sideStuds = true }
+		)
+		block(g, "MoundTop", Vector3.new(12, 0.8, 8), CFrame.new(p + Vector3.new(0, 1.2, 0)), rgb(112, 200, 70))
+		tree(g, p + Vector3.new(if k % 2 == 0 then 3 else -3, 1.6, 0), 0.9)
+		for i = 0, 5 do
+			local a = i / 6 * math.pi * 2
+			local q = p + Vector3.new(math.cos(a) * 7, 0.8, math.sin(a) * 4.6)
+			if i % 2 == 0 then
+				stamp(Props.kit.bush, CFrame.new(q), 0.5, g)
+			else
+				block(
+					g,
+					"Flower",
+					Vector3.new(1, 1, 1),
+					CFrame.new(q + Vector3.new(0, 0.5, 0)),
+					FLOWERS[(i + k) % #FLOWERS + 1],
+					{
+						collide = false,
+					}
+				)
+			end
+		end
+	end
+	for _, p in
+		{
+			Vector3.new(-176, 0, -40),
+			Vector3.new(176, 0, -40),
+			Vector3.new(-176, 0, -262),
+			Vector3.new(176, 0, -262),
+			Vector3.new(-176, 0, -350),
+			Vector3.new(176, 0, -350),
+			Vector3.new(-82, 0, -352),
+			Vector3.new(82, 0, -352),
+			Vector3.new(-62, 0, -282),
+			Vector3.new(62, 0, -282),
+		}
 	do
 		tree(decor, p, 1)
 	end
+
+	-- Prize Wheel on the +X wall between pens 2 and 4: as tall as the wall
+	local wheelRadius = (WALL_H - 4) / 2
+	WheelBuilder.build(
+		zone,
+		CFrame.fromMatrix(Vector3.new(W, wheelRadius + 3, -155), Vector3.new(0, 0, 1), Vector3.new(0, 1, 0)),
+		wheelRadius,
+		0
+	)
+	-- Opposite wall (-X), facing the wheel: the global Kick Power leaderboard and the top donators board
+	local function westFace(z: number, y: number): CFrame
+		return CFrame.fromMatrix(Vector3.new(-W, y, z), Vector3.new(0, 0, -1), Vector3.new(0, 1, 0))
+	end
+	Boards.build(zone, westFace(-141, 19), "Power", rgb(255, 190, 40), 0)
+	Boards.build(zone, westFace(-169, 19), "Donations", rgb(200, 80, 255), 0)
 
 	local bases = folder(zone, "Bases")
 	for i = 1, #PENS do
@@ -1185,7 +1564,7 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 	local mid = z0 + len / 2
 	local rng = Random.new(zone.id * 7919)
 	local field = zone.ground:Lerp(Color3.new(0, 0, 0), 0.08)
-	local face = zone.ground:Lerp(DIRT, 0.55)
+	local face = Scenery.wallColor(zone.id) or zone.ground:Lerp(DIRT, 0.55)
 	-- Zone 1 opens with the launch ramp: its flat floor and floor decor start at RAMP_END
 	local fz0 = if zone.id == 1 then RAMP_END else z0
 	local flen = z0 + len - fz0
@@ -1303,7 +1682,7 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 		if z + 10 >= minZ then
 			local kind = kinds[(k + 1) % #kinds + 1]
 			local s = if Props.native[kind] then rng:NextNumber(0.95, 1.1) else s2
-			stamp(kind, CFrame.new(-sideSign * (INNER - 7), 0, z + 10) * yaw, s, props)
+			stamp(kind, CFrame.new(-sideSign * (INNER - 5), 0, z + 10) * yaw, s, props)
 		end
 	end
 
@@ -1327,6 +1706,20 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 			end
 		end
 	end
+
+	-- Themed canyon ledges + rim lip, background silhouettes beyond the rims, and hand-over props at the boundaries
+	Scenery.build(zone, f, {
+		inner = INNER,
+		half = HALF,
+		wallT = WALL_T,
+		wallH = WALL_H,
+		rimW = RIM_W,
+		rimTop = RIM_TOP,
+		landmarkSide = side,
+		stamp = function(spec: any, cf: CFrame, scale: number, parent: Instance): Model
+			return stamp(spec, cf, scale, parent)
+		end,
+	}, fz0, if zone.id > 1 then zone.id - 1 else nil, if zone.id < #Zones then zone.id + 1 else nil)
 
 	-- Zone ambience (petals, snow, embers, bubbles... from Config/Zones.ambient)
 	local rising = {
@@ -1396,7 +1789,7 @@ function MapBuilder.build(): Model
 		Vector3.new(-INNER, 0, endZ),
 		Vector3.new(INNER, 0, endZ),
 		Vector3.new(0, 0, -1),
-		last.ground:Lerp(DIRT, 0.55),
+		Scenery.wallColor(last.id) or last.ground:Lerp(DIRT, 0.55),
 		last.ground,
 		999,
 		WALL_T,
