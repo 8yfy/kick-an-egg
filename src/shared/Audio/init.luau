@@ -170,7 +170,8 @@ local function makeSound(
 	local c = if custom then SoundBank.CUSTOM[custom] else nil
 	if c then
 		local ids = c.ids or { c.id }
-		src = { id = ids[math.clamp(tonumber(index) or 1, 1, #ids)], gain = 1 }
+		local i = math.clamp(tonumber(index) or 1, 1, #ids)
+		src = { id = ids[i], gain = 1, region = if c.regions then c.regions[i] else nil } -- (a sound sheet's slice)
 	end
 	if not src then
 		return nil

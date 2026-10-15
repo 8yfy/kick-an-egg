@@ -81,9 +81,17 @@ SoundBank.Tiers = {
 	{ maxVolume = 1.2, maxLayers = 16, maxSeconds = 3.2, maxSum = 4.5 },
 }
 SoundBank.Categories = { "UI", "Gameplay", "Ambience", "Music", "SpecialEffects" } :: { Category }
--- id = the first (or only) asset; ids = variants (a different one each play); tune = transposed like a tune layer;
--- seconds = the file's length (cleanup and voice counting).
-export type Custom = { id: string, ids: { string }?, volume: number?, tune: boolean?, seconds: number? }
+-- id = the first (or only) asset; ids = variants (a different one each play); regions = per variant, the slice of
+-- that asset to play (a sound sheet); tune = transposed like a tune layer; seconds = the sound's length (cleanup
+-- and voice counting).
+export type Custom = {
+	id: string,
+	ids: { string }?,
+	regions: { { number } }?,
+	volume: number?,
+	tune: boolean?,
+	seconds: number?,
+}
 SoundBank.CUSTOM = {} :: { [string]: Custom }
 
 -- Musical notes for the `tone` source (fundamental ~393 Hz): PlaybackSpeed that plays that note.
@@ -379,7 +387,13 @@ SoundBank.Events = {
 		},
 	}),
 	TreadmillUpgrade = ev("UI", 3, false, 0.3, 1, {
-		{ L("thump", 1, 0.25), L("hop", 1.4, 0.12), chime(G5, 0.2, 0.07), chime(C6, 0.21, 0.11), chime(E6, 0.22, 0.15) },
+		{
+			L("thump", 1, 0.25),
+			L("hop", 1.4, 0.12),
+			chime(G5, 0.2, 0.07),
+			chime(C6, 0.21, 0.11),
+			chime(E6, 0.22, 0.15),
+		},
 	}),
 	PenUpgrade = ev("UI", 3, false, 0.3, 1, {
 		{
@@ -404,15 +418,32 @@ SoundBank.Events = {
 	}),
 	TradeRequest = ev("UI", 2, false, 0.5, 1, { { chime(G6, 0.2), chime(C6, 0.2, 0.14) } }),
 	TradeComplete = ev("UI", 2, false, 0.5, 1, {
-		{ chime(C6, 0.18), chime(E6, 0.19, 0.045), chime(G6, 0.2, 0.09), chime(C7, 0.22, 0.135), L("tone", A6, 0.12, { delay = 0.2 }) },
+		{
+			chime(C6, 0.18),
+			chime(E6, 0.19, 0.045),
+			chime(G6, 0.2, 0.09),
+			chime(C7, 0.22, 0.135),
+			L("tone", A6, 0.12, { delay = 0.2 }),
+		},
 	}),
 	MoneyCollect = ev("Gameplay", 2, true, 0.5, 1, {
-		{ L("tone", A6, 0.14), L("tone", E7, 0.14, { delay = 0.05 }), L("tone", A6 * 2, 0.12, { delay = 0.1 }), chime(C7, 0.14, 0.2) },
+		{
+			L("tone", A6, 0.14),
+			L("tone", E7, 0.14, { delay = 0.05 }),
+			L("tone", A6 * 2, 0.12, { delay = 0.1 }),
+			chime(C7, 0.14, 0.2),
+		},
 	}, { rolloff = { 8, 70 } }),
 	WheelSpinStart = ev("UI", 2, false, 0.5, 1, { { whoosh(1.8, 0.14, 0.3), L("tap3", 1.4, 0.2) } }),
 	WheelTick = ev("UI", 1, false, 0.02, 4, { { L("tap1", 2.9, 0.14, { eq = { -8, 0, 0 } }) } }, { jitter = 0.03 }),
 	WheelWin = ev("UI", 3, false, 0.5, 1, {
-		{ chime(C6, 0.24), chime(E6, 0.25, 0.06), chime(G6, 0.26, 0.12), chime(C7, 0.28, 0.18), L("tone", A6, 0.14, { delay = 0.26 }) },
+		{
+			chime(C6, 0.24),
+			chime(E6, 0.25, 0.06),
+			chime(G6, 0.26, 0.12),
+			chime(C7, 0.28, 0.18),
+			L("tone", A6, 0.14, { delay = 0.26 }),
+		},
 	}),
 } :: { [string]: Event }
 
@@ -822,17 +853,37 @@ function SoundBank.tierFor(layers: { Layer }, minTier: number): number
 	return #SoundBank.Tiers
 end
 
--- The uploaded Premium SFX (Audio/PremiumSfx) replace their events. Events without an id keep the recipe above.
+-- The uploaded Premium SFX (Audio/PremiumSfx) replace their events: one-shots are regions of a sound sheet, loops
+-- are their own files. An event whose file has no id yet keeps the recipe above.
 local Premium = require(script.Parent.PremiumSfx)
-for event, ids in Premium.ids do
-	if #ids > 0 then
-		SoundBank.CUSTOM[event] = {
-			id = ids[1],
-			ids = ids,
-			volume = Premium.volume * (Premium.gain[event] or 1),
-			tune = Premium.tune[event],
-			seconds = Premium.seconds[event],
-		}
+local function premium(event: string, ids: { string }, regions: { { number } }?, seconds: number?)
+	SoundBank.CUSTOM[event] = {
+		id = ids[1],
+		ids = ids,
+		regions = regions,
+		volume = Premium.volume * (Premium.gain[event] or 1),
+		tune = Premium.tune[event],
+		seconds = seconds,
+	}
+end
+for event, list in Premium.regions do
+	local ids, regions, seconds = {}, {}, 0
+	for _, r in list do
+		local sheet = Premium.sheets[r.sheet]
+		if not sheet or sheet == "" then
+			break
+		end
+		table.insert(ids, sheet)
+		table.insert(regions, { r.from, r.to })
+		seconds = math.max(seconds, r.to - r.from)
+	end
+	if #ids > 0 and #ids == #list then
+		premium(event, ids, regions, seconds)
+	end
+end
+for event, id in Premium.loops do
+	if id ~= "" then
+		premium(event, { id }, nil, nil)
 	end
 end
 
