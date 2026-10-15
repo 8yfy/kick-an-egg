@@ -271,7 +271,7 @@ local function buildSpeed(
 	local heroArt = Ui.frame(hero, "ArtFrame", UDim2.fromScale(0.82, 0.82), UDim2.fromScale(0.5, 0.5))
 	heroArt.AnchorPoint = Vector2.new(0.5, 0.5)
 	heroArt.ZIndex = 2
-	Ui.art(heroArt, "premium_icons_nav_eggs").ZIndex = 2
+	Ui.art(heroArt, "shop_speed").ZIndex = 2
 
 	local info = Ui.frame(panel, "Info", UDim2.new(0.6, -50, 1, -40), UDim2.new(0.4, 30, 0, 20))
 	local title = Ui.text(info, "RUN SPEED", 56, { stroke = 5, name = "Title" })
@@ -475,7 +475,7 @@ function TrainingShop.define()
 			local tabs = Ui.tabs(
 				body,
 				{ "Boxing Sacks", "Speed" },
-				{ "premium_icons_nav_training", "premium_icons_nav_eggs" },
+				{ "premium_icons_nav_training", "shop_speed" },
 				Theme.Headers.training,
 				function(i: number)
 					sacksPage.Visible = i == 1
