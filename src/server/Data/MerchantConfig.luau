@@ -13,12 +13,12 @@ export type Merchant = { UserId: number, DisplayName: string, Kind: string }
 
 local MerchantConfig: { [string]: Merchant } = {
 	BoxingSackMerchant = {
-		UserId = 0, -- BLOCKED: waiting for the real UserId to use
+		UserId = 3953001499, -- provided by Partner A (boxing sack stand)
 		DisplayName = "Boxing Sack Merchant",
 		Kind = "Coach",
 	},
 	IndexMerchant = {
-		UserId = 0, -- BLOCKED: waiting for the real UserId to use
+		UserId = 1340874349, -- provided by Partner A (pet / Index stand)
 		DisplayName = "Index Merchant",
 		Kind = "Professor",
 	},
