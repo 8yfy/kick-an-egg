@@ -1,0 +1,192 @@
+--!strict
+-- Zone 20 Rainbow Heaven: egg + pet effect recipes (VFX/PetFx). One identity per egg and per pet
+-- (docs/EggPetPlan.md).
+local rgb = Color3.fromRGB
+
+local RAINBOW = {
+	rgb(255, 90, 105),
+	rgb(255, 170, 70),
+	rgb(255, 235, 90),
+	rgb(100, 235, 130),
+	rgb(80, 205, 255),
+	rgb(130, 130, 255),
+	rgb(210, 120, 255),
+}
+local GOLD, HOLY = rgb(255, 220, 120), rgb(255, 250, 235)
+
+type Layer = { [string]: any }
+type Pair = { egg: { layers: { Layer } }, pet: { layers: { Layer } } }
+
+local Recipes: { [string]: Pair } = {
+	-- Secret: the showcase stack, visibly above Divine. Egg = rainbow glitter, feather motes rising, a rainbow
+	-- prism ring pulsing out over the floor, prismatic glints and a holy glow; pet = rainbow comet trails
+	-- orbiting it, a turning rainbow ribbon, white-gold rays and a big holy glow, prism sparkles, feathers of
+	-- light drifting down, rainbow pulse rings and two lights.
+	PrismSeraph = {
+		egg = {
+			layers = {
+				{
+					kind = "board",
+					sprite = "soft_glow_white",
+					y = 3,
+					size = 11,
+					alpha = 0.2,
+					back = 1.5,
+					color = HOLY,
+					glow = 2.5,
+				},
+				{
+					kind = "emit",
+					sprite = "prism_ring",
+					y = 0.1,
+					rate = 0.8,
+					life = { 2, 2 },
+					size = { 2, 12 },
+					speed = 0.01,
+					spread = 0,
+					face = "flat",
+					color = RAINBOW,
+					alpha = { 0.1, 1 },
+					glow = 1,
+				},
+				{
+					kind = "emit",
+					sprite = "star_pastel",
+					y = 2.8,
+					area = { 4.8, 4.6, 4.8 },
+					shape = "Sphere",
+					surface = true,
+					rate = 9,
+					life = { 0.6, 1.1 },
+					size = { 0, 0.55, 0 },
+					spin = { -180, 180 },
+					color = RAINBOW,
+					glow = 1,
+				},
+				{
+					kind = "emit",
+					sprite = "feather_light",
+					y = 0.6,
+					area = { 4, 0.4, 4 },
+					shape = "Cylinder",
+					rate = 2.5,
+					life = { 2.5, 3.5 },
+					size = { 0.6, 0.4 },
+					speed = { 0.8, 1.2 },
+					spread = 20,
+					drag = 0.4,
+					spin = { -40, 40 },
+					color = HOLY,
+					glow = 0.8,
+					alpha = { 1, 0, 1 },
+				},
+				{
+					kind = "emit",
+					sprite = "prismatic_burst",
+					y = 3.6,
+					area = { 3.6, 3, 3.6 },
+					shape = "Sphere",
+					surface = true,
+					rate = 2,
+					life = { 0.3, 0.5 },
+					size = { 0, 1.4, 0 },
+					glow = 1,
+				},
+				{ kind = "light", color = HOLY, y = 3, range = 10, brightness = 1.4, pulse = { 0.8, 1.2, 2.4 } },
+			},
+		},
+		pet = {
+			layers = {
+				{
+					kind = "board",
+					sprite = "solar_rays",
+					y = 5.4,
+					size = 22,
+					color = HOLY,
+					alpha = 0,
+					spin = 7,
+					back = 3,
+					glow = 1.8,
+				},
+				{
+					kind = "board",
+					sprite = "soft_glow_white",
+					y = 5,
+					size = 18,
+					alpha = 0.15,
+					back = 2.5,
+					color = HOLY,
+					glow = 2.5,
+				},
+				{
+					kind = "board",
+					sprite = "rainbow_ribbon",
+					y = 5.2,
+					size = 16,
+					alpha = 0,
+					spin = -10,
+					back = 2.8,
+					glow = 1.6,
+				},
+				{
+					kind = "orbit",
+					sprite = "prism_glint",
+					count = 7,
+					radius = 5.2,
+					y = 4.2,
+					speed = 1.2,
+					bob = 1.2,
+					tilt = 20,
+					size = 0.9,
+					glow = 2,
+					trail = { color = RAINBOW, life = 0.7, width = 0.45, alpha = { 0.2, 1 } },
+				},
+				{
+					kind = "emit",
+					sprite = "prism_ring",
+					y = 0.1,
+					rate = 0.9,
+					life = { 2.2, 2.2 },
+					size = { 3, 16 },
+					speed = 0.01,
+					spread = 0,
+					face = "flat",
+					color = RAINBOW,
+					alpha = { 0.1, 1 },
+					glow = 1,
+				},
+				{
+					kind = "emit",
+					sprite = "prism_twinkle",
+					y = 5.5,
+					area = { 9, 6, 4 },
+					rate = 10,
+					life = { 0.4, 0.8 },
+					size = { 0, 0.8, 0 },
+					spin = { -90, 90 },
+					color = RAINBOW,
+					glow = 1,
+				},
+				{
+					kind = "emit",
+					sprite = "feather_light",
+					y = 9,
+					area = { 8, 0.5, 3 },
+					rate = 3,
+					life = { 3.5, 4.5 },
+					size = { 0.7, 0.5 },
+					accel = { 0, -0.8, 0 },
+					drag = 0.7,
+					spin = { -60, 60 },
+					color = HOLY,
+					glow = 0.8,
+					alpha = { 1, 0, 0, 1 },
+				},
+				{ kind = "light", color = HOLY, y = 5, range = 13, brightness = 1.6, pulse = { 0.8, 1.2, 2.4 } },
+				{ kind = "light", color = GOLD, y = 7.6, range = 8, brightness = 1 },
+			},
+		},
+	},
+}
+
+return Recipes

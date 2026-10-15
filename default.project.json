@@ -3,7 +3,9 @@
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
-      "Shared": { "$path": "src/shared" }
+      "Shared": { "$path": "src/shared" },
+      "SackModules": { "$path": "src/sackmodules" },
+      "SackAssets": { "$path": "assets/sacks/SackAssets.rbxm" }
     },
     "ServerScriptService": {
       "Server": { "$path": "src/server" }
@@ -13,6 +15,7 @@
         "Client": { "$path": "src/client" }
       }
     },
+    "TextChatService": { "$properties": { "ChatVersion": "TextChatService" } },
     "Workspace": { "$properties": { "FilteringEnabled": true } },
     "Lighting": {
       "$properties": {

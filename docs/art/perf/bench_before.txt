@@ -1,0 +1,22 @@
+BENCH  1 1                modelParts  60 | emitters  58 (swarm  58) beams   0 lights  0 fxParts   1 atts  58 | build 1.5 ms | Full 0.105 ms / ~58 live | spin PivotTo 0.190 / BulkMoveTo 0.058 ms
+BENCH  2 2                modelParts  53 | emitters  66 (swarm  66) beams   0 lights  0 fxParts   1 atts  66 | build 1.5 ms | Full 0.122 ms / ~66 live | spin PivotTo 0.171 / BulkMoveTo 0.055 ms
+BENCH  3 3                modelParts  83 | emitters  31 (swarm  31) beams   0 lights  0 fxParts   1 atts  31 | build 0.8 ms | Full 0.035 ms / ~31 live | spin PivotTo 0.208 / BulkMoveTo 0.069 ms
+BENCH  4 4                modelParts  31 | emitters  56 (swarm  56) beams   0 lights  0 fxParts   1 atts  56 | build 1.4 ms | Full 0.071 ms / ~56 live | spin PivotTo 0.079 / BulkMoveTo 0.029 ms
+BENCH  5 5                modelParts 174 | emitters  62 (swarm  62) beams   0 lights  0 fxParts   1 atts  62 | build 1.5 ms | Full 0.108 ms / ~62 live | spin PivotTo 0.420 / BulkMoveTo 0.147 ms
+BENCH  6 6                modelParts 125 | emitters 105 (swarm 104) beams   0 lights  1 fxParts   1 atts 106 | build 2.5 ms | Full 0.224 ms / ~108 live | spin PivotTo 0.353 / BulkMoveTo 0.106 ms
+BENCH  7 7                modelParts 101 | emitters  63 (swarm  63) beams   0 lights  0 fxParts   1 atts  63 | build 1.5 ms | Full 0.103 ms / ~63 live | spin PivotTo 0.258 / BulkMoveTo 0.092 ms
+BENCH  8 8                modelParts  68 | emitters  93 (swarm  92) beams   0 lights  1 fxParts   1 atts  94 | build 2.2 ms | Full 0.125 ms / ~93 live | spin PivotTo 0.187 / BulkMoveTo 0.057 ms
+BENCH  9 9                modelParts  69 | emitters 115 (swarm 114) beams   0 lights  1 fxParts  65 atts 116 | build 3.5 ms | Full 0.331 ms / ~118 live | spin PivotTo 0.245 / BulkMoveTo 0.104 ms
+BENCH 10 10               modelParts  97 | emitters 135 (swarm 134) beams   0 lights  1 fxParts   1 atts 136 | build 3.1 ms | Full 0.234 ms / ~138 live | spin PivotTo 0.254 / BulkMoveTo 0.080 ms
+BENCH 11 11               modelParts  65 | emitters 184 (swarm 170) beams   0 lights  1 fxParts  13 atts 173 | build 4.1 ms | Full 0.322 ms / ~226 live | spin PivotTo 0.198 / BulkMoveTo 0.068 ms
+BENCH 12 12               modelParts 140 | emitters 160 (swarm 160) beams   0 lights  1 fxParts   5 atts 161 | build 3.9 ms | Full 0.254 ms / ~160 live | spin PivotTo 0.478 / BulkMoveTo 0.127 ms
+BENCH 13 13               modelParts  77 | emitters 226 (swarm 224) beams   0 lights  2 fxParts   1 atts 228 | build 5.1 ms | Full 0.599 ms / ~232 live | spin PivotTo 0.193 / BulkMoveTo 0.072 ms
+BENCH 14 14               modelParts  63 | emitters  74 (swarm  70) beams 128 lights  1 fxParts   1 atts 147 | build 3.9 ms | Full 0.178 ms / ~83 live | spin PivotTo 0.160 / BulkMoveTo 0.058 ms
+BENCH 15 15               modelParts  67 | emitters 131 (swarm 130) beams   0 lights  1 fxParts   1 atts 132 | build 3.2 ms | Full 0.224 ms / ~134 live | spin PivotTo 0.200 / BulkMoveTo 0.063 ms
+BENCH 16 16               modelParts  81 | emitters  81 (swarm  80) beams   0 lights  2 fxParts  73 atts  83 | build 3.8 ms | Full 0.344 ms / ~84 live | spin PivotTo 0.270 / BulkMoveTo 0.114 ms
+BENCH 17 17               modelParts 239 | emitters 154 (swarm 150) beams   0 lights  1 fxParts   4 atts 152 | build 4.6 ms | Full 0.461 ms / ~290 live | spin PivotTo 0.892 / BulkMoveTo 0.204 ms
+BENCH 18 18               modelParts  98 | emitters 518 (swarm 510) beams   0 lights  2 fxParts  13 atts 514 | build 12.0 ms | Full 0.876 ms / ~620 live | spin PivotTo 0.271 / BulkMoveTo 0.097 ms
+BENCH 19 19               modelParts 132 | emitters  57 (swarm  50) beams   0 lights  2 fxParts   2 atts  56 | build 3.5 ms | Full 0.188 ms / ~190 live | spin PivotTo 0.331 / BulkMoveTo 0.082 ms
+BENCH 20 20               modelParts  77 | emitters 314 (swarm 300) beams   0 lights  3 fxParts  42 atts 307 | build 8.4 ms | Full 0.975 ms / ~349 live | spin PivotTo 0.236 / BulkMoveTo 0.086 ms
+BENCH TOTAL (all 20) emitters 2683 (swarm 2624) beams 128 lights 20 | build 72 ms | step Full 5.88 ms / ~3163 live | spin PivotTo 5.59 / BulkMoveTo 1.77 ms per frame
+[Tests] 1 passed, 0 failed

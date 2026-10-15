@@ -22,13 +22,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		pattern = "stripes",
 		top = "ears",
 	}),
-	TideSpirit = E.build({
-		rarity = "Epic",
-		colors = { rgb(221, 246, 255), rgb(80, 190, 240), rgb(230, 250, 255) },
-		pattern = "crystal",
-		top = "fin",
-		glow = rgb(90, 230, 255),
-	}),
+	-- Premium hero spec (Models/Premium/TideSpirit.luau, docs/EggPetPlan.md).
+	TideSpirit = require(script.Parent.Parent.Premium.TideSpirit).egg,
 }
 
 return Eggs

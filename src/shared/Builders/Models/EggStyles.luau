@@ -356,8 +356,43 @@ function EggStyles.build(def: Def): Builder.Spec
 	local parts = Kit.eggShell(layers(def))
 	pattern(parts, def, glow, metal)
 	top(parts, def, glow, metal)
+	-- Cartoon shine, darker base rim, and sparkles for Rare+.
+	local w1, _, c1 = Kit.eggLayer(1)
+	table.insert(
+		parts,
+		P(
+			"Rim",
+			{ w1 + 0.06, 0.14, w1 + 0.06 },
+			{ 0, c1 - 0.13, 0 },
+			def.colors[2]:Lerp(Color3.new(0, 0, 0), 0.3),
+			{ joint = "Body" }
+		)
+	)
+	table.insert(
+		parts,
+		Kit.onShell("Shine", "F", -0.75, 2.65, 0.28, 0.42, Color3.new(1, 1, 1), { transparency = 0.25 })
+	)
+	table.insert(
+		parts,
+		Kit.onShell("ShineDot", "F", -0.75, 2.25, 0.16, 0.16, Color3.new(1, 1, 1), { transparency = 0.25 })
+	)
 	if rarity.order >= Rarities.Rare.order then
 		table.insert(parts, Kit.eggBand(3, def.rarity))
+		for i, o in { { "R", 0.55, 2.6 }, { "L", -0.4, 1.0 }, { "B", 0.2, 2.9 } } do
+			table.insert(
+				parts,
+				Kit.onShell(
+					"Sparkle" .. i,
+					o[1],
+					o[2],
+					o[3],
+					0.18,
+					0.18,
+					Color3.new(1, 1, 1),
+					{ material = "Neon", rot = { 45, 0, 45 } }
+				)
+			)
+		end
 	end
 	if rarity.order >= Rarities.Legendary.order then
 		ring(parts, "Orbit", 1.8, 2.3, 4, 0.35, rarity.color)
