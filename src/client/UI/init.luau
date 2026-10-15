@@ -24,6 +24,7 @@ local Menus = require(script.Menus)
 local ZoneProgress = require(script.Hud.ZoneProgress)
 local SackGear = require(script.SackGear)
 local SackSlot = require(script.Hud.SackSlot)
+local Hotbar = require(script.Hud.Hotbar)
 local Interact = require(script.Interact)
 local AssetIds = require(script.System.AssetIds)
 local Data = require(script.System.Data)
@@ -35,6 +36,7 @@ local PetInventory = require(script.Screens.PetInventory)
 local Rebirth = require(script.Screens.Rebirth)
 local WheelScreen = require(script.Screens.Wheel)
 local Donate = require(script.Screens.Donate)
+local Bag = require(script.Screens.Bag)
 
 local UI = {}
 
@@ -103,6 +105,7 @@ function UI:Init()
 	Rebirth.define()
 	WheelScreen.define()
 	Donate.define()
+	Bag.define()
 
 	menus = Menus.new(root, { tiles = false }) -- Settings gear + Trade window; the rail replaces the tiles
 	quest = QuestBar.new(root)
@@ -110,6 +113,7 @@ function UI:Init()
 	kick = KickPanel.new(root)
 	SackGear.start(root) -- key 1 / gamepad Y, the "click to kick" hint
 	local sackSlot = SackSlot.new(root, root:FindFirstChild("KickPanel") :: GuiObject?) -- bottom Kick Sack quickslot
+	Hotbar.new(root, root:FindFirstChild("KickPanel") :: GuiObject?) -- custom egg / pet hotbar, right of the sack
 	overlay = ChaseOverlay.new(root)
 	zoneBar = ZoneProgress.new(root)
 	rail = Rail.new(root)
