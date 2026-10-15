@@ -1,10 +1,10 @@
 --!strict
--- Partner A. Backpack screen (custom inventory; opened by the hotbar's BAG slot, B, gamepad DPad Up). Every egg
--- you carry and pet you have stored (UI/System/Backpack), each card showing the LIVE 3D model the game builds
--- (Ui.eggArt / Ui.petArt) on its rarity colours with its name, rarity and an EGG / PET tag. Tabs ALL / EGGS /
--- PETS, a search box (by name), and HOLDING on the one in your hands. Click a card to hold it (the screen
--- closes so you can walk to your pen and place it); click the held one to put it away. Selling pets stays on
--- the Sell Pets screen (UI/Screens/PetInventory).
+-- Partner A. Backpack screen (custom inventory; opened by the BAG button on the right rail, or B / gamepad DPad
+-- Up). Every egg you carry and pet you have stored (UI/System/Backpack), each card showing the LIVE 3D model the
+-- game builds (Ui.eggArt / Ui.petArt) on its rarity colours with its name, rarity and an EGG / PET tag. Tabs ALL /
+-- EGGS / PETS and a search box. Click a card to EQUIP it (it goes onto your hotbar, UI/Hud/Hotbar, with its key)
+-- or to unequip it; a full hotbar says so. Marks: ON HOTBAR [key] (green) and HOLDING (gold). Holding is done
+-- from the hotbar. Selling pets stays on the Sell Pets screen (UI/Screens/PetInventory).
 local System = script.Parent.Parent.System
 local Backpack = require(System.Backpack)
 local Modal = require(System.Modal)
@@ -14,6 +14,7 @@ local Ui = require(System.Ui)
 
 local C = Theme.Colors
 local GOLD = Color3.fromRGB(255, 215, 70)
+local LIME = Color3.fromRGB(125, 255, 74)
 local FILTERS = { "All", "Egg", "Pet" }
 
 local Bag = {}
@@ -38,9 +39,7 @@ local function makeCard(parent: Instance, item: Backpack.Item): Card
 	b.BackgroundColor3 = C.card
 	b.Parent = parent
 	Ui.corner(b, 16)
-	Ui.stroke(b, 4)
-	local glow = Ui.stroke(b, 0, GOLD)
-	glow.Name = "Glow"
+	local glow = Ui.stroke(b, 4) -- one outline: dark, green = on the hotbar, gold = in your hands
 
 	local fill = Ui.frame(b, "Rarity", UDim2.new(1, -10, 0.68, -6), UDim2.fromOffset(5, 5))
 	Ui.corner(fill, 12)
@@ -74,10 +73,11 @@ local function makeCard(parent: Instance, item: Backpack.Item): Card
 	local pair = Theme.Rarity[item.rarity] or Theme.Rarity.Common
 	rarity.TextColor3 = pair[1]
 
-	local holding = Ui.text(b, "HOLDING", 16, { stroke = 3, name = "Holding" })
+	local holding = Ui.text(b, "", 16, { stroke = 3, name = "State" })
 	holding.AnchorPoint = Vector2.new(1, 0)
 	holding.Position = UDim2.new(1, -8, 0, 6)
-	holding.Size = UDim2.fromOffset(80, 22)
+	holding.Size = UDim2.fromOffset(96, 20)
+	holding.TextScaled = true
 	holding.TextXAlignment = Enum.TextXAlignment.Right
 	holding.TextColor3 = GOLD
 	holding.ZIndex = 3
@@ -86,10 +86,9 @@ local function makeCard(parent: Instance, item: Backpack.Item): Card
 	local card: Card =
 		{ gui = b, art = art, name = name, rarity = rarity, tag = tag, holding = holding, glow = glow, item = item }
 	b.Activated:Connect(function()
-		local wasHeld = card.item.held
-		Backpack.hold(card.item)
-		if not wasHeld then
-			Modal.close() -- go place it
+		local ok, why = Backpack.toggleEquip(card.item)
+		if not ok and why then
+			Modal.toast(why, "error")
 		end
 	end)
 	return card
@@ -143,7 +142,7 @@ function Bag.define()
 			local count = Ui.text(body, "", 20, { stroke = 2, name = "Count" })
 			count.AnchorPoint = Vector2.new(1, 0)
 			count.Position = UDim2.new(1, -14, 0, 76)
-			count.Size = UDim2.fromOffset(220, 30)
+			count.Size = UDim2.fromOffset(360, 30)
 			count.TextXAlignment = Enum.TextXAlignment.Right
 			count.TextColor3 = C.muted
 			count.ZIndex = 3
@@ -185,8 +184,15 @@ function Bag.define()
 					local passQuery = query == "" or string.find(string.lower(item.name), query, 1, true) ~= nil
 					card.gui.Visible = passFilter and passQuery
 					card.gui.LayoutOrder = order
-					card.holding.Visible = item.held
-					card.glow.Thickness = if item.held then 4 else 0
+					local slot = Backpack.slotOf(item.uid)
+					local onBar = slot ~= nil and slot <= Backpack.capacity()
+					card.holding.Text = if item.held
+						then "HOLDING"
+						elseif onBar then `HOTBAR {(slot :: number) + 1}`
+						else ""
+					card.holding.TextColor3 = if item.held then GOLD else LIME
+					card.glow.Color = if item.held then GOLD elseif onBar then LIME else C.border
+					card.glow.Thickness = if item.held or onBar then 5 else 4
 					if card.gui.Visible then
 						shown += 1
 					end
@@ -197,7 +203,7 @@ function Bag.define()
 						cards[uid] = nil
 					end
 				end
-				count.Text = `{eggs} eggs  ·  {pets} pets`
+				count.Text = `{eggs} eggs  ·  {pets} pets  ·  tap to equip`
 				empty.Visible = shown == 0
 				empty.Text = if #items == 0
 					then "No eggs or pets yet. Kick an egg and bring it home!"

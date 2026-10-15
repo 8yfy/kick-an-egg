@@ -1,231 +1,283 @@
 --!strict
--- Partner A. Custom hotbar (replaces Roblox's default Backpack bar; UI/SackGear turns that off). Your first
--- carried eggs / stored pets (UI/System/Backpack order) as slots that show the LIVE 3D model the game builds
--- (Ui.eggArt / Ui.petArt), on the item's rarity colours, with the key (1-8; hidden on touch) and an egg / pet tag.
--- The one in your hands glows gold and lifts. Click / tap / key holds it, again puts it away. The last slot is
--- BAG (B; gamepad DPad Up): your item count, opens the full backpack (UI/Screens/Bag). Gamepad L1 / R1 cycle.
--- Sits right of the Kick Sack quickslot; phones show 4 slots so it stays clear of the jump button. Hidden while
--- the kick controls show.
+-- Partner A. The custom hotbar (replaces Roblox's default Backpack bar and the separate Kick Sack quickslot):
+-- one row at the bottom centre. Slot 1 is always your Boxing Sack (its approved art, its name, key 1 / Q /
+-- gamepad Y; out = gold glow + raised, exactly like the old quickslot). After it come only the eggs / pets you
+-- EQUIPPED in the Bag (UI/Screens/Bag, UI/System/Backpack): each slot renders the LIVE 3D model the game builds
+-- (Ui.eggArt / Ui.petArt) on its rarity colours, with its key (2-7; hidden on touch) and name. Click / tap /
+-- key holds it (again = put away); the held one glows gold and lifts. Gamepad L1 / R1 cycle the items.
+-- Phones fit 3 items so the bar stays clear of the jump button. While the kick controls show, only the sack
+-- stays, left of KICK. The Bag itself opens from the right rail (UI/Hud/Drawers).
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local Kit = require(script.Parent.Parent.Kit)
+local SackGear = require(script.Parent.Parent.SackGear)
 local System = script.Parent.Parent.System
+local AssetIds = require(System.AssetIds)
 local Backpack = require(System.Backpack)
-local Modal = require(System.Modal)
+local Data = require(System.Data)
 local Motion = require(System.Motion)
 local Theme = require(System.Theme)
 local Ui = require(System.Ui)
 
 local C = Theme.Colors
 local GOLD = Color3.fromRGB(255, 215, 70)
-local SLOT = 88
-local GAP = 10
-local SLOTS, SLOTS_COMPACT = 8, 4
-local KEYS = {
-	Enum.KeyCode.One,
-	Enum.KeyCode.Two,
-	Enum.KeyCode.Three,
-	Enum.KeyCode.Four,
-	Enum.KeyCode.Five,
-	Enum.KeyCode.Six,
-	Enum.KeyCode.Seven,
-	Enum.KeyCode.Eight,
-}
+local SIZE = 96 -- same tile as the old Kick Sack quickslot
+local GAP = 14
+local LABEL = 34 -- name lines under each tile
+local ITEMS, ITEMS_COMPACT = 6, 3
+local ITEM_KEYS =
+	{ Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven }
 
 local Hotbar = {}
 
-type Slot = {
-	gui: TextButton,
+type Tile = {
+	holder: Frame, -- tile + labels (one list cell)
+	tile: TextButton,
 	art: Frame,
 	rarity: Frame,
-	tag: TextLabel,
 	key: TextLabel,
-	glow: UIStroke,
-	lift: UIScale,
-	shown: string, -- "<kind>:<modelKey>" currently drawn (rebuild the 3D model only when it changes)
-	item: Backpack.Item?,
+	name: TextLabel,
+	sub: TextLabel,
+	edge: UIStroke,
 }
 
-local function clearArt(art: Frame)
-	for _, c in art:GetChildren() do
-		if c:IsA("ViewportFrame") then
-			c:Destroy()
-		end
-	end
+local function keyBadge(parent: GuiObject, text: string): TextLabel
+	local key = Instance.new("TextLabel")
+	key.Name = "Key"
+	key.BackgroundColor3 = C.border
+	key.BackgroundTransparency = 0.1
+	key.Size = UDim2.fromOffset(30, 30)
+	key.Position = UDim2.fromOffset(-6, -6)
+	key.Font = Theme.Font
+	key.TextSize = 22
+	key.TextColor3 = C.text
+	key.Text = text
+	key.ZIndex = 5
+	key.Parent = parent
+	Ui.corner(key, 8)
+	Ui.stroke(key, 2, GOLD)
+	return key
 end
 
-local function makeSlot(parent: Instance, index: number, onClick: () -> ()): Slot
-	local b = Instance.new("TextButton")
-	b.Name = "Slot" .. index
-	b.Text = ""
-	b.AutoButtonColor = false
-	b.LayoutOrder = index
-	b.Size = UDim2.fromOffset(SLOT, SLOT)
-	b.BackgroundColor3 = C.card
-	b.BackgroundTransparency = 0.05
-	b.Selectable = true
-	b.Parent = parent
-	Ui.corner(b, 16)
-	Ui.stroke(b, 4)
-	local glow = Ui.stroke(b, 0, GOLD)
-	glow.Name = "Glow"
-	local lift = Instance.new("UIScale")
-	lift.Parent = b
+local function makeTile(parent: Instance, order: number, onClick: () -> ()): Tile
+	local holder = Ui.frame(parent, "Slot" .. order, UDim2.fromOffset(SIZE + 20, SIZE + LABEL))
+	holder.LayoutOrder = order
+	local tile = Instance.new("TextButton")
+	tile.Name = "Tile"
+	tile.Text = ""
+	tile.AutoButtonColor = false
+	tile.AnchorPoint = Vector2.new(0.5, 0)
+	tile.Position = UDim2.new(0.5, 0, 0, 6)
+	tile.Size = UDim2.fromOffset(SIZE, SIZE)
+	tile.BackgroundColor3 = C.card
+	tile.BackgroundTransparency = 0.05
+	tile.Selectable = true
+	tile.Parent = holder
+	Ui.corner(tile, 18)
+	local edge = Ui.stroke(tile, 5) -- one outline: dark, gold while held / out
+	Motion.interactive(tile)
+	tile.Activated:Connect(onClick)
 
-	local rarity = Ui.frame(b, "Rarity", UDim2.new(1, -10, 1, -10), UDim2.fromOffset(5, 5))
-	Ui.corner(rarity, 12)
+	local rarity = Ui.frame(tile, "Rarity", UDim2.new(1, -12, 1, -12), UDim2.fromOffset(6, 6))
+	Ui.corner(rarity, 13)
 	rarity.Visible = false
-	local art = Ui.frame(b, "Art", UDim2.new(1, -8, 1, -8), UDim2.fromOffset(4, 4))
+	local art = Ui.frame(tile, "Art", UDim2.fromScale(0.86, 0.86), UDim2.fromScale(0.5, 0.5))
+	art.AnchorPoint = Vector2.new(0.5, 0.5)
 	art.ZIndex = 2
 
-	local key = Ui.text(b, tostring(index), 20, { stroke = 3, name = "Key" })
-	key.AnchorPoint = Vector2.new(0, 0)
-	key.Position = UDim2.fromOffset(6, 2)
-	key.Size = UDim2.fromOffset(22, 26)
-	key.ZIndex = 4
-	local tag = Ui.text(b, "", 14, { stroke = 2, name = "Tag" })
-	tag.AnchorPoint = Vector2.new(0.5, 1)
-	tag.Position = UDim2.new(0.5, 0, 1, -2)
-	tag.Size = UDim2.new(1, -6, 0, 18)
-	tag.ZIndex = 4
-
-	Motion.interactive(b)
-	b.Activated:Connect(onClick)
+	local name = Ui.text(holder, "", 16, { align = Enum.TextXAlignment.Center, stroke = 3, name = "ItemName" })
+	name.AnchorPoint = Vector2.new(0.5, 1)
+	name.Position = UDim2.new(0.5, 0, 1, -16)
+	name.Size = UDim2.new(1, 0, 0, 14)
+	name.TextScaled = true
+	local sub = Ui.text(holder, "", 18, { align = Enum.TextXAlignment.Center, stroke = 3, name = "Sub" })
+	sub.AnchorPoint = Vector2.new(0.5, 1)
+	sub.Position = UDim2.new(0.5, 0, 1, -2)
+	sub.Size = UDim2.new(1, 0, 0, 16)
 	return {
-		gui = b,
+		holder = holder,
+		tile = tile,
 		art = art,
 		rarity = rarity,
-		tag = tag,
-		key = key,
-		glow = glow,
-		lift = lift,
-		shown = "",
-		item = nil,
+		key = keyBadge(tile, ""),
+		name = name,
+		sub = sub,
+		edge = edge,
 	}
 end
 
-local function paint(slot: Slot, item: Backpack.Item?)
-	slot.item = item
-	local id = if item then item.kind .. ":" .. item.key else ""
-	if id ~= slot.shown then
-		slot.shown = id
-		clearArt(slot.art)
+local function setLit(t: Tile, on: boolean)
+	t.edge.Color = if on then GOLD else C.border
+	t.edge.Thickness = if on then 6 else 5
+	Motion.tween(t.tile, 0.15, { Position = UDim2.new(0.5, 0, 0, if on then 0 else 6) })
+end
+
+export type Hotbar = { gui: Frame, update: () -> () }
+
+function Hotbar.new(parent: Instance, kickPanel: GuiObject?): Hotbar
+	local root = Ui.frame(parent, "Hotbar", UDim2.fromOffset((ITEMS + 1) * (SIZE + 20 + GAP), SIZE + LABEL + 6))
+	root.AnchorPoint = Vector2.new(0.5, 1)
+	Kit.autoScale(root)
+	local list = Ui.list(root, GAP, true, Enum.HorizontalAlignment.Center)
+	list.VerticalAlignment = Enum.VerticalAlignment.Bottom
+
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local function isPad(): boolean
+		return UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled
+	end
+
+	-- Slot 1: the Boxing Sack ---------------------------------------------------------------------------------
+	local sack = makeTile(root, 0, function()
+		SackGear.toggle()
+	end)
+	sack.sub.Text = "BOXING SACK"
+	sack.sub.TextColor3 = C.power
+	local sackArt: ImageLabel? = nil
+	local shownTier = 0
+	local sackOut = false
+
+	local function paintSackOut()
+		local _, out = SackGear.tool()
+		if out == sackOut then
+			return
+		end
+		sackOut = out
+		setLit(sack, out)
+		if out then
+			Motion.popIn(sack.tile)
+		end
+	end
+
+	local function paintSack()
+		local tier, sackName = 1, "Burlap Sack"
+		for _, row in Data.sacks() do
+			if row.state == "Equipped" then
+				tier, sackName = row.tier, row.name
+			end
+		end
+		if tier ~= shownTier then
+			local first = shownTier == 0
+			shownTier = tier
+			if sackArt then
+				sackArt:Destroy()
+			end
+			sackArt = Ui.art(sack.art, AssetIds.sack(sackName) or ("sack:" .. sackName))
+			sack.name.Text = string.upper(sackName)
+			if not first then
+				Motion.popIn(sack.tile) -- a new sack
+			end
+		end
+		sack.key.Visible = not touch
+		sack.key.Text = if isPad() then "Y" else "1"
+		paintSackOut()
+	end
+
+	-- Slots 2+: equipped eggs / pets ---------------------------------------------------------------------------
+	local tiles: { Tile } = {}
+	local shown: { string } = {} -- "<kind>:<modelKey>" drawn in each tile (rebuild the 3D model only on change)
+	local items: { Backpack.Item } = {}
+	local maxItems = ITEMS
+	local cursor = 0
+
+	local function holdIndex(i: number)
+		local item = items[i]
 		if item then
-			if item.kind == "Egg" then
-				Ui.eggArt(slot.art, item.key)
-			else
-				Ui.petArt(slot.art, item.key)
+			Backpack.hold(item)
+		end
+	end
+	for i = 1, ITEMS do
+		local index = i
+		tiles[i] = makeTile(root, i, function()
+			holdIndex(index)
+		end)
+		shown[i] = ""
+	end
+
+	local function paintItems()
+		local kicking = kickPanel ~= nil and kickPanel.Visible
+		items = Backpack.equipped()
+		for i, t in tiles do
+			local item = if i <= maxItems and not kicking then items[i] else nil
+			t.holder.Visible = item ~= nil
+			if item then
+				local id = item.kind .. ":" .. item.key
+				if id ~= shown[i] then
+					shown[i] = id
+					for _, c in t.art:GetChildren() do
+						if c:IsA("ViewportFrame") then
+							c:Destroy()
+						end
+					end
+					if item.kind == "Egg" then
+						Ui.eggArt(t.art, item.key)
+					else
+						Ui.petArt(t.art, item.key)
+					end
+				end
+				t.rarity.Visible = true
+				Ui.fill(t.rarity, Theme.Rarity[item.rarity] or Theme.Rarity.Common)
+				t.rarity.BackgroundTransparency = 0.35
+				t.key.Visible = not touch
+				t.key.Text = tostring(i + 1)
+				t.name.Text = string.upper(item.name)
+				t.sub.Text = if item.kind == "Egg" then "EGG" else string.upper(item.rarity)
+				local pair = Theme.Rarity[item.rarity] or Theme.Rarity.Common
+				t.sub.TextColor3 = if item.kind == "Egg" then C.power else pair[1]
+				setLit(t, item.held)
 			end
 		end
 	end
-	slot.gui.Visible = item ~= nil
-	if not item then
-		return
-	end
-	slot.rarity.Visible = true
-	Ui.fill(slot.rarity, Theme.Rarity[item.rarity] or Theme.Rarity.Common)
-	slot.rarity.BackgroundTransparency = 0.35
-	slot.tag.Text = if item.kind == "Egg" then "EGG" else "PET"
-	slot.tag.TextColor3 = if item.kind == "Egg" then C.power else C.text
-	slot.glow.Thickness = if item.held then 4 else 0
-	Motion.tween(slot.lift, 0.15, { Scale = if item.held then 1.08 else 1 })
-end
 
-export type Hotbar = { gui: Frame }
-
-function Hotbar.new(parent: Instance, kickPanel: GuiObject?): Hotbar
-	local root = Ui.frame(parent, "Hotbar", UDim2.fromOffset((SLOTS + 1) * (SLOT + GAP), SLOT + 16))
-	root.AnchorPoint = Vector2.new(0, 1)
-	local scale = Kit.autoScale(root)
-	local row = Ui.frame(root, "Row")
-	local layout = Ui.list(row, GAP, true)
-	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-
-	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local slots: { Slot } = {}
-	local items: { Backpack.Item } = {}
-	local maxSlots = SLOTS
-	local cursor = 0 -- gamepad L1 / R1 position
-
-	local function holdIndex(i: number)
-		local slot = slots[i]
-		if slot and slot.item and i <= maxSlots then
-			Backpack.hold(slot.item)
-		end
-	end
-	for i = 1, SLOTS do
-		local index = i
-		slots[i] = makeSlot(row, i, function()
-			holdIndex(index)
-		end)
-		slots[i].key.Visible = not touch
+	local function update()
+		paintSack()
+		paintItems()
 	end
 
-	-- BAG: opens the full backpack; shows how many items you carry.
-	local bag = Instance.new("TextButton")
-	bag.Name = "Bag"
-	bag.Text = ""
-	bag.AutoButtonColor = false
-	bag.LayoutOrder = SLOTS + 1
-	bag.Size = UDim2.fromOffset(SLOT, SLOT)
-	bag.Selectable = true
-	bag.Parent = row
-	Ui.corner(bag, 16)
-	Ui.fill(bag, Theme.Nav.Pets)
-	Ui.stroke(bag, 4)
-	local bagArt = Ui.art(bag, "hud_pets", UDim2.new(1, -24, 1, -34), Enum.ScaleType.Fit)
-	bagArt.Position = UDim2.fromOffset(12, 4)
-	local bagLabel = Ui.text(bag, "BAG", 18, { stroke = 3, name = "Label" })
-	bagLabel.AnchorPoint = Vector2.new(0.5, 1)
-	bagLabel.Position = UDim2.new(0.5, 0, 1, -3)
-	bagLabel.Size = UDim2.new(1, 0, 0, 22)
-	local bagKey = Ui.text(bag, "B", 20, { stroke = 3, name = "Key" })
-	bagKey.Position = UDim2.fromOffset(6, 2)
-	bagKey.Size = UDim2.fromOffset(22, 26)
-	bagKey.Visible = not touch
-	local badge, badgeText = Ui.badge(bag)
-	Motion.interactive(bag)
-	bag.Activated:Connect(function()
-		Modal.toggle("Bag", bag)
-	end)
-
-	local function refresh()
-		items = Backpack.items()
-		for i, slot in slots do
-			paint(slot, if i <= maxSlots then items[i] else nil)
-		end
-		badge.Visible = #items > 0
-		badgeText.Text = tostring(#items)
-	end
-
+	-- layout: bottom centre; while the kick controls show only the sack stays, left of KICK
 	local function place()
 		local kicking = kickPanel ~= nil and kickPanel.Visible
 		local compact = Kit.compact()
-		maxSlots = if compact then SLOTS_COMPACT else SLOTS
-		root.Visible = not kicking
-		-- right of the Kick Sack tile (96 design px, centred), in screen pixels
-		local s = scale.Scale
-		root.Position = UDim2.new(0.5, math.floor((48 + 22) * s), 1, if compact then -18 else -40)
-		refresh()
+		maxItems = if compact then ITEMS_COMPACT else ITEMS
+		Backpack.setCapacity(maxItems)
+		local x = if kicking then (if compact then -150 else -250) else 0
+		Motion.tween(root, 0.2, { Position = UDim2.new(0.5, x, 1, if compact then -4 else -10) })
+		paintItems()
 	end
 	Kit.onLayout(place)
 	if kickPanel then
 		kickPanel:GetPropertyChangedSignal("Visible"):Connect(place)
 	end
-	Backpack.onChanged(refresh)
+	root.Position = UDim2.new(0.5, 0, 1, -10)
+
+	-- keeps the sack glow honest whatever took it out (Q, gamepad, the server putting it away mid-chase)
+	local function watch(character: Model)
+		character.ChildAdded:Connect(paintSackOut)
+		character.ChildRemoved:Connect(paintSackOut)
+		paintSackOut()
+	end
+	local me = Players.LocalPlayer
+	me.CharacterAdded:Connect(watch)
+	if me.Character then
+		watch(me.Character)
+	end
+	UserInputService.LastInputTypeChanged:Connect(paintSack)
+	Backpack.onChanged(paintItems)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed or UserInputService:GetFocusedTextBox() then
 			return
 		end
 		local key = input.KeyCode
-		local i = table.find(KEYS, key)
-		if i then
+		if key == Enum.KeyCode.One then
+			SackGear.toggle() -- Q / gamepad Y keep working through UI/SackGear
+			return
+		end
+		local i = table.find(ITEM_KEYS, key)
+		if i and i <= maxItems then
 			holdIndex(i)
-		elseif key == Enum.KeyCode.B or key == Enum.KeyCode.DPadUp then
-			Modal.toggle("Bag", bag)
 		elseif key == Enum.KeyCode.ButtonR1 or key == Enum.KeyCode.ButtonL1 then
-			local n = math.min(#items, maxSlots)
+			local n = math.min(#items, maxItems)
 			if n > 0 then
 				cursor = (cursor + (if key == Enum.KeyCode.ButtonR1 then 1 else -1) - 1) % n + 1
 				holdIndex(cursor)
@@ -233,7 +285,9 @@ function Hotbar.new(parent: Instance, kickPanel: GuiObject?): Hotbar
 		end
 	end)
 
-	return { gui = root }
+	update()
+	place()
+	return { gui = root, update = update }
 end
 
 return Hotbar

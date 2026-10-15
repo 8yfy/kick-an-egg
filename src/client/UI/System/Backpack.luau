@@ -1,6 +1,8 @@
 --!strict
 -- Partner A. The player's carried eggs and stored pets, for the custom hotbar (UI/Hud/Hotbar) and the backpack
--- screen (UI/Screens/Bag). They are the Tools PlotService.syncTools keeps in the Backpack (attributes EggUid /
+-- screen (UI/Screens/Bag). You EQUIP items in the Bag; only equipped ones sit on the hotbar (up to `capacity`,
+-- set by the hotbar: fewer on phones). New items and a fresh session fill free hotbar slots automatically; the
+-- equipped list lives for the session (saving it across rejoins would need a server field). They are the Tools PlotService.syncTools keeps in the Backpack (attributes EggUid /
 -- PetUid, ModelKey, Rarity), so the server stays the only source of truth: this only reads them and holds /
 -- puts them away like Roblox's own hotbar did (Humanoid:EquipTool). The Kick Sack is not here: it has its own
 -- quickslot (UI/Hud/SackSlot) and is handed over by the server, so it is put away first before holding an item.
@@ -23,6 +25,9 @@ export type Item = {
 local Backpack = {}
 
 local listeners: { () -> () } = {}
+local equipped: { string } = {} -- item uids on the hotbar, in slot order
+local known: { [string]: boolean } = {} -- every uid seen this session (new ones auto-fill free slots)
+local capacity = 6
 local conns: { RBXScriptConnection } = {}
 local started = false
 local pending = false
@@ -120,6 +125,28 @@ function Backpack.hold(item: Item?)
 	end)
 end
 
+-- Drops equipped uids that are gone (placed, sold, traded) and puts new items into free slots.
+local function reconcile()
+	local present: { [string]: boolean } = {}
+	local items = Backpack.items()
+	for _, item in items do
+		present[item.uid] = true
+	end
+	for i = #equipped, 1, -1 do
+		if not present[equipped[i]] then
+			table.remove(equipped, i)
+		end
+	end
+	for _, item in items do
+		if not known[item.uid] then
+			known[item.uid] = true
+			if #equipped < capacity and not table.find(equipped, item.uid) then
+				table.insert(equipped, item.uid)
+			end
+		end
+	end
+end
+
 local function fire()
 	if pending then
 		return
@@ -127,10 +154,59 @@ local function fire()
 	pending = true
 	task.defer(function()
 		pending = false
+		reconcile()
 		for _, fn in listeners do
 			task.spawn(fn)
 		end
 	end)
+end
+
+-- How many items fit on the hotbar (the hotbar sets this; phones show fewer). Extra equipped items stay
+-- equipped but only the first `n` are shown.
+function Backpack.setCapacity(n: number)
+	capacity = n
+end
+
+function Backpack.capacity(): number
+	return capacity
+end
+
+-- The hotbar's items, in slot order (only items you still have).
+function Backpack.equipped(): { Item }
+	local byUid: { [string]: Item } = {}
+	for _, item in Backpack.items() do
+		byUid[item.uid] = item
+	end
+	local out: { Item } = {}
+	for _, uid in equipped do
+		local item = byUid[uid]
+		if item and #out < capacity then
+			table.insert(out, item)
+		end
+	end
+	return out
+end
+
+-- Hotbar slot of an item (1-based among items), or nil if not equipped.
+function Backpack.slotOf(uid: string): number?
+	return table.find(equipped, uid)
+end
+
+-- Equip (put on the hotbar) / unequip. Returns false + a reason when the hotbar is full.
+function Backpack.toggleEquip(item: Item): (boolean, string?)
+	local i = table.find(equipped, item.uid)
+	if i then
+		table.remove(equipped, i)
+		if item.held then
+			Backpack.hold(nil) -- off the hotbar = out of your hands
+		end
+	elseif #equipped >= capacity then
+		return false, `Your hotbar is full ({capacity}). Unequip something first.`
+	else
+		table.insert(equipped, item.uid)
+	end
+	fire()
+	return true, nil
 end
 
 local function bind()
