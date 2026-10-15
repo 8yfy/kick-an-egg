@@ -18,7 +18,7 @@ local MerchantConfig: { [string]: Merchant } = {
 		Kind = "Coach",
 	},
 	PetSellerMerchant = {
-		UserId = 0, -- BLOCKED: waiting for the real UserId to use
+		UserId = 1340874349, -- provided by Partner A (pet selling stand)
 		DisplayName = "Pet Merchant",
 		Kind = "PetSeller",
 	},
