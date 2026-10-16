@@ -1,7 +1,7 @@
 --!strict
 -- Partner A. Classic brick recipes for the hub: the Boxing Sack Shop pieces (striped barrel-vault roof, boxing glove,
 -- awning, pillars, arched windows, gym props), the Pet Selling Stand pieces (striped canopy, paw board, carved
--- posts, pet props), the Golden Egg centrepiece fountain, egg monuments, cliffs and a waterfall, pen fences, lamps,
+-- posts, pet props), the Golden Egg centrepiece fountain, egg monuments, pen fences, lamps,
 -- benches and street props, and the village pieces (town houses, gazebo, well, hedges).
 -- Asset space: origin = base centre, +Y up, front = -Z.
 local B = require(script.Parent.Parent.Brick)
@@ -45,7 +45,7 @@ local function roof(
 	B.wedge(m, role, V(len, rise, depth / 2), CFrame.new(0, y + rise / 2, z - depth / 4))
 	B.wedge(m, role, V(len, rise, depth / 2), CFrame.new(0, y + rise / 2, z + depth / 4) * CFrame.Angles(0, math.pi, 0))
 	if ridge then
-		B.box(m, ridge, V(len + 0.4, 0.6, 1.0), 0, y + rise + 0.05, z)
+		B.box(m, ridge, V(len + 0.4, 0.6, 1.0), 0, y + rise - 0.15, z) -- sunk into the apex: no slit along the ridge
 	end
 end
 
@@ -69,16 +69,42 @@ local function shopRoof(m: Model)
 	for _, s in { -1, 1 } do
 		B.box(m, "Trim", V(1.4, 1.3, len + 2.6), s * (span / 2 + 0.3), 0.3, 0)
 	end
-	-- front gable: stepped infill under the arch, a round glowing window with a cross
-	for i = 0, 3 do
-		local top = (i + 1) * rise / 4
-		local w = 2 * math.sqrt(math.max(0, Rr * Rr - (top - cy) ^ 2))
-		B.box(m, "WallTop", V(w, rise / 4, 0.8), 0, (i + 0.5) * rise / 4, -len / 2 + 0.6)
+	-- both gables closed exactly: under each of the shell's segments a block down to the base and a wedge for its
+	-- slope, their edges inside the shell, so no sky shows between the infill and the roof; a round glowing window
+	-- with a cross at each end
+	local R, segs = Rr + 0.45, 10
+	local step = (math.pi - 2 * a0) / segs
+	for _, s in { -1, 1 } do
+		local z = s * (len / 2 - 0.6)
+		for k = 0, segs - 1 do
+			local ta, tb = a0 + k * step, a0 + (k + 1) * step
+			local xa, ya = R * math.cos(ta), cy + R * math.sin(ta)
+			local xb, yb = R * math.cos(tb), cy + R * math.sin(tb)
+			local x0, x1 = math.min(xa, xb), math.max(xa, xb)
+			local lo, hi = math.min(ya, yb), math.max(ya, yb)
+			if lo > 0.05 then
+				B.box(m, "WallTop", V(x1 - x0, lo, 0.8), (x0 + x1) / 2, lo / 2, z)
+			end
+			if hi - lo > 0.05 then
+				-- the wedge's high edge (+Z) points at the higher end of the segment
+				local toward = if (if ya > yb then xa else xb) > (x0 + x1) / 2 then 1 else -1
+				B.wedge(
+					m,
+					"WallTop",
+					V(0.8, hi - lo, x1 - x0),
+					CFrame.fromMatrix(
+						Vector3.new((x0 + x1) / 2, (lo + hi) / 2, z),
+						Vector3.new(0, 0, -toward),
+						Vector3.yAxis
+					)
+				)
+			end
+		end
+		disc(m, "Trim", 6.2, 0.7, 0, rise * 0.5, s * (len / 2 - 0.05))
+		disc(m, "Glow", 4.8, 0.76, 0, rise * 0.5, s * (len / 2 - 0.02))
+		B.box(m, "Trim", V(4.8, 0.4, 0.3), 0, rise * 0.5, s * (len / 2 + 0.42))
+		B.box(m, "Trim", V(0.4, 4.8, 0.3), 0, rise * 0.5, s * (len / 2 + 0.42))
 	end
-	disc(m, "Trim", 6.2, 0.7, 0, rise * 0.5, -len / 2 + 0.05)
-	disc(m, "Glow", 4.8, 0.76, 0, rise * 0.5, -len / 2 + 0.02)
-	B.box(m, "Trim", V(4.8, 0.4, 0.3), 0, rise * 0.5, -len / 2 - 0.42)
-	B.box(m, "Trim", V(0.4, 4.8, 0.3), 0, rise * 0.5, -len / 2 - 0.42)
 	-- ridge crest with a glow strip
 	B.on(m, "Trim", V(3.2, 1.0, len * 0.55), 0, rise + 0.6, 0)
 	B.on(m, "Glow", V(2.2, 0.5, len * 0.5), 0, rise + 1.6, 0)
@@ -365,114 +391,6 @@ local function monument(m: Model)
 	B.round(m, "Gold", 0.5, 4.7, 0, 6.6, 0, 20)
 end
 
----------------------------------------------------------------- hub boundary
-
-local function cliff(length: number, depth: number, height: number, ledges: number, notch: boolean)
-	return function(m: Model, rng: Random)
-		local lh = height / ledges
-		local y = -0.8
-		for i = 0, ledges - 1 do
-			local th = if i < ledges - 1 then lh * rnd(rng, 0.88, 1.12) else height - y
-			local back = i * depth * 0.1
-			local x = -length / 2
-			while x < length / 2 - 0.5 do
-				local bw = math.min(rnd(rng, 13, 20), length / 2 - x)
-				local cx = x + bw / 2
-				if not (notch and math.abs(cx) < 6) then
-					local protrude = rnd(rng, -1, 1.6)
-					local fz = -depth / 2 + back - protrude
-					local dd = depth - back + protrude
-					local bh = th * rnd(rng, 0.85, 1.06)
-					B.on(
-						m,
-						if rng:NextNumber() < 0.55 then "Stone" else "StoneDark",
-						V(bw + 0.5, bh + 0.4, dd),
-						cx,
-						y,
-						fz + dd / 2,
-						rnd(rng, -2, 2)
-					)
-					if rng:NextNumber() < 0.7 then
-						B.on(
-							m,
-							"Ground",
-							V(bw * rnd(rng, 0.55, 0.95), 0.9, rnd(rng, 2.2, 3.4)),
-							cx + rnd(rng, -1, 1),
-							y + bh + 0.1,
-							fz + 1.5
-						)
-					end
-					if rng:NextNumber() < 0.25 then
-						local vl = rnd(rng, bh * 0.4, bh * 0.9)
-						B.on(
-							m,
-							"Leaf",
-							V(rnd(rng, 0.8, 1.3), vl, 0.5),
-							cx + rnd(rng, -bw / 3, bw / 3),
-							y + bh - vl + 0.5,
-							fz - 0.15
-						)
-					end
-				end
-				x += bw
-			end
-			y += th * 0.97
-		end
-		local x = -length / 2 - 0.5
-		while x < length / 2 do
-			local w = rnd(rng, 9, 15)
-			B.on(
-				m,
-				"Ground",
-				V(w + 0.6, rnd(rng, 1.6, 2.4), depth * 0.85),
-				x + w / 2,
-				height - rnd(rng, 0.8, 1.4),
-				depth * 0.12 + rnd(rng, -0.6, 0.6)
-			)
-			x += w
-		end
-		for _ = 1, math.floor(length / 14) do
-			local bx = rnd(rng, -length / 2 + 2, length / 2 - 2)
-			B.on(
-				m,
-				"StoneDark",
-				V(rnd(rng, 3, 5), rnd(rng, 2, 3.4), rnd(rng, 2.5, 4)),
-				bx,
-				-0.8,
-				-depth / 2 - rnd(rng, 0.6, 2.4),
-				rnd(rng, 0, 40)
-			)
-		end
-	end
-end
-
-local function waterfall(m: Model, rng: Random)
-	local height, width, steps = 40, 8, 4
-	local sh = height / steps
-	for i = 0, steps - 1 do
-		local y = height - (i + 1) * sh
-		local z = -i * 1.2
-		local w = width * (1 - 0.06 * i)
-		B.on(m, "Water", V(w, sh + 0.2, 0.8), 0, y, z)
-		B.on(m, "Foam", V(w + 0.4, 0.6, 1.6), 0, y + sh - 0.5, z - 0.5)
-	end
-	local pz = -steps * 1.2 - 3.5
-	B.round(m, "Water", 0.6, 15, 0, -0.5, pz)
-	B.round(m, "Foam", 0.5, 6.4, 0, -0.3, pz + 2.3)
-	for i = 0, 9 do
-		local r = math.rad(i * 36)
-		B.on(
-			m,
-			if i % 2 == 0 then "Stone" else "StoneDark",
-			V(3.2, 1.6 + rnd(rng, 0, 0.6), 2.2),
-			math.cos(r) * 8.2,
-			-0.8,
-			pz + math.sin(r) * 8.2,
-			90 - i * 36
-		)
-	end
-end
-
 ---------------------------------------------------------------- fences, lamps, street props
 
 local function post(h: number, w: number)
@@ -735,11 +653,6 @@ Hub.recipes = {
 	Bunting = bunting,
 	EggCenterpiece = centrepiece,
 	EggMonument = monument,
-	CliffA = cliff(40, 14, 44, 4, false),
-	CliffB = cliff(40, 16, 48, 4, false),
-	CliffC = cliff(36, 12, 38, 3, false),
-	CliffNotch = cliff(40, 14, 44, 4, true),
-	Waterfall = waterfall,
 	FencePost = post(4.2, 1.2),
 	GatePost = post(6.5, 1.7),
 	FenceRail = function(m: Model)

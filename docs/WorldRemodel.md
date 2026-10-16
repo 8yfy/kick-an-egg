@@ -20,7 +20,7 @@
 
 | Area | Result |
 |---|---|
-| **Hub** (`World/Hub.luau`) | **Paths:** studded stone paths with borders, an octagonal plaza and the **Golden Egg centrepiece** (a two-tier fountain with jets, ripples and glints).<br>**Village:** four brick terraces with stairs carry town houses (red, blue, green and purple roofs), a gazebo and wells. A row of houses lines the back lookout.<br>**Edges:** layered studded clay cliffs on both sides, with grass ledges, vines and **two waterfalls** (scrolling water, mist, splash). The valley side is a low balustrade with lanterns.<br>**Greenery:** tree groves (some on knolls, swaying), hedges along the spine, flower planters, benches and lamps.<br>**Ambience:** pollen, butterflies and fireflies. |
+| **Hub** (`World/Hub.luau`) | **Paths:** studded stone paths with borders, an octagonal plaza and the **Golden Egg centrepiece** (a two-tier fountain with jets, ripples and glints).<br>**Village:** four brick terraces with stairs carry town houses (red, blue, green and purple roofs), a gazebo and wells. A row of houses lines the back wall.<br>**Edges:** one plain, closed, studded sandstone **hub wall** along both sides and the back. It rises from the sea to 46 studs above the lawn, has a cream cap and a footing, and has no gaps, so players can't see out. It collides and stops the camera. The valley side stays open, with a low balustrade and lanterns.<br>**Greenery:** tree groves (some on knolls, swaying), hedges along the spine, flower planters, benches and lamps.<br>**Ambience:** pollen, butterflies and fireflies. |
 | **Boxing Sack Shop** (`World/Shops.luau`) | **Building:** a barrel-vault roof in red and white stripes with gold ribs and a glowing round gable window, a giant boxing glove turning on a gold plinth, a striped awning, stone pillars and arched side windows.<br>**Props:** dumbbells, a speed bag and tyres.<br>**Unchanged:** the counter prompt, `Sign`, `Approach`, the Coach spot and the six display sacks. |
 | **Pet Selling Stand** | **Building:** a teal and cream striped canopy on carved posts, with a paw board on the ridge.<br>**Props:** bunting, lanterns, egg crates on shelves, pet beds, a carrier and a price board.<br>**Unchanged:** the counter prompt, the SELL PETS sign with the approved icon, `Approach` and the merchant spot. |
 | **Pens** (`MapBuilder.buildPen`) | **Same** sizes, centres, `PenArea` and `Floor` tiles.<br>**New:** chunky brick fences in three level styles (wood, white/blue, dark/gold), gate posts, a stone border, lanterns, planters, banners and gold crowns at max level.<br>**Collision:** one collision proxy per fence run. |
@@ -56,6 +56,35 @@
 | 19 | Galaxy Void | Ringed planet + moon in the sky, cosmic portal | star lamps, floating void platforms, meteors, celestial crystals, far planets | stars, cosmic dust |
 | 20 | Rainbow Heaven | Rainbow Palace + a great rainbow | cloud pavilions, gold lamps, blossom gardens, floating clouds, the Heaven Gate | rainbow sparkles |
 
+## No z-fighting, no see-through gaps
+
+**Z-fighting:** `World/Coplanar.luau` finds faces that lie in one plane, face the same way and overlap, and pushes them apart:
+- the smaller face (the detail) moves out by `eps`;
+- when that part is protected, the larger face moves back instead.
+
+It runs at two levels:
+- **Inside every Kit template**, once per recipe, with `eps` 0.12 (scaled with the asset).
+- **On the whole built map** in `MapBuilder.build` with `eps` 0.1, plus on a pen after each upgrade rebuild. It never touches gameplay parts:
+  - parts with the LandingSurface tag (lanes and the ramp), shoulders, pen `Floor` / `PenArea`;
+  - anything that collides in the kick pad / drop / safe line;
+  - counters, signs and the ground;
+  - anything with a prompt, SurfaceGui or click detector;
+  - merchants and the Prize Wheel.
+
+**Scan result** (Studio, a coplanar scanner that also checks whether the overlap can be seen): **3,076 visible z-fights → 1**. The one left is a 0.2 stud² same-colour overlap inside the Prize Wheel, which stays untouched because its rotor pivots from its rest pose.
+
+**See-through gaps:** a ray-grid scan over each building found slits between the Boxing Sack Shop's stepped gable infill and its barrel roof, at both ends of the vault. The gables are now filled exactly under each roof segment. The town-house ridges sit into the apex.
+
+What stays open is open by design:
+- the shop counter and the Pet Stand stall;
+- the well and gazebo;
+- the lighthouse gallery;
+- ship masts and the Hollow Oak treehouse.
+
+**Hub wall:** from every lawn point at eye heights of 5 / 14 / 30 studs, rays toward the sides and the back reach nothing outside the hub through the wall.
+- **0.04% / 0.07% / 0.39%** of rays leave over the wall top. All of them land on the game's own far mountains and clouds.
+- None reach the ocean or the void.
+
 ## Gameplay contract (kept)
 
 | Item | What stayed the same |
@@ -67,15 +96,15 @@
 | Pens | `Bases.Base<i>`: attributes, `PenArea` (centre fixed, size by level), `Pen.Floor` tiles, `SpawnPoint` / `OwnerAnchor` / `PenSign` (UpgradePen prompt). |
 | Shop | `BoxingSackShop`: `Counter` prompt OpenMenu:Store, `Sign`, `Approach`, the Coach spot. |
 | Stand | `PetSellingStand`: `Counter` prompt OpenMenu:Inventory, `Approach`, the PetSeller spot. |
-| Hub fixtures | Wheel, boards, `SafeZone.Spawn`, `EdgeBarrier`. |
-| Decoration | Never collides, never takes touches and never blocks raycasts.<br>Walkable terraces and stairs collide.<br>Trees, lamps, houses, hedges, fountain, benches, fences and cliff lines get invisible proxies. |
+| Hub fixtures | Wheel, boards, `SafeZone.Spawn`, `EdgeBarrier`.<br>The side boundary is now the solid hub wall: inner faces at x = ±195 and z = −390, where the old invisible `CliffWall` proxies were. |
+| Decoration | Never collides, never takes touches and never blocks raycasts.<br>Walkable terraces and stairs collide.<br>Trees, lamps, houses, hedges, fountain, benches and fences get invisible proxies.<br>The hub wall is solid: it collides and blocks the camera. |
 
 ## Asset manifest
 
-All models are **Luau brick recipes** in `src/shared/Builders/Map/World/Recipes/`, cloned through `World/Kit` and coloured by role from `World/Palettes`. 232 recipes:
+All models are **Luau brick recipes** in `src/shared/Builders/Map/World/Recipes/`, cloned through `World/Kit` and coloured by role from `World/Palettes`. 227 recipes:
 
 - **Nature** (44): 7 broadleaf trees, 2 poplars, 5 pines (2 snowy), 4 bushes, 5 rocks, 3 slab stacks, 4 terrain banks, 3 hills, 3 mountains, flowers, grass, stump, log, small mushrooms.
-- **Hub** (42): shop roof, glove, awning, pillar, window, gym props, stand canopy, paw sign, posts, egg crates, pet props, bunting, the Golden Egg centrepiece, egg monument, 4 cliffs, waterfall, fence / gate posts and rails, lamp, bench, crate, barrel, lantern, signpost, planter, flag pole, plank bridge, 2 town houses, gazebo, well, hedge.
+- **Hub** (37): shop roof, glove, awning, pillar, window, gym props, stand canopy, paw sign, posts, egg crates, pet props, bunting, the Golden Egg centrepiece, egg monument, fence / gate posts and rails, lamp, bench, crate, barrel, lantern, signpost, planter, flag pole, plank bridge, 2 town houses, gazebo, well, hedge.
 - **Zones1** (37), **Zones2** (34), **Zones3** (36), **Zones4** (27), **Zones5** (12): landmarks and props per zone (tables above).
 
 **Sprites:** `assets/world-vfx/wfx_*.png` (20 files), ids in `src/shared/VFX/WorldSprites.luau`, uploaded by user 1340874349.
@@ -86,8 +115,8 @@ The Blender mesh pipeline (`tools/world/blender`, `upload.py`, `lune/assemble.lu
 
 | Measure | Value |
 |---|---|
-| Map build (Studio, server) | ~0.7–1.1 s |
-| Map parts | **~17.5k** (old map 8.5k):<br>• zones ~12.3k (~450–1,200 each);<br>• hub ~4.9k, of which the six Kick Sack display meshes in the shop are ~0.6k.<br>Over the ~15k Balanced target; the density knob `Valley.DENSITY` (0.42) and `Valley.patches` counts trade parts for density. |
+| Map build (Studio, server) | ~1.7–2.4 s, including the z-fight pass (below) |
+| Map parts | **~16.8k** (old map 8.5k):<br>• zones ~12.3k (~450–1,200 each);<br>• hub ~4.2k, of which the six Kick Sack display meshes in the shop are ~0.6k.<br>Over the ~15k Balanced target; the density knob `Valley.DENSITY` (0.42) and `Valley.patches` counts trade parts for density. |
 | Lights | 87 lights, none of them cast shadows. |
 | Emitters | 114 in total.<br>The 110 new ones are tagged `WorldFx`: distance-culled (default 200 studs) and rate-scaled by graphics quality. |
 | Collision | Decoration has CanCollide / CanTouch / CanQuery off.<br>Small props and far silhouettes have CastShadow off. |
@@ -117,7 +146,7 @@ PetPlace is played by `PlotController` only when the pet model arrives within 2 
 
 ## Not done / needs follow-up
 
-- **Part budget.** ~17.5k parts against the ~15k Balanced target. Lower `Valley.DENSITY` or the patch counts if mobile frame time suffers. Not yet profiled on a real phone.
+- **Part budget.** ~16.8k parts against the ~15k Balanced target. Lower `Valley.DENSITY` or the patch counts if mobile frame time suffers. Not yet profiled on a real phone.
 - **Global shadows.** `Lighting.GlobalShadows` is off in the place file and left as is. Turning it on grounds trees and houses a little more but costs frame time on mobile. That is a taste and performance call.
 - **Partner B's folder.** `src/client/Controllers/WorldLifeController.luau` is a new file there. It only starts `VFX/Ambient`.
 - **Retired mesh pipeline.** Its uploaded meshes and models are unused. They can be archived on Roblox.

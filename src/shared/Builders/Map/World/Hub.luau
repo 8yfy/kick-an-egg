@@ -5,9 +5,10 @@
 --   * Paths: studded pale stone with darker borders: the spine from the launch plaza to pen 5, walks to the four
 --     side pen gates, the shop and the stand; a round (octagonal) plaza with the Golden Egg centrepiece fountain.
 --   * Terraces: raised grass terraces with brick retaining walls and stairs (walkable, safe heights) in the four
---     corners, carrying town houses, a gazebo and a well; a row of houses along the back lookout.
---   * Boundary: layered studded cliffs with grass ledges, vines and two waterfalls along both sides; the front edge
---     (toward the valley) is a low balustrade so the plaza overlooks the track; the back edge a lookout rail.
+--     corners, carrying town houses, a gazebo and a well; a row of houses along the back wall.
+--   * Boundary: one plain, closed, studded wall along both sides and the back, from the sea up to WALL_H above the
+--     lawn, so nobody can look out of the hub; the front edge (toward the valley) is a low balustrade so the plaza
+--     overlooks the track.
 --   * Greenery: tree groves (some on knolls), hedges along the spine, flower beds, benches and lamps.
 -- Nothing goes in the pen reserves, on paths, at the spawn or in front of the wheel / boards. Decorative pieces
 -- never collide; walkable terraces and stairs do, and trees, lamps, houses and hedges get invisible proxies.
@@ -21,8 +22,9 @@ local Fx = require(script.Parent.Fx)
 local Hub = {}
 
 export type Ctx = {
-	halfWidth: number, -- W: the hub's inner half width (cliff line at x = +-W)
+	halfWidth: number, -- W: the hub's inner half width (the wall's inner face at x = +-W)
 	depth: number, -- the hub runs from z = 0 to z = -depth
+	sea: number, -- the ocean surface, relative to the lawn (the wall starts there)
 	inner: number, -- canyon half width at the mouth (x = +-inner)
 	pens: { Vector3 }, -- pen centres (y = 0)
 	reserve: Vector2, -- largest pen size (+ margin), for keep-outs
@@ -42,6 +44,12 @@ local PLAZA_B = rgb(222, 200, 164)
 local BRICK = rgb(198, 120, 86) -- terrace retaining walls
 local BRICK_CAP = rgb(236, 222, 196)
 local GRASS = rgb(108, 198, 70)
+local WALL = rgb(224, 206, 172) -- the hub wall: plain sandstone, a cream cap, a darker footing
+local WALL_CAP = rgb(246, 238, 220)
+local WALL_BASE = rgb(190, 166, 130)
+local WALL_H = 46 -- above the lawn: higher than the leaderboards, so nothing pokes over it but the Prize Wheel
+local WALL_T = 3
+local WALL_FRONT = 2 -- the side walls run this far past the hub's front edge, closing the corner
 
 type Box = { cx: number, cz: number, hx: number, hz: number }
 
@@ -212,51 +220,6 @@ local function terrace(parent: Instance, c: Vector3, size: Vector3, stairs: Vect
 		Parts.block(parent, "Stair", size2, CFrame.new(p), BRICK_CAP)
 	end
 	return c + Vector3.new(0, h, 0)
-end
-
--- Cliffs along one side wall (x = side * W), front toward the hub. `skip` z-ranges are set back (wheel / boards);
--- `falls` z positions get a waterfall notch, the falls and a pool.
-local function cliffLine(
-	parent: Instance,
-	side: number,
-	W: number,
-	z0: number,
-	z1: number,
-	skip: { { number } },
-	falls: { number },
-	rng: Random
-)
-	local z = z0
-	local yaw = if side > 0 then 90 else -90
-	local kinds = { "CliffA", "CliffB", "CliffC" }
-	while z > z1 do
-		local kind = kinds[rng:NextInteger(1, 3)]
-		local len = if kind == "CliffC" then 36 else 40
-		local zc = z - len / 2
-		local isFall = false
-		for _, fz in falls do
-			if math.abs(zc - fz) < len / 2 then
-				isFall = true
-			end
-		end
-		local blocked = false
-		for _, r in skip do
-			if zc < r[1] and zc > r[2] then
-				blocked = true
-			end
-		end
-		local h = rng:NextNumber(0.95, 1.12)
-		local x = side * (W + 7 + (if blocked then 4 else 0))
-		Kit.place(parent, if isFall then "CliffNotch" else kind, Kit.at(x, -0.5, zc, yaw), Vector3.new(1.02, h, 1), PAL)
-		if isFall then
-			local wf =
-				Kit.place(parent, "Waterfall", Kit.at(side * (W + 6), 0, zc, yaw), Vector3.new(1, h * 1.02, 1), PAL)
-			if wf then
-				Fx.waterfall(parent, wf.WorldPivot, h * 1.02)
-			end
-		end
-		z -= len - 1.5
-	end
 end
 
 function Hub.build(zone: Instance, ctx: Ctx)
@@ -484,11 +447,65 @@ function Hub.build(zone: Instance, ctx: Ctx)
 		lampAt(props, proxies, Vector3.new(s * 81, 0, -364), 0)
 	end
 
-	-- boundary cliffs (both sides) with waterfalls; set back behind the wheel (+X) and boards (-X)
-	cliffLine(edges, 1, W, 4, -D - 6, { { -120, -195 } }, { -270 }, rng)
-	cliffLine(edges, -1, W, 4, -D - 6, { { -115, -195 } }, { -270 }, rng)
+	-- the hub wall: one plain, closed, studded wall along both sides and the back. Its inner face is the lawn edge
+	-- (x = +-W, z = -D: the wheel and the boards stand right against it), it rises from the sea to WALL_H above the
+	-- lawn and runs WALL_FRONT past the front edge, so there is no gap anywhere to look out through. The body
+	-- collides and stops the camera (CanQuery), so the camera never swings outside either. The front stays open.
+	local top, bottom = WALL_H, ctx.sea
+	local wy, wh = (top + bottom) / 2, top - bottom
+	local o, c, b = 0.6, 1.2, 0.4 -- cap overhang, cap height, footing depth
+	Parts.block(
+		edges,
+		"HubWall",
+		Vector3.new(2 * (W + WALL_T), wh, WALL_T),
+		CFrame.new(0, wy, -D - WALL_T / 2),
+		WALL,
+		{ query = true }
+	)
+	Parts.block(
+		edges,
+		"HubWallCap",
+		Vector3.new(2 * (W + WALL_T + o), c, WALL_T + 2 * o),
+		CFrame.new(0, top + c / 2, -D - WALL_T / 2),
+		WALL_CAP,
+		{ collide = false }
+	)
+	Parts.block(
+		edges,
+		"HubWallFooting",
+		Vector3.new(2 * (W - b), 2.4, b),
+		CFrame.new(0, 0.6, -D + b / 2),
+		WALL_BASE,
+		{ collide = false }
+	)
 	for _, s in { -1, 1 } do
-		Parts.proxy(proxies, "CliffWall", Vector3.new(2, 60, D + 20), CFrame.new(s * (W + 1), 30, -D / 2 + 4))
+		local z0, z1 = -D, WALL_FRONT -- from the back wall's inner face to past the front edge
+		Parts.block(
+			edges,
+			"HubWall",
+			Vector3.new(WALL_T, wh, z1 - z0),
+			CFrame.new(s * (W + WALL_T / 2), wy, (z0 + z1) / 2),
+			WALL,
+			{ query = true }
+		)
+		local cz0, cz1 = -D + o, z1 + o -- the back cap covers the corner
+		Parts.block(
+			edges,
+			"HubWallCap",
+			Vector3.new(WALL_T + 2 * o, c, cz1 - cz0),
+			CFrame.new(s * (W + WALL_T / 2), top + c / 2, (cz0 + cz1) / 2),
+			WALL_CAP,
+			{ collide = false }
+		)
+		local fz0, fz1 = -D, -2.4 -- the footing stops behind the balustrade
+		Parts.block(
+			edges,
+			"HubWallFooting",
+			Vector3.new(b, 2.4, fz1 - fz0),
+			CFrame.new(s * (W - b / 2), 0.6, (fz0 + fz1) / 2),
+			WALL_BASE,
+			{ collide = false }
+		)
 	end
 	-- front edge over the valley: a low studded balustrade with posts and lanterns
 	for _, s in { -1, 1 } do
@@ -513,36 +530,30 @@ function Hub.build(zone: Instance, ctx: Ctx)
 			end
 		end
 	end
-	-- back edge (open cliff over the ocean): a lookout rail
-	Parts.block(edges, "BackRail", Vector3.new(2 * W, 2.6, 1.6), CFrame.new(0, 1.3, -D + 1), rgb(226, 206, 168))
-	Parts.block(edges, "BackRailCap", Vector3.new(2 * W, 0.6, 2.4), CFrame.new(0, 2.9, -D + 1), rgb(246, 236, 214))
-	for x = -W + 12, W - 12, 24 do
-		Parts.block(edges, "BackRailPost", Vector3.new(2.4, 4, 2.4), CFrame.new(x, 2, -D + 1), rgb(206, 186, 150))
-	end
 
-	-- groves: along the cliffs and in the open lawns (some on knolls), filtered by the keep-outs
+	-- groves: along the walls and in the open lawns (some on knolls), filtered by the keep-outs
 	local spots = { -- x, z, radius, trees, knoll
-		{ -182, -76, 8, 3, false },
-		{ 182, -80, 8, 3, false },
+		{ -176, -76, 8, 3, false },
+		{ 176, -80, 8, 3, false },
 		{ -108, -24, 8, 2, true },
 		{ 112, -22, 8, 2, true },
-		{ -180, -112, 7, 2, false },
-		{ 180, -236, 9, 3, false },
-		{ -180, -236, 9, 3, false },
+		{ -174, -112, 7, 2, false },
+		{ 172, -236, 9, 3, false },
+		{ -172, -236, 9, 3, false },
 		{ -58, -268, 10, 3, true },
 		{ 60, -262, 10, 3, true },
 		{ -112, -290, 9, 3, true },
 		{ 112, -292, 9, 3, true },
 		{ -132, -366, 8, 3, false },
 		{ 136, -366, 8, 3, false },
-		{ -178, -360, 8, 2, false },
-		{ 178, -360, 8, 2, false },
+		{ -170, -360, 8, 2, false },
+		{ 170, -360, 8, 2, false },
 		{ -152, -268, 7, 2, false },
 		{ 154, -264, 7, 2, false },
 		{ -44, -116, 6, 1, false },
 		{ 46, -198, 6, 1, false },
-		{ -184, -200, 6, 2, false },
-		{ 184, -110, 6, 2, false },
+		{ -176, -200, 6, 2, false },
+		{ 176, -110, 6, 2, false },
 	}
 	for _, s in spots do
 		local c = Vector3.new(s[1], 0, s[2])

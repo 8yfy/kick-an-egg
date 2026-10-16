@@ -1,6 +1,6 @@
 --!strict
 -- Partner A. World ambience VFX with the original sprites (VFX/WorldSprites): area emitters for zones and the hub,
--- waterfalls (beam sheet + mist + splash), the fountain (jets, splash ring, golden sparkles). Every emitter is
+-- scrolling water sheets, the fountain (jets, splash ring, golden sparkles). Every emitter is
 -- tagged "WorldFx" with attributes BaseRate and CullDist: the client's WorldLife controller turns emitters off past
 -- their cull distance and scales rates down on low graphics quality (VFX/Ambient.luau). Particle counts stay small:
 -- rates are per emitter per second at full quality.
@@ -660,23 +660,6 @@ function Fx.waterSheet(parent: Instance, cf: CFrame, size: Vector3, speed: numbe
 	CollectionService:AddTag(tex, "WorldScroll")
 	tex.Parent = sheet
 	return sheet
-end
-
--- Waterfall over the World kit Waterfall model placed at `pivot` (scaled `sy` in height): a scrolling sheet on
--- the face of each of its 4 steps (40 tall, 8 wide at scale 1), mist, splash and ripples in the pool.
-function Fx.waterfall(parent: Instance, pivot: CFrame, sy: number)
-	local folder = Parts.folder(parent, "WaterfallFx")
-	local steps, height, width = 4, 40 * sy, 8
-	local sh = height / steps
-	for i = 0, steps - 1 do
-		local w = width * (1 - 0.06 * i)
-		local cf = pivot * CFrame.new(0, height - (i + 0.5) * sh, -(i * 1.2) - 0.46)
-		Fx.waterSheet(folder, cf, Vector3.new(w - 0.2, sh + 0.1, 0.1), -9)
-	end
-	local pool = (pivot * CFrame.new(0, 0, -steps * 1.2 - 2.5)).Position
-	Fx.area(folder, "FallsMist", Vector3.new(10, 1, 6), pool + Vector3.new(0, 1, 0))
-	Fx.area(folder, "Splash", Vector3.new(6, 0.5, 4), pool + Vector3.new(0, 0.5, 0))
-	Fx.area(folder, "Ripples", Vector3.new(10, 0.2, 10), pool + Vector3.new(0, 0.2, 0))
 end
 
 -- The Golden Egg Fountain: four jets arcing from the egg spouts, splash ring, ripples, glints on the egg, light.

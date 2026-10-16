@@ -46,6 +46,7 @@ local Palettes = require(script.Parent.World.Palettes)
 local Shops = require(script.Parent.World.Shops)
 local Hub = require(script.Parent.World.Hub)
 local WorldZones = require(script.Parent.World.Zones)
+local Coplanar = require(script.Parent.World.Coplanar)
 local Config = script.Parent.Parent.Parent.Config
 local Chase = require(Config.Chase)
 local Zones = require(Config.Zones)
@@ -548,6 +549,65 @@ local function fenceRun(parent: Instance, a: Vector3, b: Vector3, pal: Kit.Palet
 	)
 end
 
+-- Parts the z-fight pass (World/Coplanar) may nudge by 0.1 stud: decoration only. Gameplay parts keep their exact
+-- size: lanes and the ramp (LandingSurface), whatever collides in the kick pad / drop / safe line areas, pen floors
+-- and areas, the hub ground, counters, signs, merchants, and anything with a prompt, click detector or SurfaceGui.
+local FIXED_NAMES = {
+	Lane = true,
+	Field = true,
+	Floor = true,
+	PenArea = true,
+	Reserve = true,
+	Top = true,
+	Ramp = true,
+	Spawn = true,
+	SpawnPoint = true,
+	OwnerAnchor = true,
+	PenSign = true,
+	Counter = true,
+	Sign = true,
+	Approach = true,
+	Ocean = true,
+	Cliff = true,
+	CliffBase = true,
+	GrassLayer = true,
+	EdgeBarrier = true,
+	PlayerBarrier = true,
+}
+local FIXED_AREAS = { Hub = true, Drop = true, SafeLine = true }
+-- gameplay models whose parts other code moves (the wheel's rotor pivots from its rest pose)
+local FIXED_MODELS = { SpinWheel = true }
+
+local function decorative(map: Instance): Coplanar.Movable
+	return function(p: BasePart): boolean
+		if FIXED_NAMES[p.Name] or CollectionService:HasTag(p, Chase.Landing.tag) then
+			return false
+		end
+		if
+			p:FindFirstChildWhichIsA("ProximityPrompt", true)
+			or p:FindFirstChildWhichIsA("SurfaceGui")
+			or p:FindFirstChildWhichIsA("ClickDetector")
+		then
+			return false
+		end
+		local top: Instance = p
+		while top.Parent and top.Parent ~= map do
+			top = top.Parent
+		end
+		if FIXED_AREAS[top.Name] and p.CanCollide then
+			return false -- the kick pad, ramp and safe line: only their non-colliding trim may move
+		end
+		local m = p:FindFirstAncestorWhichIsA("Model")
+		while m and m ~= map do
+			if FIXED_MODELS[m.Name] or m:FindFirstChildOfClass("Humanoid") then
+				return false
+			end
+			m = m.Parent and m.Parent:FindFirstAncestorWhichIsA("Model")
+		end
+		return true
+	end
+end
+
 -- (Re)builds a pen for `level` around its PenArea (whose CFrame never changes): resizes the area, then lays the
 -- studded checker floor (parts named "Floor": PlacementController aims at them), a stone border, the fence with a
 -- 12-stud gate on the -Z side between two gate posts, and the level's dressing: stepping stones from 2, lanterns on
@@ -663,6 +723,7 @@ local function buildPen(base: Model, level: number)
 			)
 		end
 	end
+	Coplanar.separate(pen, 0.1, { movable = decorative(base), skipUndersides = true }) -- also after upgrades
 	base:SetAttribute("PenBuiltLevel", level)
 end
 
@@ -790,6 +851,7 @@ local function buildSafeZone(map: Instance)
 	Hub.build(zone, {
 		halfWidth = W,
 		depth = DEPTH,
+		sea = -(CLIFF + PLAZA_Y), -- the hub is built at 0, then lifted PLAZA_Y; the ocean sits CLIFF below the plaza
 		inner = INNER,
 		pens = pens,
 		penDirs = dirs,
@@ -940,6 +1002,7 @@ function MapBuilder.build(): Model
 		1.4
 	)
 
+	Coplanar.separate(map, 0.1, { movable = decorative(map), skipUndersides = true }) -- where pieces meet
 	map.Parent = workspace
 	return map
 end

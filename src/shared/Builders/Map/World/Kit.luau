@@ -6,6 +6,10 @@
 -- palette. Kit parts never collide, never take touches and never block raycasts (gameplay geometry is separate).
 local Recipes = require(script.Parent.Recipes)
 local Brick = require(script.Parent.Brick)
+local Coplanar = require(script.Parent.Coplanar)
+
+-- coplanar faces inside a recipe are pushed this far apart (scaled with the asset when placed)
+local TEMPLATE_EPS = 0.12
 
 local Kit = {}
 
@@ -104,6 +108,7 @@ local function template(name: string): Model?
 	end
 	local m = Brick.new(name)
 	recipe(m, Random.new(seedOf(name)))
+	Coplanar.separate(m, TEMPLATE_EPS, { childrenOnly = true }) -- no z-fighting inside any asset
 	local cf, size = m:GetBoundingBox()
 	m:SetAttribute("Size", size)
 	m:SetAttribute("Centre", cf.Position)
