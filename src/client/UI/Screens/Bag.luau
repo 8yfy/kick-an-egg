@@ -87,7 +87,9 @@ local function makeCard(parent: Instance, item: Backpack.Item): Card
 		{ gui = b, art = art, name = name, rarity = rarity, tag = tag, holding = holding, glow = glow, item = item }
 	b.Activated:Connect(function()
 		local ok, why = Backpack.toggleEquip(card.item)
-		if not ok and why then
+		if ok then
+			Modal.sfx(if Backpack.slotOf(card.item.uid) then "Equip" else "Unequip", true)
+		elseif why then
 			Modal.toast(why, "error")
 		end
 	end)

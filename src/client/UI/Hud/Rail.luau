@@ -255,12 +255,18 @@ function Rail.new(parent: Instance): LeftRail
 		end
 	end)
 
+	local wasReady: boolean? = nil -- (nil until the first update: joining with a rebirth ready stays quiet)
 	return {
 		update = function()
 			local claimable = Data.claimableZones() + Data.claimableMilestones()
 			buttons.Index.setBadge(if claimable > 0 then tostring(claimable) else nil)
 			local rebirth = Data.rebirth()
-			buttons.Rebirth.setBadge(if rebirth.available and rebirth.ready and not rebirth.inChase then "!" else nil)
+			local ready = rebirth.available and rebirth.ready and not rebirth.inChase
+			buttons.Rebirth.setBadge(if ready then "!" else nil)
+			if ready and wasReady == false then
+				Modal.sfx("StrengthMax") -- strength just reached the rebirth requirement
+			end
+			wasReady = ready
 			-- (an affordable sack is flagged over the Boxing Sack Shop's sign in the world: UI/Interact)
 		end,
 	}

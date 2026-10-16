@@ -464,6 +464,7 @@ function TrainingShop.define()
 						speedPending = false
 						updateSpeed(Data.speed(), false)
 						if ok then
+							Modal.sfx("SpeedUpgrade")
 							Modal.toast(`Run Speed {Data.speed().current}!`, "good")
 						else
 							Modal.toast("Upgrade failed. Try again.", "error")
