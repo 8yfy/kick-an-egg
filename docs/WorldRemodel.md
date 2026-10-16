@@ -140,7 +140,7 @@ PetPlace is played by `PlotController` only when the pet model arrives within 2 
 - Emitters are culled by distance: 19 of 110 run near the hub.
 - The Zone 17 aurora beams render in the sky.
 
-**Map build:** 1.04 s, 17,463 parts.
+**Map build:** 1.04 s and 17,463 parts at first. With the hub wall and the z-fight pass it is 1.7–2.4 s and 16,783 parts.
 
 **Screenshots:** before / after sets from the same camera positions, kept in the side-session notes.
 
