@@ -20,17 +20,17 @@ PremiumSfx.tune = { ZoneEnter = true } :: { [string]: boolean }
 
 -- Uploaded asset ids ("rbxassetid://<id>"), "" until uploaded. Files: upload/premium_v1_sheets/KAE_SFX_<sheet>.wav.
 PremiumSfx.sheets = {
-	UI = "",
-	Gameplay = "",
-	Sacks = "",
+	UI = "rbxassetid://78931796757748",
+	Gameplay = "rbxassetid://111134807293816",
+	Sacks = "rbxassetid://117199061714759",
 } :: { [string]: string }
 -- Files: upload/premium_v1_sheets/KAE_<event>.wav (the dot in Sack events is an underscore in the file name).
 PremiumSfx.loops = {
-	AvalancheRoll = "",
-	["Sack13.idle"] = "",
-	["Sack18.idle"] = "",
-	["Sack19.idle"] = "",
-	["Sack20.idle"] = "",
+	AvalancheRoll = "rbxassetid://108680616358700",
+	["Sack13.idle"] = "rbxassetid://82113218248391",
+	["Sack18.idle"] = "rbxassetid://114888616124711",
+	["Sack19.idle"] = "rbxassetid://138484608058026",
+	["Sack20.idle"] = "rbxassetid://115789276801693",
 } :: { [string]: string }
 
 -- BEGIN GENERATED (atlas.py): where each one-shot sits in its sheet, per variant (seconds)
