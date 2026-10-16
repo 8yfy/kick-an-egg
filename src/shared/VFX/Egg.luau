@@ -243,6 +243,7 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 			index = index % #keys + 1
 			current = show(state, egg, keys[index])
 			Fx.hideLocally(egg, true, current)
+			Audio.play("SpinTick", egg) -- each egg flicking past
 			nextSwap = (os.clock() - t0) + SWAP_FAST + (SWAP_SLOW - SWAP_FAST) * f * f
 		end
 		local motor = (current.PrimaryPart :: BasePart):FindFirstChild("SpinMotor") :: Motor6D

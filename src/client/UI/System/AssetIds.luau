@@ -122,7 +122,7 @@ local A: { [string]: Entry } = {
 	zone_art_galaxy_void = { source = "02-Assets/Zone-Art/galaxy-void.png", id = "rbxassetid://116152121647212" },
 	zone_art_rainbow_heaven = { source = "02-Assets/Zone-Art/rainbow-heaven.png", id = "rbxassetid://139335812344018" },
 	-- Final approved HUD icons (Kick_An_Egg_Final_Approved_Icons_NoToolUI; they replace the older nav/currency icons)
-	hud_shop = { source = "Approved-Icons/Shop.png", id = "rbxassetid://124063885519959" },
+	hud_shop = { source = "assets/ui-icons/approved/Shop.png", id = "rbxassetid://105713764081992" },
 	hud_index = { source = "Approved-Icons/Index.png", id = "rbxassetid://129632301300395" },
 	hud_rebirth = { source = "Approved-Icons/Rebirth.png", id = "rbxassetid://114455910779142" },
 	hud_eggs = { source = "Approved-Icons/Eggs.png", id = "rbxassetid://90997219081318" },
@@ -142,7 +142,9 @@ local A: { [string]: Entry } = {
 		source = "Targeted-Fixes/PNG_Assets/Auto_Kick_Button.png",
 		id = "rbxassetid://133970296249456",
 	},
-	hud_trade = { source = "Targeted-Fixes/PNG_Assets/Trade_Button.png", id = "rbxassetid://103666995924889" },
+	hud_trade = { source = "assets/ui-icons/approved/Trade.png", id = "rbxassetid://112475659466025" },
+	hud_bag = { source = "assets/ui-icons/approved/Bag.png", id = "rbxassetid://115030431485283" },
+	shop_speed = { source = "assets/ui-icons/approved/Speed.png", id = "rbxassetid://115279781961055" },
 	kick_meter_track = {
 		source = "Targeted-Fixes/PNG_Assets/Kick_Meter_Track.png",
 		id = "rbxassetid://114311291241712",

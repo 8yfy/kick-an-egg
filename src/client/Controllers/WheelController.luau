@@ -104,7 +104,7 @@ local function reveal(result: { [string]: any })
 	local top, bottom = seg.color:Lerp(Color3.new(1, 1, 1), 0.35), seg.color
 	if result.kind == "Cash" and typeof(result.amount) == "number" then
 		Fx.callout("+$" .. Kit.formatNumber(result.amount), top, bottom)
-		Audio.play("MilestoneClaim")
+		Audio.play("WheelWin")
 	else
 		local name = "an egg"
 		for _, p in Pets do
@@ -113,7 +113,7 @@ local function reveal(result: { [string]: any })
 			end
 		end
 		Fx.callout(if seg.jackpot then "JACKPOT!" else string.upper(seg.label) .. "!", top, bottom)
-		Audio.play(if seg.jackpot then "Rebirth" else "MilestoneClaim")
+		Audio.play(if seg.jackpot then "WheelJackpot" else "WheelWin")
 		Modal.toast(`You won {name}! It's in your hotbar: put it in your pen.`, "good")
 	end
 end
@@ -130,6 +130,7 @@ local function spin(result: { [string]: any })
 	rest = rest or rotor:GetPivot()
 	local axis: CFrame = face
 	spinning = true
+	Audio.play("WheelSpinStart")
 	local n = #Wheel.Segments
 	local step = 2 * math.pi / n
 	local alpha = (result.segment - 1) * step -- where the won segment sits at rest (clockwise from the top)
@@ -147,7 +148,7 @@ local function spin(result: { [string]: any })
 		local tick = math.floor((angle + step / 2) / step)
 		if tick ~= lastTick then
 			lastTick = tick
-			Audio.play("UIClick")
+			Audio.play("WheelTick")
 		end
 		if t >= 1 then
 			conn:Disconnect()

@@ -68,6 +68,7 @@ local liveTotal = 0
 local lastBig = -math.huge
 local rng = Random.new()
 local Pool: any = nil
+local clickQuietUntil = -math.huge
 
 local function isClient(): boolean
 	return RunService:IsClient()
@@ -165,9 +166,12 @@ local function makeSound(
 	transpose: number?
 ): Sound?
 	local src: SoundBank.Source? = SoundBank.Sources[layer.src]
-	local custom = string.match(layer.src, "^custom:(.+)$")
-	if custom and SoundBank.CUSTOM[custom] then
-		src = { id = SoundBank.CUSTOM[custom].id, gain = 1 }
+	local custom, index = string.match(layer.src, "^custom:(.+)#(%d+)$")
+	local c = if custom then SoundBank.CUSTOM[custom] else nil
+	if c then
+		local ids = c.ids or { c.id }
+		local i = math.clamp(tonumber(index) or 1, 1, #ids)
+		src = { id = ids[i], gain = 1, region = if c.regions then c.regions[i] else nil } -- (a sound sheet's slice)
 	end
 	if not src then
 		return nil
@@ -239,8 +243,17 @@ local function emit(
 		return false
 	end
 	local custom = SoundBank.CUSTOM[name]
-	if custom then -- an uploaded recording replaces the built-in layers
-		layers = { SoundBank.L("custom:" .. name, 1, custom.volume or 0.5) }
+	if custom then -- an uploaded recording replaces the built-in layers (a different variant each play)
+		local count = if custom.ids then #custom.ids else 1
+		local i = 1
+		if count > 1 then
+			i = if opts and opts.variant then math.clamp(opts.variant, 1, count) else rng:NextInteger(1, count)
+			if not (opts and opts.variant) and i == lastVariant["custom:" .. name] then
+				i = i % count + 1
+			end
+			lastVariant["custom:" .. name] = i
+		end
+		layers = { SoundBank.L(`custom:{name}#{i}`, 1, custom.volume or 0.5, { tune = custom.tune }) }
 	end
 	local o: Opts = opts or {}
 	local now = os.clock()
@@ -305,7 +318,7 @@ local function emit(
 	end
 	liveByEvent[name] = (liveByEvent[name] or 0) + 1
 	liveTotal += 1
-	local longest = 0
+	local longest = if custom then custom.seconds or 3 else 0 -- (an uploaded file's length isn't in Sources)
 	local sounds: { Sound } = {}
 	for _, layer in layers do
 		table.insert(record.layers, layer.src)
@@ -417,7 +430,7 @@ function Audio.landing(at: Vector3 | Instance, speed: number, bounce: boolean, m
 	local surface = SoundBank.surfaceAt(pos, Zones :: any, Chase.SafeLineZ)
 	local layers, tier = SoundBank.landing(surface, intensity, bounce, mutation)
 	local name = (if bounce then "EggBounce_" else "EggLand_") .. surface
-	return emit(name, layers, {
+	local meta = {
 		category = "Gameplay",
 		tier = tier,
 		spatial = true,
@@ -425,7 +438,20 @@ function Audio.landing(at: Vector3 | Instance, speed: number, bounce: boolean, m
 		voices = 3,
 		jitter = 0.05,
 		rolloff = { 12, 120 },
-	}, at, opts)
+	}
+	if not SoundBank.CUSTOM[name] then
+		return emit(name, layers, meta, at, opts)
+	end
+	-- An uploaded landing is one file: the impact speed sets its volume, and a weather mutation's accent plays on
+	-- top as its own sound (MutationAccent_<mutation>, or the built-in accent layers until that one is uploaded).
+	local o: Opts = table.clone(opts or {})
+	o.intensity = o.intensity or intensity
+	local played = emit(name, layers, meta, at, o)
+	local accent = if mutation then SoundBank.MutationAccent[mutation] else nil
+	if played and accent and mutation then
+		emit("MutationAccent_" .. mutation, accent, meta, at, opts)
+	end
+	return played
 end
 
 -- Loops ---------------------------------------------------------------------------------------------------------
@@ -445,6 +471,10 @@ local function loopLayers(
 	}
 	if not isClient() or Audio.muted then
 		return none
+	end
+	local custom = SoundBank.CUSTOM[name]
+	if custom then -- an uploaded seamless loop replaces the built-in bed
+		layers = { SoundBank.L(`custom:{name}#1`, 1, custom.volume or 0.5) }
 	end
 	local part = partOf(at)
 	local anchor: BasePart? = nil
@@ -550,7 +580,11 @@ function Audio.vfx(name: string, target: Instance?, params: { [string]: any })
 		return
 	end
 	if name == "KickImpact" and params.cutscene then
-		Audio.play(SoundBank.kickEvent(params.band), target, { own = if params.own == true then nil else false })
+		local o: Opts = { own = if params.own == true then nil else false }
+		Audio.play(SoundBank.kickEvent(params.band), target, o)
+		task.delay(0.06, function() -- the egg flies off the foot
+			Audio.play("EggThrow", target, o)
+		end)
 	elseif name == "ZoneEnter" then
 		Audio.play("ZoneEnter", target, { transpose = math.min(19, (tonumber(params.zone) or 1) - 1) })
 	elseif name == "Landing" then
@@ -630,12 +664,17 @@ function Audio.vfx(name: string, target: Instance?, params: { [string]: any })
 end
 
 -- UI -------------------------------------------------------------------------------------------------------------
+-- A UI action with its own sound (a menu opening) takes the place of the button click for `seconds`.
+function Audio.quietClick(seconds: number?)
+	clickQuietUntil = os.clock() + (seconds or 0.1)
+end
+
 -- A light click on every button under `root` (now and later). Buttons with attribute NoClickSound stay silent.
 function Audio.hookButtons(root: Instance)
 	local function hook(d: Instance)
 		if d:IsA("GuiButton") then
 			d.Activated:Connect(function()
-				if d:GetAttribute("NoClickSound") ~= true then
+				if d:GetAttribute("NoClickSound") ~= true and os.clock() >= clickQuietUntil then
 					Audio.play("UIClick")
 				end
 			end)

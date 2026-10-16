@@ -52,7 +52,8 @@ end
 
 function SackGear.start(parent: Instance)
 	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true) -- the hotbar: your eggs and stored pets
+		-- Roblox's own hotbar is replaced by the custom one (UI/Hud/Hotbar + UI/Screens/Bag): eggs and stored pets
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 	end)
 	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 	local hint = Kit.label({
