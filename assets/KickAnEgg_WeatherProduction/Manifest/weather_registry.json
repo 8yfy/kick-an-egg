@@ -1,0 +1,201 @@
+{
+ "_note": "Weather look registry snapshot (source of truth: src/shared/VFX/WeatherFx/Registry.luau). Image ids are the IMAGE ids of the Decal uploads, each verified to load in Studio 2026-10-17. Sounds: Creator Store, licensed Pro Sound Effects library, verified to load.",
+ "weathers": [
+  {
+   "id": "Sunny",
+   "active": true,
+   "scope": "global",
+   "label": "SUNNY",
+   "icon": null,
+   "iconFile": null,
+   "iconNote": "no sun icon supplied: MISSING ICON marker (user decision)",
+   "sounds": null,
+   "signature": "voxel sun with turning rays, golden god-ray beams, glitter motes, warm grade"
+  },
+  {
+   "id": "Rainy",
+   "active": true,
+   "scope": "global",
+   "label": "RAINY",
+   "icon": null,
+   "iconFile": null,
+   "iconNote": "no plain rain icon supplied: MISSING ICON marker (user decision)",
+   "sounds": {
+    "bed": "Rain_Light"
+   },
+   "signature": "studded grey cloud ring, overcast billows, streak rain, splash crowns + ripples"
+  },
+  {
+   "id": "Snowy",
+   "active": true,
+   "scope": "global",
+   "label": "SNOWY",
+   "icon": "rbxassetid://119621994750343",
+   "iconFile": "Frozen_Aurora.png",
+   "sounds": null,
+   "signature": "voxel snowflakes, aurora curtain Beams, icy glints, cold haze"
+  },
+  {
+   "id": "Stormy",
+   "active": true,
+   "scope": "global",
+   "label": "STORMY",
+   "icon": "rbxassetid://135869585822825",
+   "iconFile": "Thunderstorm.png",
+   "sounds": {
+    "bed": "Rain_Storm",
+    "thunder": "Thunder_Far"
+   },
+   "signature": "dark cloud ring, heavy slanted rain, distant brick lightning (soft, no strobe)"
+  },
+  {
+   "id": "Starfall",
+   "active": true,
+   "scope": "global",
+   "label": "STARFALL",
+   "icon": "rbxassetid://77179766552714",
+   "iconFile": "Meteor_Shower.png",
+   "sounds": null,
+   "signature": "violet dusk, Trail comets with far bursts, meteor streaks, star twinkles"
+  },
+  {
+   "id": "Rainbow",
+   "active": true,
+   "scope": "global",
+   "label": "RAINBOW",
+   "icon": "rbxassetid://97917982557914",
+   "iconFile": "Rainbow_Storm.png",
+   "sounds": null,
+   "signature": "two voxel rainbows, prism rain, floating prism shards, rainbow ground sparkles"
+  },
+  {
+   "id": "GoldenRain",
+   "active": false,
+   "scope": "global",
+   "label": "GOLDEN RAIN",
+   "icon": "rbxassetid://106634932546598",
+   "iconFile": "Golden_Rain.png",
+   "sounds": null,
+   "signature": "gold cloud ring, gold drop rain, glitter ground"
+  },
+  {
+   "id": "VoidEclipse",
+   "active": false,
+   "scope": "global",
+   "label": "VOID ECLIPSE",
+   "icon": "rbxassetid://125430568731489",
+   "iconFile": "Void_Eclipse.png",
+   "sounds": null,
+   "signature": "voxel eclipse disc + orbit ring, violet motes, void shards"
+  },
+  {
+   "id": "DivineAscension",
+   "active": false,
+   "scope": "global",
+   "label": "DIVINE ASCENSION",
+   "icon": "rbxassetid://105976103999037",
+   "iconFile": "Divine_Ascension.png",
+   "sounds": null,
+   "signature": "golden halo ring, light shafts, drifting feathers"
+  },
+  {
+   "id": "VoidRift",
+   "active": false,
+   "scope": "local",
+   "label": "VOID RIFT",
+   "icon": "rbxassetid://71616011979445",
+   "iconFile": "Void_Rift.png",
+   "sounds": null,
+   "signature": "brick rift portal with swirl + orbiting shards (region)"
+  },
+  {
+   "id": "ThunderSurge",
+   "active": false,
+   "scope": "local",
+   "label": "THUNDER SURGE",
+   "icon": "rbxassetid://79107841943237",
+   "iconFile": "Thunder_Surge.png",
+   "sounds": null,
+   "signature": "three studded pylons with soft arc Beams (region)"
+  },
+  {
+   "id": "ToxicBloom",
+   "active": false,
+   "scope": "local",
+   "label": "TOXIC BLOOM",
+   "icon": "rbxassetid://108840165394834",
+   "iconFile": "Toxic_Bloom.png",
+   "sounds": null,
+   "signature": "voxel blooms puffing spores, green mist (region)"
+  }
+ ],
+ "sounds": {
+  "Rain_Light": {
+   "assetId": "rbxassetid://9112793875",
+   "name": "Heavy Rain 3 (SFX)",
+   "creator": "ProSoundEffects",
+   "length_s": 67.2,
+   "volume": 0.6,
+   "use": "Rainy bed (2D loop, Ambience group)"
+  },
+  "Rain_Storm": {
+   "assetId": "rbxassetid://9112853422",
+   "name": "Rain Heavy Rainfall Grass Wooden Roof 1 (SFX)",
+   "creator": "ProSoundEffects",
+   "length_s": 46.0,
+   "volume": 0.4,
+   "use": "Stormy bed (2D loop, Ambience group)"
+  },
+  "Thunder_Far": {
+   "assetIds": [
+    "rbxassetid://9120018172",
+    "rbxassetid://9120018216",
+    "rbxassetid://9120018050"
+   ],
+   "names": [
+    "Thunder Distant Boom Thud Rapid Hits 20 (SFX)",
+    "... 21 (SFX)",
+    "... 15 (SFX)"
+   ],
+   "creator": "ProSoundEffects",
+   "length_s": [
+    4.5,
+    5.9,
+    4.3
+   ],
+   "volume": 0.8,
+   "use": "Stormy lightning strikes (3D at the strike, distance-delayed)"
+  }
+ },
+ "textures": {
+  "wx_arc": "rbxassetid://87685695393158",
+  "wx_aurora": "rbxassetid://78904259174876",
+  "wx_billow": "rbxassetid://137670802833167",
+  "wx_comet": "rbxassetid://122043435504752",
+  "wx_feather": "rbxassetid://102399850018004",
+  "wx_glitter": "rbxassetid://118624091145935",
+  "wx_goldrop": "rbxassetid://105032533605012",
+  "wx_mote": "rbxassetid://82375591396692",
+  "wx_prism": "rbxassetid://133704624194478",
+  "wx_raindrop": "rbxassetid://110910572172962",
+  "wx_ray": "rbxassetid://78405997842937",
+  "wx_shard": "rbxassetid://133078002631742",
+  "wx_splash_2x2": "rbxassetid://80463693011769",
+  "wx_swirl": "rbxassetid://110043169202163",
+  "wx_toxicspore": "rbxassetid://75145416102128",
+  "wx_twinkle": "rbxassetid://133142770513544",
+  "wx_voxelflake": "rbxassetid://136693210168563"
+ },
+ "iconDecalIds": {
+  "Divine_Ascension": "140131381133264",
+  "Frozen_Aurora": "79083407567953",
+  "Golden_Rain": "129498304538377",
+  "Meteor_Shower": "100885841591449",
+  "Rainbow_Storm": "105262464149973",
+  "Thunder_Surge": "138943958605298",
+  "Thunderstorm": "88891903933058",
+  "Toxic_Bloom": "78431634436563",
+  "Void_Eclipse": "104566610454787",
+  "Void_Rift": "82750144807566"
+ }
+}

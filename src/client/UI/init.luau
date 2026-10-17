@@ -36,6 +36,9 @@ local Rebirth = require(script.Screens.Rebirth)
 local WheelScreen = require(script.Screens.Wheel)
 local Donate = require(script.Screens.Donate)
 local Bag = require(script.Screens.Bag)
+local WeatherWidget = require(script.Hud.WeatherWidget)
+local WeatherToast = require(script.Hud.WeatherToast)
+local WeatherPreview = require(script.Dev.WeatherPreview)
 
 local UI = {}
 
@@ -118,6 +121,10 @@ function UI:Init()
 	rail = Rail.new(root)
 	counters = Counters.new(root)
 	drawers = Drawers.new(root)
+	-- weather: the ONE bottom-right widget + its notice in the toast lane (both read WeatherFx.State); Studio: dev panel
+	WeatherWidget.new(root)
+	WeatherToast.new(Modal.toastLane)
+	WeatherPreview.mount(root)
 	Drawers.openTrade = function()
 		menus.open("Trade")
 	end
