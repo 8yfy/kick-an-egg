@@ -464,6 +464,13 @@ local function placeToasts()
 	toastLayer.Position = UDim2.new(0.5, 0, 0, y)
 end
 
+-- The toast lane itself (a vertical list under the quest / zone bar), for HUD pieces that post their own toast
+-- frames (the weather toast) so every toast shares one lane and nothing overlaps. Re-places the lane first.
+function Modal.toastLane(): Frame
+	placeToasts()
+	return toastLayer
+end
+
 -- Slide +12 -> 0 and fade in (180 ms), dwell 2.2 s, exit 140 ms; at most 3 at once.
 local toasts: { Frame } = {}
 local toastCount = 0

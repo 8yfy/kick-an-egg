@@ -1,0 +1,71 @@
+{
+ "_note": "Open Cloud assetType Decal (tools/world/upload.py --type Decal). Scripts must use the IMAGE id (resolved in Studio: game:GetObjects(decal)[1].Texture); every image id verified to load (ContentProvider: Success) 2026-10-17.",
+ "wx_arc": {
+  "decal": "89092664028898",
+  "image": "87685695393158"
+ },
+ "wx_aurora": {
+  "decal": "127423704622867",
+  "image": "78904259174876"
+ },
+ "wx_billow": {
+  "decal": "100867351047641",
+  "image": "137670802833167"
+ },
+ "wx_comet": {
+  "decal": "81819058582321",
+  "image": "122043435504752"
+ },
+ "wx_feather": {
+  "decal": "127668450474693",
+  "image": "102399850018004"
+ },
+ "wx_glitter": {
+  "decal": "140011988602460",
+  "image": "118624091145935"
+ },
+ "wx_goldrop": {
+  "decal": "79058863701556",
+  "image": "105032533605012"
+ },
+ "wx_mote": {
+  "decal": "139592751030065",
+  "image": "82375591396692"
+ },
+ "wx_prism": {
+  "decal": "129459327239194",
+  "image": "133704624194478"
+ },
+ "wx_raindrop": {
+  "decal": "124995594173055",
+  "image": "110910572172962"
+ },
+ "wx_ray": {
+  "decal": "111722997596208",
+  "image": "78405997842937"
+ },
+ "wx_shard": {
+  "decal": "118287521835284",
+  "image": "133078002631742"
+ },
+ "wx_splash_2x2": {
+  "decal": "101413309667888",
+  "image": "80463693011769"
+ },
+ "wx_swirl": {
+  "decal": "103979994178698",
+  "image": "110043169202163"
+ },
+ "wx_toxicspore": {
+  "decal": "78369861619100",
+  "image": "75145416102128"
+ },
+ "wx_twinkle": {
+  "decal": "115158055487495",
+  "image": "133142770513544"
+ },
+ "wx_voxelflake": {
+  "decal": "90698162843710",
+  "image": "136693210168563"
+ }
+}
