@@ -130,7 +130,7 @@ Evidence is in `docs/anim`, which has three folders: `before/`, `after/` and `re
 
 ## Known limits and follow-ups
 
-- **Pet Merchant counter.** Its top is higher than the merchant's shoulders, so a real lean needs either a small step behind it (a map change) or a lower counter. For now its arms rest folded on top.
+- **Pet Merchant counter (decided: keep).** Its top is higher than the merchant's shoulders, so it rests its arms folded on top instead of leaning. A real lean would need a step behind the counter (a map change) or a lower counter. The folded-arms pose was chosen, so the map stays as it is.
 - **Flying egg start (FlightController, Partner B).** The flying egg starts at the pad centre, not at the kicker's foot, so a big egg can pop up beside the kicker at contact. It is cosmetic, but it's B's launch code, so it wasn't touched here.
 - **Shift-lock (SackController, Partner B).** With shift-lock, the body turns back toward the camera right after the kick squares you up to the bag, so the kick goes where the camera looks. The animation blends correctly either way.
 - **Not tested:** a two-player session (watching someone else's kick or training), a real mobile device, and a live server.
