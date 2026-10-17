@@ -1,19 +1,20 @@
 --!strict
 -- The kick line (client, every character, so everyone sees the same), and YOUR kick's cinematic:
 --   A READY: a character on the kick pad (Shared/KickPad.SHOW_RADIUS), not in a chase, holds the full-size black
---     "?" egg (Builders/Models/MysteryEgg) in both hands with the hold animation (Anim/EggKick.hold); it goes,
---     and the normal animations come back, the moment they step off. A kick-line prop only: never an
---     inventory egg.
+--     "?" egg (Builders/Models/MysteryEgg) in both hands with the hold animation (Anim/EggKick.hold: a living
+--     loop, hands fitted to the egg); it blends out, and the normal animations come back, the moment they step
+--     off. A kick-line prop only: never an inventory egg.
 --   B PREPARE: while YOUR timing meter runs (LocalPlayer attribute KickTiming, set by UI/Hud/KickPanel) you
---     brace (a lower hold) and the camera eases in (field of view) a little.
+--     brace (Anim/EggKick.brace, crossfaded over the hold) and the camera eases in (field of view) a little.
 --   C TIMING: you lock the meter; the server decides the kick and stamps your character's KickAt (= the egg's
 --     launch, which is also the kick's CONTACT frame) and KickBand (perfect / good / weak).
---   D KICK: Anim/EggKick plays on the rig (Animator track once published / in Studio; the same keyframes on the
---     joints otherwise) timed so the foot meets the egg exactly at KickAt: toss, wind-up, coil, strike,
---     hit-stop, follow-through. The egg leaves the hands on the toss and drops onto the foot.
---   E CAMERA (yours only): a low-angle anticipation shot, a side shot of the strike, a fast close-up on the
---     impact, then FlightController takes over and follows the egg (EggKick.cameraBusyUntil hands it over),
---     blended, never snapped. Reduced Motion or AUTO KICK (repeated kicking) keep one steady camera instead.
+--   D KICK: Anim/EggKick plays on the rig (Anim/Mixer, over the Animator) timed so the foot meets the egg exactly
+--     at KickAt: gather, toss, planted step, wind-up, strike, follow-through, recovery. The egg leaves the
+--     hands at the clip's Release and falls on a ballistic arc onto this avatar's own foot at contact.
+--   E CAMERA (yours only, Anim/KickCamera): one continuous shot timed to the clip (a three-quarter view from the
+--     kicking side, a push in through the wind-up, a small punch at contact, then a crane round behind you that
+--     follows the launched egg), and FlightController takes over (EggKick.cameraBusyUntil), blended, never
+--     snapped. Reduced Motion or AUTO KICK (repeated kicking) keep one steady camera instead.
 --   F IMPACT at KickAt: VFX KickImpact (burst, ground shockwave, speed streaks along the launch, flash, a small
 --     shake on your screen) sized by the band: Perfect is the big one. Sound: Audio KickWeak / Good / Perfect.
 --   G LAUNCH: the flying egg (FlightController) leaves at KickAt with the server's real distance.
@@ -26,15 +27,14 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local KickPad = require(Shared:WaitForChild("KickPad"))
-local PlayerAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Player"))
 local EggKick = require(Shared:WaitForChild("Anim"):WaitForChild("EggKick"))
+local KickCamera = require(Shared:WaitForChild("Anim"):WaitForChild("KickCamera"))
 local MysteryEgg = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("MysteryEgg"))
 local VFX = require(Shared:WaitForChild("VFX")) :: any
 
 local CHECK = 0.15
-local HOLD_OFFSET = CFrame.new(0, -0.35, -1.95) -- egg centre in front of the chest, between the hands (UpperTorso)
-local TOSS_START = 0.14 -- seconds into the clip the egg leaves the hands
-local FOOT = CFrame.new(0.55, -1.6, -2.3) -- where the foot meets the egg at contact (HumanoidRootPart space)
+local FOOT = Vector3.new(0.55, -1.6, -2.3) -- fallback contact point (HumanoidRootPart space) for rigs without one
+local TOSS_APEX = 2.2 -- studs the tossed egg rises above where it leaves the hands
 local POWER = { weak = 6, good = 12, perfect = 24 }
 
 local KickLineController = {}
@@ -43,10 +43,11 @@ type State = {
 	character: Model,
 	egg: Model?,
 	holding: boolean,
-	stopHold: (() -> ())?,
+	stopHold: ((fade: number?) -> ())?,
 	kickAt: number?,
 	kick: EggKick.Playing?,
 	tossFrom: CFrame?,
+	toss: { v: Vector3, g: number, at: number, spin: number }?,
 	impacted: boolean,
 	conns: { RBXScriptConnection },
 }
@@ -54,8 +55,7 @@ type State = {
 local states: { [Model]: State } = {}
 local player = Players.LocalPlayer
 local checkIn = 0
-local cinematicToken = 0
-local braceRig: PlayerAnim.Rig? = nil
+local stopCinematic: (() -> ())? = nil
 local fovBase: number? = nil
 
 local function bodyPart(character: Model): BasePart?
@@ -79,11 +79,12 @@ local function removeEgg(state: State)
 	end
 end
 
-local function stopHolding(state: State)
+local function stopHolding(state: State, fade: number?)
 	if state.stopHold then
-		state.stopHold()
+		state.stopHold(fade)
 		state.stopHold = nil
 	end
+	EggKick.brace(state.character, false)
 end
 
 local function attachEgg(state: State)
@@ -98,14 +99,11 @@ local function attachEgg(state: State)
 			d.CanCollide, d.CanQuery, d.CanTouch, d.Massless = false, false, false, true
 		end
 	end
-	local root = egg.PrimaryPart :: BasePart
-	local _, size = egg:GetBoundingBox()
-	egg:PivotTo(body.CFrame * HOLD_OFFSET * CFrame.new(0, -size.Y / 2, 0))
-	local weld = Instance.new("WeldConstraint")
-	weld.Name = "HoldWeld"
-	weld.Part0, weld.Part1 = body, root
-	weld.Parent = root
 	egg.Name = "MysteryEgg"
+	if not EggKick.attach(state.character, egg) then -- fitted to this body, hands on its sides
+		egg:Destroy()
+		return
+	end
 	egg.Parent = state.character
 	state.egg = egg
 	if not state.stopHold then
@@ -123,63 +121,40 @@ local function setFov(target: number, seconds: number)
 	TweenService:Create(cam, TweenInfo.new(seconds, Enum.EasingStyle.Sine), { FieldOfView = target }):Play()
 end
 
--- The shots (relative to contact c = KickAt), from the kicker's root: forward = the kick direction (+Z track).
-local function shot(root: BasePart, t: number): (CFrame, number)
-	local pos = root.Position
-	local fwd = Vector3.new(0, 0, 1)
-	local right = Vector3.new(1, 0, 0)
-	local up = Vector3.yAxis
-	local foot = (root.CFrame * FOOT).Position
-	if t < -0.3 then -- 1: low angle, front-side, looking up at the wind-up; slow push in
-		local k = math.clamp((t + 0.62) / 0.32, 0, 1)
-		local eye = pos + right * (5 - k) + fwd * (8 - k * 1.5) - up * 1.6
-		return CFrame.lookAt(eye, pos + up * 1.2), 62
-	elseif t < -0.05 then -- 2: side angle at hip height, the strike crossing the frame
-		local k = math.clamp((t + 0.3) / 0.25, 0, 1)
-		local eye = pos + right * (10 - k * 1.5) + up * 0.6 + fwd * (0.8 + k * 0.8)
-		return CFrame.lookAt(eye, pos + fwd * 1.4), 55
-	else -- 3: impact close-up on the foot and egg
-		local eye = foot + right * 4.2 + up * 0.8 - fwd * 1.4
-		return CFrame.lookAt(eye, foot + fwd * 0.6), 48
+-- The launched egg (FlightController's ClientEggs), once it is flying: the cinematic follows it.
+local function flyingEgg(): Vector3?
+	local folder = workspace:FindFirstChild("ClientEggs")
+	for _, egg in if folder then folder:GetChildren() else {} do
+		if egg:IsA("Model") then
+			local pos = egg:GetPivot().Position
+			if pos.Y > -100 then -- (waiting out of sight at -500 before the launch)
+				return pos + Vector3.new(0, 1.7, 0)
+			end
+		end
 	end
+	return nil
 end
 
-local function playCinematic(state: State, contactAt: number, band: string)
-	cinematicToken += 1
-	local token = cinematicToken
+-- E: one continuous shot timed to the kick clip (Anim/KickCamera); Reduced Motion / AUTO KICK keep the steady
+-- camera (FlightController takes it at the launch).
+local function playCinematic(state: State, contactAt: number)
 	local cam = workspace.CurrentCamera
-	local root = rootOf(state.character)
 	local steady = reduced() or player:GetAttribute("AutoKick") == true
-	EggKick.cameraBusyUntil = contactAt + (if steady then 0 else 0.14)
-	if steady or not cam or not root then
-		return -- one steady camera: FlightController takes it at the launch
+	if stopCinematic then
+		stopCinematic()
+		stopCinematic = nil
 	end
-	local fovStart = cam.FieldOfView
-	local prevType = cam.CameraType
-	local blendFrom = cam.CFrame
-	local blendStart = os.clock()
-	cam.CameraType = Enum.CameraType.Scriptable
-	RunService:BindToRenderStep("KTE_KickCinematic", Enum.RenderPriority.Camera.Value + 2, function()
-		local now = workspace:GetServerTimeNow()
-		local t = now - contactAt
-		if token ~= cinematicToken or not root.Parent or t > 0.14 then
-			RunService:UnbindFromRenderStep("KTE_KickCinematic")
-			if token == cinematicToken and not root.Parent then
-				cam.CameraType = prevType -- interrupted (respawn): give the normal camera back
-				cam.FieldOfView = fovStart
-			end
-			return
+	if steady or not cam or not rootOf(state.character) then
+		EggKick.cameraBusyUntil = contactAt
+		return
+	end
+	local kick = state.kick
+	local clipTime = if kick
+		then kick.handle.time
+		else function()
+			return workspace:GetServerTimeNow() - (contactAt - EggKick.CONTACT)
 		end
-		local cf, fov = shot(root, t)
-		local blend = math.clamp((os.clock() - blendStart) / 0.12, 0, 1) -- ease in from where the camera was
-		cam.CFrame = blendFrom:Lerp(cf, blend * blend * (3 - 2 * blend))
-		cam.FieldOfView = cam.FieldOfView + (fov - cam.FieldOfView) * 0.35
-	end)
-	task.delay(math.max(0, contactAt - workspace:GetServerTimeNow()) + 1.2, function()
-		if token == cinematicToken and cam.FieldOfView ~= fovStart then
-			TweenService:Create(cam, TweenInfo.new(0.4), { FieldOfView = fovBase or fovStart }):Play()
-		end
-	end)
+	stopCinematic = KickCamera.play(state.character, contactAt, clipTime, flyingEgg, fovBase or cam.FieldOfView)
 end
 
 -- The kick ------------------------------------------------------------------------------------------------------
@@ -187,12 +162,11 @@ local function startKick(state: State, at: number)
 	if state.kick then
 		state.kick.stop()
 	end
-	stopHolding(state)
-	state.kickAt, state.tossFrom, state.impacted = at, nil, false
+	state.stopHold = nil -- (EggKick.play blends the hold and brace out under the kick)
+	state.kickAt, state.tossFrom, state.toss, state.impacted = at, nil, nil, false
 	state.kick = EggKick.play(state.character, at)
 	if state.character == (player and player.Character) then
-		local band = state.character:GetAttribute("KickBand")
-		playCinematic(state, at, if typeof(band) == "string" then band else "good")
+		playCinematic(state, at)
 	end
 end
 
@@ -226,7 +200,7 @@ local function track(character: Model)
 		character.AncestryChanged:Connect(function(_, parent)
 			if parent == nil then
 				removeEgg(state)
-				stopHolding(state)
+				stopHolding(state, 0)
 				if state.kick then
 					state.kick.stop()
 				end
@@ -239,8 +213,15 @@ local function track(character: Model)
 	)
 end
 
--- The egg during the kick: toss out of the hands, rise, drop onto the foot; gone at contact (the flying egg
--- takes over). Returns true while the kick is running.
+-- Where the foot's laces are at contact (world), for this character.
+local function contactPoint(state: State, root: BasePart): Vector3
+	local kick = state.kick
+	return root.CFrame * (if kick and kick.contact then kick.contact else FOOT)
+end
+
+-- The egg during the kick: it leaves the hands at the clip's Release and flies a ballistic arc (one gravity, up
+-- then down) that ends with its lower back on the laces at contact; gone at contact (the flying egg takes over).
+-- Returns true while the kick is running.
 local function stepKick(state: State, now: number): boolean
 	local at = state.kickAt
 	if not at then
@@ -254,27 +235,42 @@ local function stepKick(state: State, now: number): boolean
 	end
 	local root = rootOf(state.character)
 	local egg = state.egg
-	if now < at and t >= TOSS_START and egg and root then
+	local kick = state.kick
+	local releaseAt = if kick then kick.releaseAt else at - EggKick.CONTACT + EggKick.RELEASE
+	if now < at and now >= releaseAt and egg and root then
 		local eggRoot = egg.PrimaryPart :: BasePart
+		local bbCF, size = egg:GetBoundingBox()
 		if not state.tossFrom then
-			state.tossFrom = egg:GetPivot()
 			local weld = eggRoot:FindFirstChild("HoldWeld")
 			if weld then
 				weld:Destroy()
 			end
 			eggRoot.Anchored = true
+			-- the arc: from the egg's centre now to its centre at contact, rising TOSS_APEX above the start
+			local from = bbCF.Position
+			local to = contactPoint(state, root)
+				+ root.CFrame:VectorToWorldSpace(Vector3.new(0, size.Y * 0.36, -size.Z * 0.3))
+			local span = math.max(at - now, 0.05)
+			local rise = if reduced() then 0.8 else TOSS_APEX
+			local dy = to.Y - from.Y
+			local s = (math.sqrt(2 * rise) + math.sqrt(2 * math.max(rise - dy, 0.01))) / span
+			local g = s * s
+			local flat = (to - from) * Vector3.new(1, 0, 1) / span
+			state.tossFrom = CFrame.new(from) * bbCF.Rotation
+			state.toss = { v = flat + Vector3.new(0, s * math.sqrt(2 * rise), 0), g = g, at = now, spin = 1.9 / span }
 		end
-		local k = math.clamp((t - TOSS_START) / (EggKick.CONTACT - TOSS_START), 0, 1)
-		local from = state.tossFrom :: CFrame
-		local to = root.CFrame * FOOT
-		local _, size = egg:GetBoundingBox()
-		local pos = from.Position:Lerp(to.Position - Vector3.new(0, size.Y / 2, 0), k)
-			+ Vector3.new(0, math.sin(k * math.pi) * (if reduced() then 1 else 3.2), 0)
-		egg:PivotTo(CFrame.new(pos) * from.Rotation * CFrame.Angles(k * 3, 0, k * 1.5))
+		local toss = state.toss
+		if toss then
+			local from = state.tossFrom :: CFrame
+			local dt = now - toss.at
+			local center = from.Position + toss.v * dt - Vector3.new(0, 0.5 * toss.g * dt * dt, 0)
+			local turn = from.Rotation * CFrame.Angles(-toss.spin * dt, 0, toss.spin * dt * 0.18)
+			egg:PivotTo(CFrame.new(center) * turn * CFrame.new(0, -size.Y / 2, 0))
+		end
 	end
 	if now >= at and not state.impacted then
 		state.impacted = true
-		local point = if root then (root.CFrame * FOOT).Position else nil
+		local point = if root then contactPoint(state, root) else nil
 		removeEgg(state)
 		if point then
 			local own = state.character == (player and player.Character)
@@ -321,15 +317,12 @@ local function step(dt: number)
 			end
 		end
 	end
-	-- B: your brace while the meter runs (on top of the hold)
+	-- B: your brace while the meter runs (a layer crossfaded over the hold)
 	local mine = player and player.Character and states[player.Character]
 	local bracing = mine ~= nil and mine.holding and not mine.kickAt and player:GetAttribute("KickTiming") == true
 	if mine and mine.character:GetAttribute("KickBrace") ~= bracing then
-		mine.character:SetAttribute("KickBrace", bracing) -- (local: the hold steps aside while you brace)
-	end
-	if mine and bracing then
-		braceRig = braceRig or PlayerAnim.rig(mine.character)
-		PlayerAnim.apply(braceRig :: PlayerAnim.Rig, EggKick.BRACED)
+		mine.character:SetAttribute("KickBrace", bracing) -- (local)
+		EggKick.brace(mine.character, bracing)
 	end
 end
 
@@ -345,9 +338,6 @@ function KickLineController:Start()
 	end
 	Players.PlayerAdded:Connect(watch)
 	if player then
-		player.CharacterAdded:Connect(function()
-			braceRig = nil
-		end)
 		player:GetAttributeChangedSignal("KickTiming"):Connect(function()
 			if reduced() then
 				return

@@ -6,14 +6,17 @@
 --   every 2nd / 4th frame (interleaved) further out, not at all far away or off screen. A turn is one
 --   workspace:BulkMoveTo of the model's cached parts (about 3.5x cheaper than PivotTo, tools/perf); parts
 --   the sack effect places itself ("SackVFX_Placed", "SackVFX_Rest") are left to the effect;
---   models with a "Merchant" attribute bob, turn to face the local player when they are near and
---   show their "Greeting" in a speech bubble.
+--   models with a "Merchant" attribute show their "Greeting" in a speech bubble when you are near. Avatar
+--   merchants (MerchantService's NPCs) lean on their counter, breathe, glance around, turn their head toward
+--   you and greet you when the bubble comes up (Anim/Merchant: their rig is posed, the model never bobs or
+--   swings into the counter); a placeholder merchant without a rig still bobs and turns toward you.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local VFX = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("VFX")) :: any
+local MerchantAnim = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"):WaitForChild("Merchant"))
 
 local FACE_RANGE = 24 -- studs: merchants turn toward you inside this
 local TALK_RANGE = 14 -- studs: the speech bubble shows inside this
@@ -35,7 +38,16 @@ type Spinner = {
 	rel: { CFrame },
 	cfs: { CFrame },
 }
-type Merchant = { model: Model, base: CFrame, yaw: number, bubble: BillboardGui?, phase: number }
+type Merchant = {
+	model: Model,
+	base: CFrame,
+	yaw: number,
+	bubble: BillboardGui?,
+	phase: number,
+	live: MerchantAnim.Live?, -- the posed avatar NPC (nil: a placeholder, or its rig is still loading)
+	retryAt: number,
+	near: boolean,
+}
 
 local player = Players.LocalPlayer
 local spinners: { Spinner } = {}
@@ -202,6 +214,9 @@ local function track(model: Instance)
 			yaw = 0,
 			bubble = if typeof(greeting) == "string" then makeBubble(model, greeting) else nil,
 			phase = #merchants * 1.7,
+			live = nil,
+			retryAt = 0,
+			near = false,
 		})
 	end
 end
@@ -288,19 +303,39 @@ local function step(dt: number)
 	end
 	for _, m in merchants do
 		if m.model.Parent then
-			local target = 0
 			local near = false
+			local dist = math.huge
 			if me then
 				local rel = m.base:PointToObjectSpace(me)
-				local dist = Vector2.new(rel.X, rel.Z).Magnitude
-				if dist < FACE_RANGE then
-					target = math.clamp(math.atan2(-rel.X, -rel.Z), -1.2, 1.2) -- don't turn their back
-				end
+				dist = Vector2.new(rel.X, rel.Z).Magnitude
 				near = dist < TALK_RANGE
 			end
-			m.yaw += (target - m.yaw) * math.min(1, dt * TURN_RATE)
-			local bob = math.sin(t * 2.2 + m.phase) * BOB
-			m.model:PivotTo(m.base * CFrame.new(0, bob, 0) * CFrame.Angles(0, m.yaw, 0))
+			-- avatar NPCs: posed on their counter (Anim/Merchant), tried again while the rig is still loading
+			if not m.live and m.model:FindFirstChildOfClass("Humanoid") and t >= m.retryAt then
+				m.retryAt = t + 1
+				m.live = MerchantAnim.attach(m.model)
+			end
+			local live = m.live
+			if live then
+				live.update(
+					dt,
+					if character then (character :: Model):GetPivot().Position + Vector3.new(0, 1.5, 0) else nil,
+					cam
+				)
+				if near and not m.near then
+					live.greet() -- the bubble comes up: look up, straighten a little, a small wave
+				end
+			else
+				local target = 0
+				if dist < FACE_RANGE and me then
+					local rel = m.base:PointToObjectSpace(me)
+					target = math.clamp(math.atan2(-rel.X, -rel.Z), -1.2, 1.2) -- don't turn their back
+				end
+				m.yaw += (target - m.yaw) * math.min(1, dt * TURN_RATE)
+				local bob = math.sin(t * 2.2 + m.phase) * BOB
+				m.model:PivotTo(m.base * CFrame.new(0, bob, 0) * CFrame.Angles(0, m.yaw, 0))
+			end
+			m.near = near
 			if m.bubble then
 				m.bubble.Enabled = near
 			end

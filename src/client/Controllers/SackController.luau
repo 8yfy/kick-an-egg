@@ -4,7 +4,8 @@
 --   * the drop: the sack falls out of the sky on its chain, slams to a stop (hit-stop, squash, BONK)
 --     and springs back; a moved / removed sack is yanked back up into the sky
 --   * the sack is a damped pendulum: every kick swings it away and squashes it, then it swings back
---   * characters with a sack out hold a fighting stance and play the kick (Anim/Player poses)
+--   * characters with a sack out hold a fighting stance while they stand still and play the kick (Anim/Sack:
+--     clips layered over the Animator, crossfaded in and out, feet planted)
 --   * the local player kicks with a left click (a tap on mobile) while the sack is out (the SACK box next
 --     to KICK equips its Tool): at most one kick per Config/Upgrades.Sack.interval, one quick click is
 --     buffered; Remotes.Train fires at the moment the foot lands.
@@ -27,6 +28,7 @@ end)
 local SackGeometry = require(Shared:WaitForChild("Builders"):WaitForChild("SackGeometry"))
 local Sacks = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("Sacks"))
 local PlayerAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Player"))
+local SackAnim = require(Shared:WaitForChild("Anim"):WaitForChild("Sack"))
 local VFX = require(Shared:WaitForChild("VFX")) :: any
 local SackFx = require(Shared:WaitForChild("VFX"):WaitForChild("Sack"))
 local SackAura = require(Shared:WaitForChild("VFX"):WaitForChild("SackAura"))
@@ -77,7 +79,7 @@ type Sack = {
 type Char = {
 	character: Model,
 	player: Player,
-	rig: PlayerAnim.Rig,
+	still: boolean, -- standing still (with hysteresis), for the stance
 	sack: Sack?,
 	kickAt: number?,
 	kicks: number,
@@ -334,6 +336,7 @@ local function startKick(c: Char, own: boolean)
 	c.kickAt = os.clock()
 	c.kicks += 1
 	local super = c.kicks % 10 == 0 and stepOf(s.tier) >= 5
+	SackAnim.kick(c.character, c.kicks, super)
 	local removeTrail = SackFx.legTrail(c.character, s.tier)
 	task.delay(PlayerAnim.KICK_IMPACT, function()
 		if own then
@@ -437,7 +440,7 @@ local function track(player: Player, character: Model)
 	local c: Char = {
 		character = character,
 		player = player,
-		rig = PlayerAnim.rig(character),
+		still = true,
 		kicks = 0,
 		hits = 0,
 		conns = {},
@@ -468,14 +471,6 @@ local function track(player: Player, character: Model)
 	)
 	table.insert(
 		c.conns,
-		character.DescendantAdded:Connect(function(d)
-			if d:IsA("Motor6D") or d:IsA("AnimationConstraint") then
-				c.rig = PlayerAnim.rig(character) -- joints arrive late on streamed-in characters
-			end
-		end)
-	)
-	table.insert(
-		c.conns,
 		character.AncestryChanged:Connect(function(_, parent)
 			if parent == nil then
 				for _, conn in c.conns do
@@ -491,13 +486,22 @@ local function track(player: Player, character: Model)
 	refresh(c)
 end
 
+-- Standing still, with hysteresis (a stance that flickers on and off at walking pace would look nervous).
 local function standing(c: Char): boolean
 	local hrp = c.character:FindFirstChild("HumanoidRootPart")
 	if not hrp or not hrp:IsA("BasePart") then
 		return false
 	end
 	local v = hrp.AssemblyLinearVelocity
-	return Vector3.new(v.X, 0, v.Z).Magnitude < 2.5 and math.abs(v.Y) < 6
+	local flat = Vector3.new(v.X, 0, v.Z).Magnitude
+	if math.abs(v.Y) > 6 then
+		c.still = false
+	elseif c.still then
+		c.still = flat < 3
+	else
+		c.still = flat < 1.5
+	end
+	return c.still
 end
 
 function SackController:Start()
@@ -537,19 +541,19 @@ function SackController:Start()
 		hookAll(localPlayer.Character)
 	end
 
-	-- poses after the Animator, before physics
+	-- the stance layer (Anim/Sack, crossfaded): on while a sack is out and its owner stands still or kicks, and
+	-- near enough to the camera to be seen
 	RunService.Stepped:Connect(function()
 		local now = os.clock()
+		local cam = workspace.CurrentCamera
+		local camPos = if cam then cam.CFrame.Position else Vector3.zero
 		for _, c in chars do
 			local s = c.sack
-			if s and s.dropped and not s.leaving then
-				local kickAt = c.kickAt
-				if kickAt and now - kickAt < PlayerAnim.KICK_LENGTH then
-					PlayerAnim.apply(c.rig, PlayerAnim.kickPose(now - kickAt))
-				elseif standing(c) then
-					PlayerAnim.apply(c.rig, PlayerAnim.guardPose(now))
-				end
-			end
+			local hrp = c.character:FindFirstChild("HumanoidRootPart")
+			local kicking = c.kickAt ~= nil and now - c.kickAt < PlayerAnim.KICK_LENGTH
+			local out = s ~= nil and s.dropped and not s.leaving
+			local near = hrp ~= nil and hrp:IsA("BasePart") and (hrp.Position - camPos).Magnitude < FAR
+			SackAnim.stance(c.character, out and near and (kicking or standing(c)))
 		end
 	end)
 
