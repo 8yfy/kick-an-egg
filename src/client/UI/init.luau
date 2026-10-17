@@ -160,6 +160,9 @@ end
 function UI:Start()
 	-- Starts the client-side spinner for orbiting cubes / halos on rare eggs and pets.
 	require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"))
+	if RunService:IsStudio() then
+		require(script.Dev.AnimShowcase).start() -- Studio only: ";" opens the character-animation showcase
+	end
 	interactUpdate = Interact.start(function(name: string)
 		local screen = PROMPT_SCREENS[name]
 		if screen then

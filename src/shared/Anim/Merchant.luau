@@ -112,7 +112,7 @@ function Merchant.attach(npc: Model): Live?
 		local leanPref = math.clamp((0.95 - hr) * 90, 0, 40)
 		local ut = npc:FindFirstChild("UpperTorso") :: BasePart?
 		local utHalf = if ut then ut.Size / 2 else Vector3.new(0.7, 0.77, 0.43)
-		local ey = counterY + thick + 0.02
+		local ey = counterY + thick + 0.04 -- the forearm's underside on the top, not in it
 		for lean = 0, 46, 1 do
 			local p = leanPose(lean)
 			local chain = Body.fk(body, {
@@ -169,7 +169,8 @@ function Merchant.attach(npc: Model): Live?
 			local inward = if high then 0.95 else 0.5 -- folded arms on a high counter, an easy V on a low one
 			local dir = Vector3.new(-side * inward, 0, -1).Unit
 			elbows[side] = e
-			wrists[side] = e + dir * arm.l2
+			-- the hands rest on the top too: the forearm dips a little toward them
+			wrists[side] = e + dir * arm.l2 - Vector3.new(0, 0.16, 0)
 		end
 	end
 

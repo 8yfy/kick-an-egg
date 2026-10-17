@@ -38,6 +38,9 @@ export type Options = {
 	-- a procedural layer: instead of sampling the clip, `source(t, values)` fills the channel values each frame
 	-- (head tracking toward a target, fitted poses); `clip.order` lists the channels it writes
 	source: ((t: number, values: { [string]: Clip.Value }) -> ())?,
+	-- only these channels (joints / limbs) are applied; nil = all (e.g. an upper-body layer over a walk)
+	mask: { [string]: boolean }?,
+	keep: boolean?, -- stays alive at weight 0 (a dormant layer setWeight brings back) until stop()
 }
 export type Handle = {
 	stop: (fade: number?) -> (),
@@ -69,6 +72,8 @@ type Layer = {
 	onStep: { (number, { [string]: Clip.Value }, number) -> () },
 	hands: { [string]: HandFn }?,
 	source: ((number, { [string]: Clip.Value }) -> ())?,
+	mask: { [string]: boolean }?,
+	keep: boolean,
 	values: { [string]: Clip.Value },
 }
 type State = {
@@ -226,9 +231,10 @@ local function blend(
 				Clip.channel(clip, clip.channels[name], layer.t, clip.overlap[name] or 0, values[name])
 			end
 		end
+		local mask = layer.mask
 		for name, j in body.joints do
 			local v = if body.r6 then r6Value(name, values) else values[name]
-			if v then
+			if v and (not mask or mask[name]) then
 				local t = Body.toTransform(j, Clip.cframe(v, body.scale))
 				final[name] = if layer.additive
 					then final[name] * CFrame.identity:Lerp(t, w)
@@ -239,7 +245,7 @@ local function blend(
 		if not body.r6 then
 			for _, limb in Clip.LIMBS do
 				local v = if clip.channels[limb] or source then values[limb] else nil
-				if v then
+				if v and (not mask or mask[limb]) then
 					local acc = limbs[limb] or table.clone(LIMB_ZERO)
 					for c = 1, #v do
 						acc[c] += (v[c] - acc[c]) * w
@@ -331,7 +337,7 @@ local function step(_, dt: number)
 			if layer.alive then
 				advance(layer, dt)
 			end
-			if not layer.alive or (layer.target <= 0 and layer.w <= 0) then
+			if not layer.alive or (layer.target <= 0 and layer.w <= 0 and not layer.keep) then
 				layer.alive = false
 				table.remove(st.layers, i)
 				fire(layer.onEnded)
@@ -364,6 +370,8 @@ local function newLayer(clip: Clip.Compiled, o: Options): Layer
 		onStep = {},
 		hands = o.hands,
 		source = o.source,
+		mask = o.mask,
+		keep = o.keep == true,
 		values = {},
 	}
 end
@@ -389,6 +397,7 @@ function Mixer.play(character: Model, clip: Clip.Compiled, options: Options?): H
 	local handle: Handle = {
 		stop = function(fade: number?)
 			local f = fade or 0.2
+			layer.keep = false
 			layer.target = 0
 			layer.rate = 1 / math.max(f, 1 / 60)
 			if f <= 0 then
@@ -440,6 +449,31 @@ function Mixer.procedural(
 	o.source = source
 	return Mixer.play(character, Clip.compile({ name = name, length = 1e9, loop = false, keys = {} }), o)
 end
+
+-- Channel masks: the legs + pelvis (what walking owns) and everything above them.
+Mixer.LOWER = {
+	Root = true,
+	RHip = true,
+	RKnee = true,
+	RAnkle = true,
+	LHip = true,
+	LKnee = true,
+	LAnkle = true,
+	RFoot = true,
+	LFoot = true,
+}
+Mixer.UPPER = {
+	Waist = true,
+	Neck = true,
+	RShoulder = true,
+	RElbow = true,
+	RWrist = true,
+	LShoulder = true,
+	LElbow = true,
+	LWrist = true,
+	RHand = true,
+	LHand = true,
+}
 
 -- Fades out every layer on `character`.
 function Mixer.stopAll(character: Model, fade: number?)

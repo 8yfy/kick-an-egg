@@ -132,7 +132,12 @@ function Body.bind(character: Model): Body?
 		end
 		local rest = Body.fk(body, {})
 		for limb, l in body.limbs do
-			body.rest[limb] = rest[l.c].Position
+			local pivot = rest[l.c]
+			if pivot then
+				body.rest[limb] = pivot.Position
+			else
+				body.limbs[limb] = nil -- its chain is broken (a dying rig losing joints): no IK for it
+			end
 		end
 	end
 	return body

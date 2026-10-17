@@ -1,7 +1,8 @@
-param([string]$Out, [string]$Title = "KTE-anim", [double]$Seconds = 4, [int]$Fps = 30, [double]$Delay = 0, [int]$Crop = 0)
+param([string]$Out, [string]$Title = "KTE-anim", [double]$Seconds = 4, [int]$Fps = 30, [double]$Delay = 0, [int]$Crop = 0, [string]$Rect = "")
 # DEV ONLY. Records one Studio window (PrintWindow: that window's own pixels, never the screen) at about $Fps for
 # $Seconds into $Out\f_0000.png ... plus times.txt (ms since start per frame). tools/anim/encode.py turns the frames
-# into an mp4 and a contact sheet. $Crop trims that many pixels off every edge (Studio chrome).
+# into an mp4 and a contact sheet. $Crop trims that many pixels off every edge (Studio chrome); $Rect "x,y,w,h"
+# keeps just that part of the window (the game viewport), which also keeps long recordings small in memory.
 Add-Type -ReferencedAssemblies System.Drawing @"
 using System; using System.Text; using System.Drawing; using System.Runtime.InteropServices;
 public class AnimCap {
@@ -19,14 +20,16 @@ public class AnimCap {
       if (IsWindowVisible(h) && t.Contains("Roblox Studio") && t.Contains(part)) { found = h; return false; } return true; }, IntPtr.Zero);
     return found;
   }
-  public static Bitmap Grab(IntPtr h, int crop) {
+  public static Bitmap Grab(IntPtr h, int crop, int rx, int ry, int rw, int rh) {
     RECT r; GetWindowRect(h, out r);
     int w = r.R - r.L, ht = r.B - r.T;
     if (w < 10) return null;
     var full = new Bitmap(w, ht);
     using (var g = Graphics.FromImage(full)) { var dc = g.GetHdc(); PrintWindow(h, dc, 2); g.ReleaseHdc(dc); }
-    if (crop <= 0) return full;
-    var rect = new Rectangle(crop, crop, w - 2 * crop, ht - 2 * crop);
+    Rectangle rect;
+    if (rw > 0) rect = new Rectangle(rx, ry, Math.Min(rw, w - rx), Math.Min(rh, ht - ry));
+    else if (crop > 0) rect = new Rectangle(crop, crop, w - 2 * crop, ht - 2 * crop);
+    else return full;
     var cut = full.Clone(rect, full.PixelFormat); full.Dispose(); return cut;
   }
 }
@@ -36,6 +39,8 @@ $hwnd = [AnimCap]::Find($Title)
 if ($hwnd -eq [IntPtr]::Zero) { "no Studio window with '$Title' in its title"; exit 1 }
 New-Item -ItemType Directory -Force $Out | Out-Null
 if ($Delay -gt 0) { Start-Sleep -Milliseconds ([int]($Delay * 1000)) }
+$rx, $ry, $rw, $rh = 0, 0, 0, 0
+if ($Rect -ne "") { $p = $Rect.Split(","); $rx, $ry, $rw, $rh = [int]$p[0], [int]$p[1], [int]$p[2], [int]$p[3] }
 $sw = [Diagnostics.Stopwatch]::StartNew()
 $frameMs = 1000.0 / $Fps
 $i = 0
@@ -46,7 +51,7 @@ while ($sw.Elapsed.TotalSeconds -lt $Seconds) {
   $wait = $due - $sw.Elapsed.TotalMilliseconds
   if ($wait -gt 1) { Start-Sleep -Milliseconds ([int]$wait) }
   $t = $sw.Elapsed.TotalMilliseconds
-  $bmp = [AnimCap]::Grab($hwnd, $Crop)
+  $bmp = [AnimCap]::Grab($hwnd, $Crop, $rx, $ry, $rw, $rh)
   if ($bmp -ne $null) { $frames.Add($bmp); $times.Add([string][int]$t); $i++ }
 }
 $elapsed = $sw.Elapsed.TotalSeconds

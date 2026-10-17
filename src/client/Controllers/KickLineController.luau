@@ -46,8 +46,7 @@ type State = {
 	stopHold: ((fade: number?) -> ())?,
 	kickAt: number?,
 	kick: EggKick.Playing?,
-	tossFrom: CFrame?,
-	toss: { v: Vector3, g: number, at: number, spin: number }?,
+	toss: ((now: number) -> ())?, -- moves the tossed egg (EggKick.toss)
 	impacted: boolean,
 	conns: { RBXScriptConnection },
 }
@@ -163,7 +162,7 @@ local function startKick(state: State, at: number)
 		state.kick.stop()
 	end
 	state.stopHold = nil -- (EggKick.play blends the hold and brace out under the kick)
-	state.kickAt, state.tossFrom, state.toss, state.impacted = at, nil, nil, false
+	state.kickAt, state.toss, state.impacted = at, nil, false
 	state.kick = EggKick.play(state.character, at)
 	if state.character == (player and player.Character) then
 		playCinematic(state, at)
@@ -181,7 +180,6 @@ local function track(character: Model)
 		stopHold = nil,
 		kickAt = nil,
 		kick = nil,
-		tossFrom = nil,
 		impacted = false,
 		conns = {},
 	}
@@ -238,35 +236,11 @@ local function stepKick(state: State, now: number): boolean
 	local kick = state.kick
 	local releaseAt = if kick then kick.releaseAt else at - EggKick.CONTACT + EggKick.RELEASE
 	if now < at and now >= releaseAt and egg and root then
-		local eggRoot = egg.PrimaryPart :: BasePart
-		local bbCF, size = egg:GetBoundingBox()
-		if not state.tossFrom then
-			local weld = eggRoot:FindFirstChild("HoldWeld")
-			if weld then
-				weld:Destroy()
-			end
-			eggRoot.Anchored = true
-			-- the arc: from the egg's centre now to its centre at contact, rising TOSS_APEX above the start
-			local from = bbCF.Position
-			local to = contactPoint(state, root)
-				+ root.CFrame:VectorToWorldSpace(Vector3.new(0, size.Y * 0.36, -size.Z * 0.3))
-			local span = math.max(at - now, 0.05)
-			local rise = if reduced() then 0.8 else TOSS_APEX
-			local dy = to.Y - from.Y
-			local s = (math.sqrt(2 * rise) + math.sqrt(2 * math.max(rise - dy, 0.01))) / span
-			local g = s * s
-			local flat = (to - from) * Vector3.new(1, 0, 1) / span
-			state.tossFrom = CFrame.new(from) * bbCF.Rotation
-			state.toss = { v = flat + Vector3.new(0, s * math.sqrt(2 * rise), 0), g = g, at = now, spin = 1.9 / span }
+		if not state.toss then
+			state.toss =
+				EggKick.toss(egg, root, contactPoint(state, root), at, now, if reduced() then 0.8 else TOSS_APEX)
 		end
-		local toss = state.toss
-		if toss then
-			local from = state.tossFrom :: CFrame
-			local dt = now - toss.at
-			local center = from.Position + toss.v * dt - Vector3.new(0, 0.5 * toss.g * dt * dt, 0)
-			local turn = from.Rotation * CFrame.Angles(-toss.spin * dt, 0, toss.spin * dt * 0.18)
-			egg:PivotTo(CFrame.new(center) * turn * CFrame.new(0, -size.Y / 2, 0))
-		end
+		(state.toss :: (number) -> ())(now)
 	end
 	if now >= at and not state.impacted then
 		state.impacted = true

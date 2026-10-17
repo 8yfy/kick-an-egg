@@ -247,8 +247,9 @@ end
 
 -- Joint value -> rotation (and Root translation) in the joint's own frame.
 function Clip.cframe(v: Value, scale: number): CFrame
-	return CFrame.new(v[4] * scale, v[5] * scale, v[6] * scale)
-		* CFrame.Angles(math.rad(v[1]), math.rad(v[2]), math.rad(v[3]))
+	-- (procedural layers may write just { pitch, yaw, roll }: missing values are 0)
+	return CFrame.new((v[4] or 0) * scale, (v[5] or 0) * scale, (v[6] or 0) * scale)
+		* CFrame.Angles(math.rad(v[1] or 0), math.rad(v[2] or 0), math.rad(v[3] or 0))
 end
 
 return Clip

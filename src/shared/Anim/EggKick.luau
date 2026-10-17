@@ -479,46 +479,80 @@ local function carry(character: Model, handle: Mixer.Handle, untilT: number?)
 	end)
 end
 
--- Per-character layers (one hold, one brace).
-local holds: { [Model]: Mixer.Handle } = setmetatable({}, { __mode = "k" }) :: any
-local braces: { [Model]: Mixer.Handle } = setmetatable({}, { __mode = "k" }) :: any
+-- Per-character layers. The hold and the brace are split in two: the upper body (arms on the egg, torso, head)
+-- always, the pelvis and legs (crouch, planted feet) only while standing still, so walking across the pad keeps the
+-- normal walk under the hold instead of gliding on glued feet.
+type Split = { upper: Mixer.Handle, lower: Mixer.Handle }
+local holds: { [Model]: Split } = setmetatable({}, { __mode = "k" }) :: any
+local braces: { [Model]: Split } = setmetatable({}, { __mode = "k" }) :: any
+
+local function split(character: Model, clip: Clip.Compiled, priority: number, fadeIn: number): Split
+	local f = fits[character]
+	local start = if clip.loop then math.random() * clip.length else 0
+	local upper = Mixer.play(character, clip, {
+		fadeIn = fadeIn,
+		priority = priority,
+		hands = if f then hands(f) else nil,
+		start = start,
+		mask = Mixer.UPPER,
+	})
+	local lower = Mixer.play(character, clip, {
+		fadeIn = fadeIn,
+		priority = priority,
+		start = start,
+		mask = Mixer.LOWER,
+		keep = true,
+	})
+	carry(character, upper)
+	local still = true
+	upper.stepped(function()
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if not hrp or not hrp:IsA("BasePart") or not upper.playing() then
+			return
+		end
+		local v = hrp.AssemblyLinearVelocity
+		local flat = Vector3.new(v.X, 0, v.Z).Magnitude
+		local now = if still then flat < 3 else flat < 1.5 -- (hysteresis: no flicker at walking pace)
+		if now ~= still then
+			still = now
+			lower.setWeight(if now then 1 else 0, if now then 0.3 else 0.18)
+		end
+	end)
+	return { upper = upper, lower = lower }
+end
+
+local function stopSplit(sp: Split?, fade: number?)
+	if sp then
+		sp.upper.stop(fade)
+		sp.lower.stop(fade)
+	end
+end
 
 -- The hold (a looping layer, hands on the egg if one is attached). Returns stop(fade?).
 function EggKick.hold(character: Model): (fade: number?) -> ()
 	local old = holds[character]
-	if old and old.playing() then
-		return old.stop
+	if not (old and old.upper.playing()) then
+		old = split(character, HOLD, Mixer.PRIORITY.Action, 0.3)
+		holds[character] = old
 	end
-	local f = fits[character]
-	local h = Mixer.play(character, HOLD, {
-		fadeIn = 0.3,
-		priority = Mixer.PRIORITY.Action,
-		hands = if f then hands(f) else nil,
-		start = math.random() * 4,
-	})
-	carry(character, h)
-	holds[character] = h
-	return h.stop
+	local sp = old
+	return function(fade: number?)
+		stopSplit(sp, fade)
+		if holds[character] == sp then
+			holds[character] = nil
+		end
+	end
 end
 
 -- The brace on top of the hold while the timing meter runs (crossfaded in and out).
 function EggKick.brace(character: Model, on: boolean)
 	local b = braces[character]
 	if on then
-		if b and b.playing() then
-			b.setWeight(1, 0.25)
-			return
+		if not (b and b.upper.playing()) then
+			braces[character] = split(character, BRACE, Mixer.PRIORITY.Action2, 0.25)
 		end
-		local f = fits[character]
-		b = Mixer.play(character, BRACE, {
-			fadeIn = 0.25,
-			priority = Mixer.PRIORITY.Action2,
-			hands = if f then hands(f) else nil,
-		})
-		carry(character, b)
-		braces[character] = b
 	elseif b then
-		b.stop(0.3)
+		stopSplit(b, 0.3)
 		braces[character] = nil
 	end
 end
@@ -540,6 +574,41 @@ function EggKick.contactPoint(character: Model): Vector3?
 	end
 	local part = ankle * body.joints.RAnkle.c1:Inverse()
 	return (part * Vector3.new(0, foot.Size.Y / 2, -foot.Size.Z * 0.15))
+end
+
+-- Lets go of the held egg at server time `now` and returns a stepper that flies it on a ballistic arc (one gravity,
+-- up `rise` studs and down) so that at `contactAt` its lower back sits on the laces at `contact` (world). The egg
+-- turns over slowly on the way.
+function EggKick.toss(
+	egg: Model,
+	root: BasePart,
+	contact: Vector3,
+	contactAt: number,
+	now: number,
+	rise: number
+): (now: number) -> ()
+	local eggRoot = egg.PrimaryPart :: BasePart
+	local bbCF, size = egg:GetBoundingBox()
+	local weld = eggRoot:FindFirstChild("HoldWeld")
+	if weld then
+		weld:Destroy()
+	end
+	eggRoot.Anchored = true
+	local from = bbCF.Position
+	local to = contact + root.CFrame:VectorToWorldSpace(Vector3.new(0, size.Y * 0.36, -size.Z * 0.3))
+	local span = math.max(contactAt - now, 0.05)
+	local dy = to.Y - from.Y
+	local s = (math.sqrt(2 * rise) + math.sqrt(2 * math.max(rise - dy, 0.01))) / span
+	local g = s * s
+	local v = (to - from) * Vector3.new(1, 0, 1) / span + Vector3.new(0, s * math.sqrt(2 * rise), 0)
+	local spin = 1.9 / span
+	local start = bbCF.Rotation
+	return function(t: number)
+		local dt = t - now
+		local center = from + v * dt - Vector3.new(0, 0.5 * g * dt * dt, 0)
+		local turn = start * CFrame.Angles(-spin * dt, 0, spin * dt * 0.18)
+		egg:PivotTo(CFrame.new(center) * turn * CFrame.new(0, -size.Y / 2, 0))
+	end
 end
 
 -- Plays the kick so its CONTACT lands at server time `contactAt`; the hold and brace blend out under it.
@@ -567,15 +636,9 @@ function EggKick.play(character: Model, contactAt: number): Playing
 	h.on("Contact", function()
 		h.setSpeed(1)
 	end)
-	local hold, brace = holds[character], braces[character]
-	if hold then
-		hold.stop(0.18)
-		holds[character] = nil
-	end
-	if brace then
-		brace.stop(0.18)
-		braces[character] = nil
-	end
+	stopSplit(holds[character], 0.18)
+	stopSplit(braces[character], 0.18)
+	holds[character], braces[character] = nil, nil
 	local now = workspace:GetServerTimeNow()
 	local releaseIn = (EggKick.RELEASE - start) / speed
 	return {
