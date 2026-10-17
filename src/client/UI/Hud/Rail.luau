@@ -1,8 +1,8 @@
 --!strict
 -- HUD navigation (UI handoff v2 01-Mockups/01-Gameplay-HUD.png). Left edge: SHOP (green), INDEX (cyan),
 -- REBIRTH (purple), TRADE (teal) as horizontal icon + label buttons with the final approved icons (Shop = egg
--- basket, Index = open egg book; UI/System/AssetIds "hud_*"), animated by UI/System/IconMotion. TRADE is the
--- supplied Trade_Button art as the whole button ("hud_trade", Rail.artNav); it opens the existing trade window
+-- basket, Index = open egg book, Trade = two eggs swapping; UI/System/AssetIds "hud_*"), animated by
+-- UI/System/IconMotion. TRADE is a normal nav button like the others (teal); it opens the existing trade window
 -- (Rail.openTrade, set by UI/init). No TRAINING button:
 -- sacks are bought at the physical Boxing Sack Shop in the world (MapBuilder sackShop -> the same screen).
 -- Phones (Kit.compact) shrink them to icon-only squares in the top-left corner, clear of the thumbstick (each
@@ -225,17 +225,17 @@ function Rail.new(parent: Instance): LeftRail
 		{ "Shop", "hud_shop", "shop" },
 		{ "Index", "hud_index", "index" },
 		{ "Rebirth", "hud_rebirth", "rebirth" },
-		{ "Trade", "hud_trade", nil },
+		{ "Trade", "hud_trade", "eggs" },
 	}
 	for i, e in entries do
 		local screen = e[1]
-		local btn = if screen == "Trade"
-			then Rail.artNav(root, screen, e[2], function()
+		local btn = Rail.nav(root, screen, Theme.Nav[screen], e[2], function(gui: TextButton)
+			if screen == "Trade" then
 				Rail.openTrade()
-			end)
-			else Rail.nav(root, screen, Theme.Nav[screen], e[2], function(gui: TextButton)
+			else
 				Modal.toggle(screen, gui)
-			end, e[3])
+			end
+		end, e[3])
 		btn.gui.LayoutOrder = i
 		buttons[screen] = btn
 	end
@@ -255,12 +255,18 @@ function Rail.new(parent: Instance): LeftRail
 		end
 	end)
 
+	local wasReady: boolean? = nil -- (nil until the first update: joining with a rebirth ready stays quiet)
 	return {
 		update = function()
 			local claimable = Data.claimableZones() + Data.claimableMilestones()
 			buttons.Index.setBadge(if claimable > 0 then tostring(claimable) else nil)
 			local rebirth = Data.rebirth()
-			buttons.Rebirth.setBadge(if rebirth.available and rebirth.ready and not rebirth.inChase then "!" else nil)
+			local ready = rebirth.available and rebirth.ready and not rebirth.inChase
+			buttons.Rebirth.setBadge(if ready then "!" else nil)
+			if ready and wasReady == false then
+				Modal.sfx("StrengthMax") -- strength just reached the rebirth requirement
+			end
+			wasReady = ready
 			-- (an affordable sack is flagged over the Boxing Sack Shop's sign in the world: UI/Interact)
 		end,
 	}

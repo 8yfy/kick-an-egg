@@ -1,0 +1,43 @@
+{
+ "_note": "Open Cloud assetType Decal (tools/world/upload.py --type Decal). Scripts must use the IMAGE id (resolved in Studio: game:GetObjects(decal)[1].Texture); every image id verified to load (ContentProvider: Success) 2026-10-17.",
+ "Divine_Ascension": {
+  "decal": "140131381133264",
+  "image": "105976103999037"
+ },
+ "Frozen_Aurora": {
+  "decal": "79083407567953",
+  "image": "119621994750343"
+ },
+ "Golden_Rain": {
+  "decal": "129498304538377",
+  "image": "106634932546598"
+ },
+ "Meteor_Shower": {
+  "decal": "100885841591449",
+  "image": "77179766552714"
+ },
+ "Rainbow_Storm": {
+  "decal": "105262464149973",
+  "image": "97917982557914"
+ },
+ "Thunder_Surge": {
+  "decal": "138943958605298",
+  "image": "79107841943237"
+ },
+ "Thunderstorm": {
+  "decal": "88891903933058",
+  "image": "135869585822825"
+ },
+ "Toxic_Bloom": {
+  "decal": "78431634436563",
+  "image": "108840165394834"
+ },
+ "Void_Eclipse": {
+  "decal": "104566610454787",
+  "image": "125430568731489"
+ },
+ "Void_Rift": {
+  "decal": "82750144807566",
+  "image": "71616011979445"
+ }
+}

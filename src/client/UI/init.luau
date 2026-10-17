@@ -23,7 +23,7 @@ local Drawers = require(script.Hud.Drawers)
 local Menus = require(script.Menus)
 local ZoneProgress = require(script.Hud.ZoneProgress)
 local SackGear = require(script.SackGear)
-local SackSlot = require(script.Hud.SackSlot)
+local Hotbar = require(script.Hud.Hotbar)
 local Interact = require(script.Interact)
 local AssetIds = require(script.System.AssetIds)
 local Data = require(script.System.Data)
@@ -35,6 +35,10 @@ local PetInventory = require(script.Screens.PetInventory)
 local Rebirth = require(script.Screens.Rebirth)
 local WheelScreen = require(script.Screens.Wheel)
 local Donate = require(script.Screens.Donate)
+local Bag = require(script.Screens.Bag)
+local WeatherWidget = require(script.Hud.WeatherWidget)
+local WeatherToast = require(script.Hud.WeatherToast)
+local WeatherPreview = require(script.Dev.WeatherPreview)
 
 local UI = {}
 
@@ -103,18 +107,24 @@ function UI:Init()
 	Rebirth.define()
 	WheelScreen.define()
 	Donate.define()
+	Bag.define()
 
 	menus = Menus.new(root, { tiles = false }) -- Settings gear + Trade window; the rail replaces the tiles
 	quest = QuestBar.new(root)
 	SoundToggle.new(root)
 	kick = KickPanel.new(root)
 	SackGear.start(root) -- key 1 / gamepad Y, the "click to kick" hint
-	local sackSlot = SackSlot.new(root, root:FindFirstChild("KickPanel") :: GuiObject?) -- bottom Kick Sack quickslot
+	-- bottom hotbar: the Kick Sack (slot 1) + the eggs / pets equipped in the Bag (replaces the old SackSlot)
+	local hotbar = Hotbar.new(root, root:FindFirstChild("KickPanel") :: GuiObject?)
 	overlay = ChaseOverlay.new(root)
 	zoneBar = ZoneProgress.new(root)
 	rail = Rail.new(root)
 	counters = Counters.new(root)
 	drawers = Drawers.new(root)
+	-- weather: the ONE bottom-right widget + its notice in the toast lane (both read WeatherFx.State); Studio: dev panel
+	WeatherWidget.new(root)
+	WeatherToast.new(Modal.toastLane)
+	WeatherPreview.mount(root)
 	Drawers.openTrade = function()
 		menus.open("Trade")
 	end
@@ -138,7 +148,7 @@ function UI:Init()
 		rail.update()
 		counters.update()
 		drawers.update()
-		sackSlot.update()
+		hotbar.update()
 		Modal.refresh()
 	end)
 	gui.Parent = playerGui
@@ -157,6 +167,9 @@ end
 function UI:Start()
 	-- Starts the client-side spinner for orbiting cubes / halos on rare eggs and pets.
 	require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Anim"))
+	if RunService:IsStudio() then
+		require(script.Dev.AnimShowcase).start() -- Studio only: ";" opens the character-animation showcase
+	end
 	interactUpdate = Interact.start(function(name: string)
 		local screen = PROMPT_SCREENS[name]
 		if screen then

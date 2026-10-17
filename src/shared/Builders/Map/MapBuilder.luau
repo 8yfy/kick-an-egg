@@ -12,8 +12,10 @@
 -- overlaps), so nothing z-fights.
 -- Map v3 (Partner B, at A's request): the hub sits PLAZA_Y = 11 above the zones; a launch ramp (Map.Drop.Ramp,
 -- z 10..76) is the climb home for steered eggs; Map.Drop.PlayerBarrier (collision group "PlayerBarrier") stops
--- characters ("Players") but not eggs ("Eggs"). Each zone has a rim plateau, a landmark (Landmarks.luau), themed
--- walls, background silhouettes and boundary blends (Scenery.luau), rim decor and lane lights. Lighting gets
+-- characters ("Players") but not eggs ("Eggs"). World remodel (2026-10-16, classic studded bricks): every zone is an
+-- open valley around the unchanged lane / shoulders, with invisible collision walls on the old canyon wall planes
+-- (x = +-INNER) and the scenery from World/Zones (landmarks, banks, vegetation, props, far silhouettes, ambience);
+-- the hub's look comes from World/Hub and World/Shops, the models from World/Recipes via World/Kit. Lighting gets
 -- Atmosphere, Bloom, SunRays and ColorCorrection.
 --
 -- Stable names for Partner B:
@@ -33,17 +35,18 @@
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local PhysicsService = game:GetService("PhysicsService")
-local Builder = require(script.Parent.Parent.BlockBuilder)
-local Props = require(script.Parent.Props)
-local Sacks = require(script.Parent.Parent.Models.Sacks)
-local SackGeometry = require(script.Parent.Parent.SackGeometry)
 local MapFx = require(script.Parent.MapFx)
 local Bricks = require(script.Parent.Bricks)
-local Landmarks = require(script.Parent.Landmarks)
 local Merchants = require(script.Parent.Merchants)
 local WheelBuilder = require(script.Parent.Wheel)
 local Boards = require(script.Parent.Boards)
-local Scenery = require(script.Parent.Scenery)
+local Kit = require(script.Parent.World.Kit)
+local WorldParts = require(script.Parent.World.Parts)
+local Palettes = require(script.Parent.World.Palettes)
+local Shops = require(script.Parent.World.Shops)
+local Hub = require(script.Parent.World.Hub)
+local WorldZones = require(script.Parent.World.Zones)
+local Coplanar = require(script.Parent.World.Coplanar)
 local Config = script.Parent.Parent.Parent.Config
 local Chase = require(Config.Chase)
 local Zones = require(Config.Zones)
@@ -60,14 +63,11 @@ local W = 195 -- hub half-width
 local DEPTH = 390 -- the hub runs from z = 0 to z = -DEPTH (open cliff edge)
 local WALL_T, WALL_H = 24, 50
 local CLIFF = 40 -- plaza height above the ocean
-local PROP_BAND = { HALF + 5, HALF + 8 } -- low props on the shoulders: the 48-stud lane stays clear (map overhaul)
 -- Map v3: the plaza and launch hub sit PLAZA_Y above the zones, so every kick dives into the
 -- valley. The launch ramp (RAMP_START -> RAMP_END along +Z) is the climb home for steered eggs;
 -- a player-only barrier across the canyon mouth keeps characters up top (eggs pass through).
 local PLAZA_Y = 11 -- about two characters tall: a gentle climb home, not a cliff
 local RAMP_START, RAMP_END = 10, 76
-local RIM_W = 60 -- canyon rim plateau width beyond each wall
-local RIM_TOP = WALL_H + 2 -- flush with the wall caps
 MapBuilder.PlazaY = PLAZA_Y
 MapBuilder.RampStart, MapBuilder.RampEnd = RAMP_START, RAMP_END
 MapBuilder.KickPadTop = PLAZA_Y + 0.5
@@ -76,8 +76,9 @@ MapBuilder.Groups = { players = "Players", eggs = "Eggs", barrier = "PlayerBarri
 
 local rgb = Color3.fromRGB
 local DIRT = rgb(205, 130, 80)
-local GRASS, GRASS_DARK = rgb(120, 215, 75), rgb(104, 196, 64)
 local YELLOW = rgb(255, 220, 80)
+local HUB_CLIFF = rgb(190, 128, 84) -- clay under the plaza (World.Hub cliffs use the same family)
+local LAWN = rgb(108, 198, 70)
 local SHIELD_ICON = "rbxassetid://77216163319959"
 local SIGN = rgb(32, 38, 52)
 -- Pens (5, map overhaul 2026-10-14): two on each side of the central path, gates facing it, and one at the end
@@ -115,29 +116,6 @@ function MapBuilder.penFrame(i: number): CFrame
 	local c = Vector3.new(slot.cx, 0, slot.cz)
 	return CFrame.lookAt(c, c + slot.dir)
 end
-
-type River = { color: Color3, material: Enum.Material?, transparency: number? }
-local WATER: River = { color = rgb(80, 170, 240), transparency = 0.15 }
-local RIVERS: { [number]: River | string } = {
-	[2] = WATER,
-	[3] = WATER,
-	[4] = { color = rgb(160, 90, 230), material = Enum.Material.Neon, transparency = 0.3 },
-	[6] = { color = rgb(190, 230, 255), material = Enum.Material.Glass, transparency = 0.2 },
-	[7] = { color = rgb(120, 70, 40) },
-	[8] = WATER,
-	[9] = { color = rgb(255, 110, 20), material = Enum.Material.Neon },
-	[10] = { color = rgb(110, 240, 255), material = Enum.Material.Neon, transparency = 0.2 },
-	[11] = WATER,
-	[12] = { color = rgb(255, 40, 200), material = Enum.Material.Neon },
-	[13] = { color = rgb(140, 255, 120), material = Enum.Material.Neon, transparency = 0.5 },
-	[14] = { color = rgb(255, 255, 255), transparency = 0.1 },
-	[15] = { color = rgb(170, 255, 40), material = Enum.Material.Neon, transparency = 0.2 },
-	[16] = { color = rgb(60, 55, 50) },
-	[17] = { color = rgb(170, 230, 250), material = Enum.Material.Glass, transparency = 0.2 },
-	[18] = { color = rgb(255, 150, 30), material = Enum.Material.Neon },
-	[19] = { color = rgb(170, 110, 255), material = Enum.Material.Neon, transparency = 0.2 },
-	[20] = "rainbow",
-}
 
 type BlockOpts = {
 	material: Enum.Material?,
@@ -247,35 +225,6 @@ local function surface(part: BasePart, face: Enum.NormalId, lines: { { any } }, 
 	return gui
 end
 
-local function stamp(
-	spec: Builder.Spec,
-	cf: CFrame,
-	scale: number,
-	parent: Instance,
-	collide: boolean?,
-	name: string?
-): Model
-	local m = Builder.build(spec, name or "Prop")
-	if scale ~= 1 then
-		m:ScaleTo(scale)
-	end
-	m:PivotTo(cf)
-	for _, d in m:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.CanCollide = collide == true
-			d.CanTouch = false
-		elseif d:IsA("WeldConstraint") or d:IsA("Motor6D") then
-			d:Destroy()
-		end
-	end
-	if m.PrimaryPart then
-		m.PrimaryPart:Destroy()
-	end
-	m.Parent = parent
-	return m
-end
-
 local function prompt(parent: BasePart, action: string, text: string, object: string): ProximityPrompt
 	local p = Instance.new("ProximityPrompt")
 	p.ActionText = text
@@ -294,100 +243,24 @@ local function setText(gui: Instance?, name: string, text: string)
 	end
 end
 
------------------------------------------------------------------- walls
-
--- Plain wall: inner face along the ground line a -> b, `inward` points into the playable area.
--- The body may extend past the face span (extA / extB) to fill corners; the grass cap sits exactly on
--- the body (no overlap with neighbours); drips and the checker stay 3 studs clear of the face ends.
-local function wall(
-	parent: Instance,
-	a: Vector3,
-	b: Vector3,
-	inward: Vector3,
-	face: Color3,
-	top: Color3,
-	seed: number,
-	extA: number?,
-	extB: number?
-)
-	local along = (b - a).Unit
-	local len = (b - a).Magnitude
-	local ea, eb = extA or 0, extB or 0
-	local rot = CFrame.lookAt(Vector3.zero, along)
-	local mid = (a + b) / 2 + along * ((eb - ea) / 2) - inward * (WALL_T / 2)
-	local bodyLen = len + ea + eb
-	block(
-		parent,
-		"Wall",
-		Vector3.new(WALL_T, WALL_H, bodyLen),
-		CFrame.new(mid + Vector3.new(0, WALL_H / 2, 0)) * rot,
-		face,
-		{ sideStuds = true }
-	)
-	block(
-		parent,
-		"WallCap",
-		Vector3.new(WALL_T, 2, bodyLen),
-		CFrame.new(mid + Vector3.new(0, WALL_H + 1, 0)) * rot,
-		top
-	)
-	local rng = Random.new(seed)
-	local s = 3 + rng:NextNumber(0, 3)
-	while true do
-		local w = rng:NextNumber(3, 7)
-		if s + w > len - 3 then
-			break
-		end
-		local dh = rng:NextNumber(2, 8)
-		local p = a + along * (s + w / 2) + inward * 0.5
-		block(
-			parent,
-			"Drip",
-			Vector3.new(1, dh, w),
-			CFrame.new(p.X, WALL_H - dh / 2 + 0.6, p.Z) * rot,
-			top,
-			{ studs = false }
-		)
-		s += w + rng:NextNumber(2, 6)
-	end
-	-- Two-tone checker on the face (plates 0.2 in front of it, darker squares only)
-	local cols, rows = math.max(1, math.floor(len / 25)), 2
-	local tw, th = len / cols, WALL_H / rows
-	local dark = face:Lerp(Color3.new(0, 0, 0), 0.08)
-	for c = 0, cols - 1 do
-		for r = 0, rows - 1 do
-			if (c + r) % 2 == 0 then
-				local p = a + along * ((c + 0.5) * tw) + inward * 0.1
-				block(
-					parent,
-					"Checker",
-					Vector3.new(0.2, th, tw),
-					CFrame.new(p.X, (r + 0.5) * th, p.Z) * rot,
-					dark,
-					{ sideStuds = true, collide = false }
-				)
-			end
-		end
-	end
-end
-
 ------------------------------------------------------------------ plaza pieces
 
--- Egg statue on a plinth; the client spins models with a "Spin" attribute (degrees / second).
-local function eggStatue(parent: Instance, x: number, z: number, color: Color3)
-	local stone = rgb(200, 200, 212)
-	block(parent, "Plinth", Vector3.new(7, 4, 7), CFrame.new(x, 2, z), stone, { sideStuds = true })
-	block(parent, "PlinthTrim", Vector3.new(7.6, 0.6, 7.6), CFrame.new(x, 4.3, z), YELLOW)
-	local m = Bricks.model(parent, "EggStatue")
-	local pivot =
-		Bricks.part(m, "Pivot", Vector3.one, CFrame.new(x, 9.4, z), color, { transparency = 1, collide = false })
-	m.PrimaryPart = pivot
-	local shiny = { material = Enum.Material.SmoothPlastic, reflect = 0.2 }
-	Bricks.ball(m, "Base", 6, CFrame.new(x, 7.6, z), color, shiny)
-	Bricks.cyl(m, "Middle", 3, 6, CFrame.new(x, 9.1, z), color, shiny)
-	Bricks.ball(m, "Top", 5.4, CFrame.new(x, 10.9, z), color, shiny)
-	Bricks.ball(m, "Crown", 3.4, CFrame.new(x, 12.9, z), color:Lerp(Color3.new(1, 1, 1), 0.25), shiny)
-	m:SetAttribute("Spin", 30)
+-- Egg monument (World kit) beside the launch: a stone plinth with a banded giant egg and a sparkle.
+local function eggStatue(parent: Instance, x: number, z: number, color: Color3, band: Color3)
+	Kit.place(
+		parent,
+		"EggMonument",
+		Kit.at(x, 0, z, 30),
+		1.15,
+		Palettes.merge(Palettes.hub, {
+			Accent = { color = color, reflect = 0.15 },
+			Accent2 = band,
+			Stone = rgb(226, 222, 232),
+			StoneDark = rgb(170, 166, 184),
+			Trim = rgb(255, 214, 80),
+		})
+	)
+	WorldParts.proxy(parent, "StatueProxy", Vector3.new(5.6, 4, 5.6), CFrame.new(x, 2, z))
 	MapFx.emit(anchor(parent, "StatueFx", Vector3.new(6, 1, 6), Vector3.new(x, 9, z)), "StallSparkle")
 end
 
@@ -453,8 +326,8 @@ local function buildKickPad(map: Instance)
 	surface(kickSign, Enum.NormalId.Front, { { "Title", "KICK THE EGG!", 0.1, 0.8 } }, 20)
 	Bricks.light(kickSign, rgb(255, 170, 80), 16, 1)
 
-	eggStatue(hub, -24, -9, rgb(255, 200, 50))
-	eggStatue(hub, 24, -9, rgb(180, 120, 255))
+	eggStatue(hub, -24, -9, rgb(255, 196, 46), rgb(255, 120, 60))
+	eggStatue(hub, 24, -9, rgb(170, 110, 255), rgb(110, 220, 255))
 	brazier(hub, -15, 7)
 	brazier(hub, 15, 7)
 
@@ -593,7 +466,8 @@ local function applyLighting()
 		Glare = 0.4,
 		Haze = 1.4,
 	})
-	effect("BloomEffect", "MapBloom", { Intensity = 0.6, Size = 28, Threshold = 1.3 })
+	-- bloom only catches the brightest neon (lava, signs, lamps), so studded colours stay crisp; never blown out
+	effect("BloomEffect", "MapBloom", { Intensity = 0.38, Size = 24, Threshold = 1.6 })
 	effect("SunRaysEffect", "MapSunRays", { Intensity = 0.07, Spread = 0.55 })
 	effect("ColorCorrectionEffect", "MapColor", { Saturation = 0.14, Contrast = 0.06, Brightness = 0.02 })
 end
@@ -633,393 +507,6 @@ local function buildSafeLine(map: Instance)
 	)
 end
 
-local function lamp(parent: Instance, pos: Vector3)
-	block(parent, "LampBase", Vector3.new(1.6, 0.6, 1.6), CFrame.new(pos + Vector3.new(0, 0.3, 0)), rgb(60, 60, 70))
-	block(parent, "LampPole", Vector3.new(0.6, 8, 0.6), CFrame.new(pos + Vector3.new(0, 4.6, 0)), rgb(60, 60, 70))
-	local bulb = block(
-		parent,
-		"LampBulb",
-		Vector3.new(1.4, 1.4, 1.4),
-		CFrame.new(pos + Vector3.new(0, 9.3, 0)),
-		rgb(255, 230, 150),
-		{
-			material = Enum.Material.Neon,
-			collide = false,
-		}
-	)
-	local l = Instance.new("PointLight")
-	l.Range, l.Brightness, l.Color = 14, 0.8, rgb(255, 220, 150)
-	l.Parent = bulb
-	MapFx.emit(bulb, "Firefly")
-end
-
--- A Kick Sack hanging from its chain with its hub at `hang` (stands, the Boxing Sack Shop): the original
--- imported GLB sack when available (Builders/SackGeometry), else the part-built remodel. Anchored, no physics;
--- named "Sack" with a Tier attribute so MapLife spins it (`spin` deg/s) and shows its idle VFX.
-local function hangSack(parent: Instance, tier: number, hang: CFrame, spin: number): Model
-	local sack = SackGeometry.build(tier)
-	sack:PivotTo(hang)
-	for _, d in sack:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.CanCollide = false
-			d.CanTouch = false
-			d.CanQuery = false
-		elseif d:IsA("WeldConstraint") or d:IsA("Motor6D") then
-			d:Destroy()
-		end
-	end
-	if sack.PrimaryPart then
-		sack.PrimaryPart:Destroy()
-	end
-	sack.Name = "Sack"
-	sack.Parent = parent
-	local pivot = Instance.new("Part")
-	pivot.Name = "Pivot"
-	pivot.Size = Vector3.one * 0.2
-	pivot.Transparency = 1
-	pivot.Anchored = true
-	pivot.CanCollide = false
-	pivot.CanQuery = false
-	pivot.CanTouch = false
-	pivot.CFrame = hang
-	pivot.Parent = sack
-	sack.PrimaryPart = pivot
-	sack:SetAttribute("Tier", tier)
-	sack:SetAttribute("Spin", spin)
-	return sack
-end
-
--- The Boxing Sack Shop (remodel 2026-10-14): an open gym storefront instead of a closed box with a small door.
--- Stone plinth, red back wall and white side walls with stripes, two chunky front pillars under a header beam and a
--- striped awning, a flat roof with the sign standing on its front edge (nothing overlaps it). Inside: the counter
--- right at the front with the Coach (the shop's avatar NPC, MerchantService) behind it, a mini boxing ring at the
--- back with four display sacks on a gantry and two more on wall brackets, gloves and a champion poster. The six
--- display sacks are props: attribute Display = true, so MapLifeController builds no effects / lights / sounds for
--- them (they only turn slowly); the sacks you own are untouched. Lighting is a few soft warm lights.
--- The counter's prompt ("OpenMenu:Store") opens the existing sack purchasing screen (UI/Screens/TrainingShop);
--- nothing is bought here. `dir` = +1 faces +Z, -1 faces -Z.
-local SHOP_TIERS = { 9, 14, 18, 20, 1, 5 } -- gantry (premium) first, then the two wall brackets (burlap, tire)
-local function sackShop(parent: Instance, x: number, z: number, dir: number)
-	local m = Instance.new("Model")
-	m.Name = "BoxingSackShop"
-	m.Parent = parent
-	local origin = Vector3.new(x, 0, z)
-	local frame = CFrame.lookAt(origin, origin + Vector3.new(0, 0, dir))
-	local function at(lx: number, ly: number, lz: number): CFrame
-		return frame * CFrame.new(lx, ly, lz)
-	end
-	local red, redDark, white = rgb(215, 45, 50), rgb(150, 28, 34), rgb(250, 248, 244)
-	local gold, wood, mat, stone = rgb(255, 200, 60), rgb(150, 98, 60), rgb(40, 110, 210), rgb(205, 205, 215)
-	local W, D, H = 34, 24, 16 -- footprint and wall height
-	local FLOOR = 1 -- top of the ring mat
-	-- plinth, front step and the blue mat floor
-	block(m, "Plinth", Vector3.new(W + 1, 0.8, D + 1), at(0, 0.4, 0), stone, { sideStuds = true })
-	block(m, "Step", Vector3.new(W - 6, 0.4, 2), at(0, 0.2, -D / 2 - 1.5), stone)
-	block(m, "Floor", Vector3.new(W - 2, 0.2, D - 2), at(0, 0.9, 0), mat)
-	-- back wall (red, white stripe) and side walls (white, red stripe)
-	block(m, "BackWall", Vector3.new(W, H, 1), at(0, 0.8 + H / 2, D / 2 - 0.5), red, { sideStuds = true })
-	block(m, "BackStripe", Vector3.new(W + 0.1, 1.2, 1.2), at(0, 4.6, D / 2 - 0.5), white, { studs = false })
-	for _, sx in { -1, 1 } do
-		block(
-			m,
-			"SideWall",
-			Vector3.new(1, H, D - 3),
-			at(sx * (W / 2 - 0.5), 0.8 + H / 2, 1.5),
-			white,
-			{ sideStuds = true }
-		)
-		block(m, "SideStripe", Vector3.new(1.2, 1.2, D - 2.9), at(sx * (W / 2 - 0.5), 4.6, 1.5), red, { studs = false })
-		-- chunky front pillars with a gold cap and a warm lantern each (soft)
-		block(
-			m,
-			"Pillar",
-			Vector3.new(2.6, H + 1.4, 2.6),
-			at(sx * (W / 2 - 1.3), 0.8 + (H + 1.4) / 2, -D / 2 + 1.3),
-			redDark
-		)
-		block(m, "PillarBand", Vector3.new(2.8, 0.8, 2.8), at(sx * (W / 2 - 1.3), 4.6, -D / 2 + 1.3), gold)
-		local lantern = Bricks.glow(
-			m,
-			"Lantern",
-			Vector3.new(1.4, 1.4, 1.4),
-			at(sx * (W / 2 - 1.3), 11, -D / 2 - 0.4),
-			rgb(255, 214, 150),
-			"Ball"
-		)
-		Bricks.light(lantern, rgb(255, 205, 140), 14, 0.6)
-		-- gloves hanging on the inside of the side walls
-		for _, lz in { 0, 5 } do
-			Bricks.ball(m, "Glove", 1.7, at(sx * (W / 2 - 1.6), 9, lz), rgb(230, 40, 40))
-			block(m, "GloveCuff", Vector3.new(0.9, 0.9, 0.9), at(sx * (W / 2 - 1.6), 10.1, lz), white)
-		end
-	end
-	-- header beam over the open front, the striped awning and the flat roof
-	block(m, "Header", Vector3.new(W, 2.4, 2.2), at(0, 0.8 + H + 0.6, -D / 2 + 1.1), redDark)
-	block(m, "HeaderTrim", Vector3.new(W + 0.2, 0.5, 2.4), at(0, 0.8 + H - 0.4, -D / 2 + 1.1), gold, { studs = false })
-	for k = 0, 15 do
-		local lx = -W / 2 + 1.05 + k * 2.13
-		block(
-			m,
-			"Awning",
-			Vector3.new(2.15, 0.4, 4.4),
-			at(lx, 0.8 + H - 1.6, -D / 2 - 1.6) * CFrame.Angles(math.rad(-18), 0, 0),
-			if k % 2 == 0 then red else white
-		)
-	end
-	local roofTop = 0.8 + H + 1
-	block(m, "Roof", Vector3.new(W + 1, 1, D + 1), at(0, roofTop - 0.5, 0.5), redDark) -- sits on the walls
-	block(m, "RoofTrim", Vector3.new(W + 1.4, 0.6, D + 1.4), at(0, roofTop - 0.5, 0.5), gold, { studs = false })
-	-- the sign stands on the roof's front edge, on two posts
-	local signY = roofTop + 5.6
-	for _, sx in { -9, 9 } do
-		block(m, "SignPost", Vector3.new(1, 3, 1), at(sx, roofTop + 1.5, -D / 2 + 2.4), redDark)
-	end
-	local board = block(m, "Sign", Vector3.new(28, 6, 0.8), at(0, signY, -D / 2 + 1.6), red, { sideStuds = true })
-	block(m, "SignFrame", Vector3.new(29.2, 7.2, 0.6), at(0, signY, -D / 2 + 2.3), gold)
-	local signGui = surface(board, Enum.NormalId.Front, {
-		{ "Title", "BOXING SACK SHOP", 0.08, 0.6, white },
-		{ "Sub", "TRAIN STRONGER - KICK FARTHER", 0.68, 0.24, rgb(255, 225, 120) },
-	}, 24)
-	signGui.Name = "SignGui"
-	-- the mini boxing ring at the back: corner posts and red / white / blue ropes on three sides (open to the front)
-	local ringZ0, ringZ1, ringX = 0.5, D / 2 - 1.5, 11
-	for _, px in { -ringX, ringX } do
-		for _, pz in { ringZ0, ringZ1 } do
-			block(m, "RingPost", Vector3.new(0.9, 5.4, 0.9), at(px, FLOOR + 2.7, pz), white)
-		end
-	end
-	for k, c in { rgb(230, 50, 60), white, rgb(50, 110, 230) } do
-		local y = FLOOR + 1.4 + k * 1.2
-		block(m, "Rope", Vector3.new(2 * ringX, 0.3, 0.3), at(0, y, ringZ1), c, { collide = false, studs = false })
-		for _, px in { -ringX, ringX } do
-			block(
-				m,
-				"Rope",
-				Vector3.new(0.3, 0.3, ringZ1 - ringZ0),
-				at(px, y, (ringZ0 + ringZ1) / 2),
-				c,
-				{ collide = false, studs = false }
-			)
-		end
-	end
-	-- a champion poster on the back wall
-	local poster =
-		block(m, "Poster", Vector3.new(9, 4.6, 0.3), at(0, 12.4, D / 2 - 1.15), rgb(32, 38, 52), { studs = false })
-	surface(poster, Enum.NormalId.Front, {
-		{ "Top", "THE CHAMP", 0.08, 0.4, rgb(255, 215, 60) },
-		{ "Bottom", "HIT HARDER", 0.55, 0.32 },
-	}, 24)
-	-- display sacks: four on a gantry inside the ring, two on wall brackets by the counter. Props only.
-	local hubY = FLOOR + Sacks.HANG
-	local beamY = hubY + Sacks.CHAIN_TOP + 0.45
-	local ringMid = (ringZ0 + ringZ1) / 2
-	block(m, "Gantry", Vector3.new(2 * ringX + 1, 0.9, 1.2), at(0, beamY, ringMid), wood)
-	for _, gx in { -ringX, ringX } do
-		block(
-			m,
-			"GantryPost",
-			Vector3.new(0.9, beamY - FLOOR - 0.45, 0.9),
-			at(gx, (beamY + FLOOR - 0.45) / 2, ringMid + 0.9),
-			wood
-		)
-	end
-	local displays = folder(m, "Displays")
-	for i, tier in SHOP_TIERS do
-		local d = Instance.new("Model")
-		d.Name = "Display" .. i
-		d:SetAttribute("Tier", tier)
-		d.Parent = displays
-		local hang: CFrame
-		if i <= 4 then
-			hang = at(-7.5 + (i - 1) * 5, hubY, ringMid)
-		else
-			local sx = if i == 5 then -1 else 1
-			local bx = sx * (W / 2 - 4.2)
-			block(d, "Bracket", Vector3.new(4.4, 0.7, 0.9), at(sx * (W / 2 - 2.2), beamY, -3.5), wood)
-			hang = at(bx, hubY, -3.5)
-		end
-		local sack = hangSack(d, tier, hang, 8)
-		sack:SetAttribute("Display", true) -- a prop: no idle effects (MapLifeController)
-		if i <= 4 then -- a nameplate on the ring's front edge, under its sack
-			local plateAt = hang * CFrame.new(0, -hubY + FLOOR + 0.7, -(ringMid - ringZ0) - 0.6)
-			local plate = block(d, "Plate", Vector3.new(4, 1.2, 0.4), plateAt, rgb(32, 38, 52))
-			surface(
-				plate,
-				Enum.NormalId.Front,
-				{ { "Name", string.upper(Upgrades.Sack.tiers[tier].name), 0.1, 0.8 } },
-				30
-			)
-		end
-	end
-	-- one soft ceiling light for the whole room
-	local ceiling = anchor(m, "CeilingLight", Vector3.new(1, 0.4, 1), at(0, 0.8 + H - 1, 0).Position)
-	Bricks.light(ceiling, rgb(255, 240, 220), 26, 0.7)
-	-- the counter right at the front, with the Coach behind it; its prompt opens the existing sack screen
-	local counter = block(m, "Counter", Vector3.new(18, 3, 2.6), at(0, FLOOR + 1.5, -6.5), wood)
-	block(m, "CounterTop", Vector3.new(18.6, 0.4, 3.2), at(0, FLOOR + 3.2, -6.5), white)
-	block(m, "CounterStripe", Vector3.new(18.1, 0.7, 0.1), at(0, FLOOR + 1.9, -7.85), red, { studs = false })
-	Bricks.ball(m, "CounterGlove", 1.6, at(-6.5, FLOOR + 4.2, -6.5), rgb(230, 40, 40))
-	Bricks.ball(m, "CounterGlove", 1.6, at(-4.8, FLOOR + 4.2, -6.3), rgb(230, 40, 40))
-	block(m, "Bell", Vector3.new(1.2, 0.8, 1.2), at(6, FLOOR + 3.8, -6.5), gold)
-	-- the Coach stands on a raised step behind the counter, so the whole avatar shows above it
-	block(m, "MerchantStep", Vector3.new(12, 1.2, 3.6), at(0, FLOOR + 0.6, -3.2), wood)
-	Merchants.build("Coach", m, at(0, FLOOR + 1.2, -3.2))
-	local p = prompt(counter, "OpenMenu:Store", "Browse sacks", "Boxing Sack Shop")
-	p.MaxActivationDistance = 14
-	-- where to walk to (tutorial trail / arrow): in front of the storefront, on the ground
-	anchor(m, "Approach", Vector3.new(2, 1, 2), at(0, 1.5, -D / 2 - 5).Position)
-end
-
--- The Pet Selling Stand (map overhaul): a market stand, clearly not the sack shop - four chunky posts, a striped
--- canopy with a scalloped front, a "SELL PETS" sign with the approved paw icon, an open counter, crates of eggs,
--- lanterns and the pet merchant behind the counter. The counter prompt ("OpenMenu:Inventory") opens the existing
--- Sell Pets screen (UI/Screens/PetInventory): nothing is sold by walking up or opening it. `dir` as sackShop.
-local PAW_ICON = "rbxassetid://84890738919357" -- UI/System/AssetIds hud_pets (the approved Pets icon)
-local function petStand(parent: Instance, x: number, z: number, dir: number)
-	local m = Instance.new("Model")
-	m.Name = "PetSellingStand"
-	m.Parent = parent
-	local origin = Vector3.new(x, 0, z)
-	local frame = CFrame.lookAt(origin, origin + Vector3.new(0, 0, dir))
-	local function at(lx: number, ly: number, lz: number): CFrame
-		return frame * CFrame.new(lx, ly, lz)
-	end
-	local wood, woodDark, cream = rgb(175, 115, 62), rgb(115, 72, 40), rgb(250, 242, 222)
-	local teal, orange = rgb(40, 195, 175), rgb(255, 150, 40)
-	block(m, "Deck", Vector3.new(24, 0.8, 18), at(0, 0.4, 0), rgb(205, 165, 112))
-	for _, sx in { -10.5, 10.5 } do
-		for _, sz in { -7.5, 7.5 } do
-			block(m, "Post", Vector3.new(1.8, 12.4, 1.8), at(sx, 7, sz), woodDark)
-		end
-	end
-	block(m, "BackBoard", Vector3.new(19.2, 7, 0.8), at(0, 4.3, 7.5), cream, { sideStuds = true })
-	for row = 0, 1 do
-		block(m, "Shelf", Vector3.new(16, 0.4, 1.2), at(0, 3.4 + row * 2.6, 6.6), wood)
-		for col = 0, 5 do
-			local zone = Zones[(row * 6 + col) % #Zones + 1]
-			Bricks.ball(
-				m,
-				"ShelfEgg",
-				1.3,
-				at(-6.25 + col * 2.5, 4.25 + row * 2.6, 6.6),
-				zone.ground:Lerp(zone.accent, 0.4)
-			)
-		end
-	end
-	-- striped canopy sloping to the front, with a scalloped valance
-	for i = 0, 11 do
-		local lx = -11 + i * 2
-		block(
-			m,
-			"Canopy",
-			Vector3.new(2.05, 0.5, 20),
-			at(lx, 13.6, 0) * CFrame.Angles(math.rad(-9), 0, 0),
-			if i % 2 == 0 then teal else cream
-		)
-		block(m, "Valance", Vector3.new(2, 1.3, 0.4), at(lx, 11.6, -10.1), if i % 2 == 0 then teal else cream)
-	end
-	-- the sign: SELL PETS between two paws
-	local sign = block(m, "Sign", Vector3.new(17, 4.6, 0.8), at(0, 17.6, -8.6), orange, { sideStuds = true })
-	block(m, "SignFrame", Vector3.new(18, 5.6, 0.6), at(0, 17.6, -7.9), woodDark)
-	for _, sx in { -6, 6 } do
-		block(m, "SignPost", Vector3.new(0.8, 2.4, 0.8), at(sx, 14.8, -8), woodDark)
-	end
-	local gui = surface(sign, Enum.NormalId.Front, { { "Title", "SELL PETS", 0.1, 0.8 } }, 24)
-	local title = gui:FindFirstChild("Title") :: TextLabel
-	title.Position, title.Size = UDim2.fromScale(0.2, 0.1), UDim2.fromScale(0.6, 0.8)
-	for _, px in { 0.03, 0.81 } do
-		local paw = Instance.new("ImageLabel")
-		paw.BackgroundTransparency = 1
-		paw.Image = PAW_ICON
-		paw.ScaleType = Enum.ScaleType.Fit
-		paw.Position, paw.Size = UDim2.fromScale(px, 0.05), UDim2.fromScale(0.16, 0.9)
-		paw.Parent = gui
-	end
-	Bricks.light(sign, rgb(255, 190, 110), 18, 1)
-	-- counter, crates of eggs either side of the front, lanterns on the front posts
-	local counter = block(m, "Counter", Vector3.new(16, 3.4, 2.4), at(0, 2.5, -4.6), wood)
-	block(m, "CounterTop", Vector3.new(16.6, 0.4, 3), at(0, 4.4, -4.6), cream)
-	block(m, "CounterStripe", Vector3.new(16.1, 0.6, 0.1), at(0, 3.2, -5.85), teal, { studs = false })
-	for _, sx in { -9.4, 9.4 } do
-		block(m, "Crate", Vector3.new(3.6, 2.8, 3.6), at(sx, 2.2, -11.4), wood)
-		block(m, "CrateBand", Vector3.new(3.7, 0.5, 3.7), at(sx, 2.2, -11.4), woodDark, { studs = false })
-		for k = -1, 1 do
-			local zone = Zones[(math.floor(sx) + k * 3) % #Zones + 1]
-			Bricks.ball(m, "CrateEgg", 1.4, at(sx + k * 1.1, 4.2, -11.4), zone.ground:Lerp(Color3.new(1, 1, 1), 0.3))
-		end
-		local lantern =
-			Bricks.glow(m, "Lantern", Vector3.new(1.4, 1.4, 1.4), at(sx * 1.12, 10.4, -8.6), rgb(255, 220, 140), "Ball")
-		Bricks.light(lantern, rgb(255, 210, 140), 16, 1.1)
-	end
-	MapFx.emit(anchor(m, "GoodsFx", Vector3.new(12, 1, 2), at(0, 5.6, -4.6).Position), "StallSparkle")
-	Merchants.build("PetSeller", m, at(0, 0.8, 1.2))
-	local p = prompt(counter, "OpenMenu:Inventory", "Sell pets", "Pet Selling Stand")
-	p.MaxActivationDistance = 14
-	anchor(m, "Approach", Vector3.new(2, 1, 2), at(0, 1.5, -14).Position)
-end
-
--- Octagonal studded basin, water, tiered centre column, and VFX: water jet, splashes, sparkles, light.
-local function fountain(parent: Instance, c: Vector3)
-	local f = folder(parent, "Fountain")
-	local R = 10
-	local stone, stoneDark = rgb(215, 215, 225), rgb(175, 175, 190)
-	cylinder(f, "BasinFloor", 0.4, 2 * R, c + Vector3.new(0, 0.2, 0), stoneDark)
-	local water = cylinder(f, "Water", 0.8, 2 * R - 2.6, c + Vector3.new(0, 0.8, 0), rgb(80, 175, 245), {
-		material = Enum.Material.Glass,
-		transparency = 0.25,
-		collide = false,
-	})
-	local side = 2 * R * math.tan(math.pi / 8)
-	for i = 0, 7 do
-		local a = i * math.pi / 4
-		local p = c + Vector3.new(math.cos(a) * (R - 0.7), 1.2, math.sin(a) * (R - 0.7))
-		block(f, "Rim", Vector3.new(1.4, 1.6, side + 0.05), CFrame.new(p) * CFrame.Angles(0, -a, 0), stone)
-	end
-	cylinder(f, "Pillar", 5, 2.6, c + Vector3.new(0, 2.9, 0), stone)
-	cylinder(f, "Bowl", 0.8, 7, c + Vector3.new(0, 5.8, 0), stone)
-	cylinder(
-		f,
-		"BowlWater",
-		0.3,
-		6,
-		c + Vector3.new(0, 6.25, 0),
-		rgb(120, 200, 255),
-		{ material = Enum.Material.Neon, transparency = 0.2, collide = false }
-	)
-	cylinder(f, "Spout", 1.4, 1.2, c + Vector3.new(0, 7.1, 0), stoneDark)
-	MapFx.emit(anchor(f, "JetFx", Vector3.new(0.6, 0.2, 0.6), c + Vector3.new(0, 7.9, 0)), "FountainJet")
-	MapFx.emit(
-		anchor(f, "SplashFx", Vector3.new(2 * R - 5, 0.2, 2 * R - 5), c + Vector3.new(0, 1.3, 0)),
-		"FountainSplash"
-	)
-	MapFx.emit(water, "FountainSparkle")
-	-- a chunky block egg on the spout (MapLife spins models with a Spin attribute)
-	local egg = Bricks.model(f, "FountainEgg")
-	local pivot = Bricks.part(egg, "Pivot", Vector3.one, CFrame.new(c + Vector3.new(0, 9.6, 0)), Color3.new(1, 1, 1), {
-		transparency = 1,
-		collide = false,
-	})
-	egg.PrimaryPart = pivot
-	local gold, shine = rgb(255, 205, 60), rgb(255, 240, 160)
-	for k, w in { 2.4, 3.4, 3.8, 3.6, 3, 2 } do
-		Bricks.part(
-			egg,
-			"Egg" .. k,
-			Vector3.new(w, 1, w),
-			CFrame.new(c + Vector3.new(0, 7.3 + k, 0)),
-			if k == 4 then shine else gold,
-			{
-				collide = false,
-			}
-		)
-	end
-	egg:SetAttribute("Spin", 24)
-	local l = Instance.new("PointLight")
-	l.Color, l.Range, l.Brightness = rgb(130, 200, 255), 18, 1
-	l.Parent = water
-end
-
 -- Upgrade panel: dark board, title, "Level a > Level b", green price bar. `cf` = the board's foot, its -Z (front, the
 -- text side) facing the visitor.
 local function upgradeSign(base: Model, name: string, title: string, cf: CFrame, action: string, object: string)
@@ -1033,50 +520,99 @@ local function upgradeSign(base: Model, name: string, title: string, cf: CFrame,
 	prompt(board, action, title, object)
 end
 
--- Fence styles by pen level: wood (start), white posts with blue rails, then dark posts, gold rails and caps.
-local FENCES = {
-	{ post = rgb(80, 60, 55), rail = rgb(205, 120, 60), cap = rgb(64, 48, 44) },
-	{ post = rgb(245, 245, 240), rail = rgb(110, 185, 255), cap = rgb(210, 215, 225) },
-	{ post = rgb(45, 50, 66), rail = rgb(255, 200, 60), cap = rgb(255, 215, 80) },
-}
-type Fence = { post: Color3, rail: Color3, cap: Color3 }
-
--- A fence from a to b (world points on the floor; heights are relative to them, so it works lifted too).
-local function fenceRun(parent: Instance, a: Vector3, b: Vector3, style: Fence)
+-- A fence from a to b (world points on the floor; works lifted too): chunky Kit posts every ~8 studs, two rails
+-- per section, and one invisible collision proxy along the run (characters use the gate).
+local function fenceRun(parent: Instance, a: Vector3, b: Vector3, pal: Kit.Palette)
 	local len = (b - a).Magnitude
 	local dir = (b - a).Unit
-	local cf = CFrame.lookAt((a + b) / 2, b)
-	for _, y in { 1.6, 3.2 } do
-		block(parent, "Rail", Vector3.new(0.4, 0.5, len), cf * CFrame.new(0, y, 0), style.rail, { studs = false })
-	end
-	local n = math.max(1, math.floor(len / 8 + 0.5))
-	for s = 0, n do
-		local p = a + dir * (len * s / n)
-		block(parent, "Post", Vector3.new(1.1, 4.4, 1.1), CFrame.new(p.X, p.Y + 2.2, p.Z), style.post)
-		block(parent, "PostCap", Vector3.new(1.4, 0.4, 1.4), CFrame.new(p.X, p.Y + 4.6, p.Z), style.cap)
-		if s < n then
-			local q = a + dir * (len * (s + 0.5) / n)
-			local seg = len / n - 1.1
-			local brace = math.sqrt(seg * seg + 1.6 * 1.6)
-			local ang = math.atan2(1.6, seg)
-			local look = CFrame.lookAt(Vector3.new(q.X, q.Y + 2.4, q.Z), Vector3.new(q.X, q.Y + 2.4, q.Z) + dir)
-			for _, sign in { 1, -1 } do
-				block(
-					parent,
-					"Brace",
-					Vector3.new(0.3, 0.3, brace),
-					look * CFrame.Angles(sign * ang, 0, 0),
-					style.rail,
-					{ studs = false }
-				)
-			end
+	local n = math.max(1, math.floor(len / 12 + 0.5))
+	local seg = len / n
+	for k = 0, n do
+		local p = a + dir * (seg * k)
+		Kit.place(parent, "FencePost", CFrame.lookAt(p, p + dir), 1, pal)
+		if k < n then
+			local q = a + dir * (seg * (k + 0.5))
+			Kit.place(
+				parent,
+				"FenceRail",
+				CFrame.lookAt(q, q + dir) * CFrame.Angles(0, math.rad(90), 0),
+				Vector3.new((seg - 1) / 8, 1, 1),
+				pal
+			)
 		end
+	end
+	WorldParts.proxy(
+		parent,
+		"FenceProxy",
+		Vector3.new(0.9, 5, len),
+		CFrame.lookAt((a + b) / 2, b) * CFrame.new(0, 2.5, 0)
+	)
+end
+
+-- Parts the z-fight pass (World/Coplanar) may nudge by 0.1 stud: decoration only. Gameplay parts keep their exact
+-- size: lanes and the ramp (LandingSurface), whatever collides in the kick pad / drop / safe line areas, pen floors
+-- and areas, the hub ground, counters, signs, merchants, and anything with a prompt, click detector or SurfaceGui.
+local FIXED_NAMES = {
+	Lane = true,
+	Field = true,
+	Floor = true,
+	PenArea = true,
+	Reserve = true,
+	Top = true,
+	Ramp = true,
+	Spawn = true,
+	SpawnPoint = true,
+	OwnerAnchor = true,
+	PenSign = true,
+	Counter = true,
+	Sign = true,
+	Approach = true,
+	Ocean = true,
+	Cliff = true,
+	CliffBase = true,
+	GrassLayer = true,
+	EdgeBarrier = true,
+	PlayerBarrier = true,
+}
+local FIXED_AREAS = { Hub = true, Drop = true, SafeLine = true }
+-- gameplay models whose parts other code moves (the wheel's rotor pivots from its rest pose)
+local FIXED_MODELS = { SpinWheel = true }
+
+local function decorative(map: Instance): Coplanar.Movable
+	return function(p: BasePart): boolean
+		if FIXED_NAMES[p.Name] or CollectionService:HasTag(p, Chase.Landing.tag) then
+			return false
+		end
+		if
+			p:FindFirstChildWhichIsA("ProximityPrompt", true)
+			or p:FindFirstChildWhichIsA("SurfaceGui")
+			or p:FindFirstChildWhichIsA("ClickDetector")
+		then
+			return false
+		end
+		local top: Instance = p
+		while top.Parent and top.Parent ~= map do
+			top = top.Parent
+		end
+		if FIXED_AREAS[top.Name] and p.CanCollide then
+			return false -- the kick pad, ramp and safe line: only their non-colliding trim may move
+		end
+		local m = p:FindFirstAncestorWhichIsA("Model")
+		while m and m ~= map do
+			if FIXED_MODELS[m.Name] or m:FindFirstChildOfClass("Humanoid") then
+				return false
+			end
+			m = m.Parent and m.Parent:FindFirstAncestorWhichIsA("Model")
+		end
+		return true
 	end
 end
 
 -- (Re)builds a pen for `level` around its PenArea (whose CFrame never changes): resizes the area, then lays the
--- checker floor, the fence with a 12-stud gate on the -Z side, and the level's dressing (stepping stones from 2,
--- gate lamps and corner planters from 3, banners and premium fence from 5, a gate arch at the last level).
+-- studded checker floor (parts named "Floor": PlacementController aims at them), a stone border, the fence with a
+-- 12-stud gate on the -Z side between two gate posts, and the level's dressing: stepping stones from 2, lanterns on
+-- the gate posts and flower planters on the back corners from 3, banners from 5, gold crowns at the last level.
+-- Fence colours (Palettes.penFences): wood (1-2), white with blue rails (3-4), dark with gold (5+).
 local BANNER = { rgb(255, 90, 90), rgb(80, 170, 255), rgb(140, 220, 80), rgb(255, 190, 50), rgb(190, 110, 255) }
 local function buildPen(base: Model, level: number)
 	local area = base:FindFirstChild("PenArea")
@@ -1106,19 +642,35 @@ local function buildPen(base: Model, level: number)
 				"Floor",
 				Vector3.new(tw, 0.3, td),
 				at(-hw + (tx + 0.5) * tw, 0.15, -hd + (tz + 0.5) * td),
-				if (tx + tz) % 2 == 0 then rgb(165, 232, 92) else rgb(146, 214, 78)
+				if (tx + tz) % 2 == 0 then rgb(162, 230, 92) else rgb(144, 212, 78)
 			)
 		end
 	end
-	local style: Fence = FENCES[if level >= 5 then 3 elseif level >= 3 then 2 else 1]
+	local border = rgb(226, 206, 168)
+	for _, sx in { -1, 1 } do
+		block(
+			pen,
+			"Border",
+			Vector3.new(1.4, 0.36, size.Y + 2.8),
+			at(sx * (hw + 0.7), 0.18, 0),
+			border,
+			{ collide = false }
+		)
+		block(pen, "Border", Vector3.new(size.X, 0.36, 1.4), at(0, 0.18, sx * (hd + 0.7)), border, { collide = false })
+	end
+	local style = if level >= 5 then 3 elseif level >= 3 then 2 else 1
+	local pal = Palettes.penFences[style]
 	local fence = folder(pen, "Fence")
-	fenceRun(fence, pt(-hw, hd), pt(hw, hd), style)
-	fenceRun(fence, pt(-hw, -hd), pt(-hw, hd), style)
-	fenceRun(fence, pt(hw, -hd), pt(hw, hd), style)
-	fenceRun(fence, pt(-hw, -hd), pt(-6, -hd), style)
-	fenceRun(fence, pt(6, -hd), pt(hw, -hd), style)
+	fenceRun(fence, pt(-hw, hd), pt(hw, hd), pal)
+	fenceRun(fence, pt(-hw, -hd), pt(-hw, hd), pal)
+	fenceRun(fence, pt(hw, -hd), pt(hw, hd), pal)
+	fenceRun(fence, pt(-hw, -hd), pt(-6.5, -hd), pal)
+	fenceRun(fence, pt(6.5, -hd), pt(hw, -hd), pal)
 	local dress = folder(pen, "Dressing")
-	local stone = rgb(232, 220, 196)
+	for _, sx in { -7.4, 7.4 } do -- gate posts (taller, capped) either side of the opening
+		Kit.place(dress, "GatePost", at(sx, 0, -hd), 1, pal)
+		WorldParts.proxy(dress, "GateProxy", Vector3.new(2, 7, 2), at(sx, 3.5, -hd))
+	end
 	if level >= 2 then -- stepping stones into the pen (flat: nothing to trip over)
 		for k = 0, 2 do
 			block(
@@ -1126,56 +678,52 @@ local function buildPen(base: Model, level: number)
 				"Stone",
 				Vector3.new(3.4, 0.12, 2.6),
 				at(if k % 2 == 0 then -0.8 else 0.8, 0.36, -hd + 3 + k * 4),
-				stone,
-				{
-					collide = false,
-				}
+				rgb(232, 220, 196),
+				{ collide = false }
 			)
 		end
 	end
-	if level >= 3 then -- lamps on the gate posts, planters on the back corners (outside the fence)
-		for _, sx in { -7.5, 7.5 } do
-			block(
-				dress,
-				"GateLampPole",
-				Vector3.new(0.6, 6, 0.6),
-				at(sx, 3.4, -hd - 1),
-				rgb(60, 60, 70),
-				{ collide = false }
-			)
-			local bulb = block(dress, "GateLamp", Vector3.new(1.3, 1.3, 1.3), at(sx, 7, -hd - 1), rgb(255, 230, 150), {
-				material = Enum.Material.Neon,
-				collide = false,
-			})
-			Bricks.light(bulb, rgb(255, 220, 150), 14, 0.8)
+	if level >= 3 then -- lanterns on the gate posts, flower planters on the back corners (outside the fence)
+		for _, sx in { -7.4, 7.4 } do
+			local lantern = Kit.place(dress, "Lantern", at(sx, 7.8, -hd), 1.1, pal)
+			local glow = lantern and lantern:FindFirstChild("Glow")
+			if glow and glow:IsA("BasePart") then
+				WorldParts.light(glow, rgb(255, 220, 150), 14, 0.8)
+			end
 		end
 		for _, sx in { -1, 1 } do
-			block(dress, "Planter", Vector3.new(3, 1.6, 3), at(sx * (hw - 1.5), 0.8, hd + 2.2), rgb(150, 98, 60))
-			stamp(Props.kit.bush, at(sx * (hw - 1.5), 1.6, hd + 2.2), 0.8, dress)
+			Kit.place(dress, "Planter", at(sx * (hw - 2.5), 0, hd + 3.2), 0.8, pal)
+			Kit.place(dress, "FlowersB", at(sx * (hw - 2.5), 1.5, hd + 3.2), 0.9, Palettes.hub, { shadow = false })
 		end
 	end
 	if level >= 5 then -- banners on the back corners in the pen's colour
+		local flag = Palettes.merge(pal, {
+			Cloth = BANNER[((base:GetAttribute("BaseIndex") :: number?) or 1) % #BANNER + 1],
+			Cloth2 = rgb(250, 246, 236),
+		})
 		for _, sx in { -1, 1 } do
-			block(dress, "BannerPole", Vector3.new(0.6, 11, 0.6), at(sx * (hw - 0.2), 5.5, hd + 0.8), rgb(60, 60, 70), {
-				collide = false,
-			})
-			block(
+			Kit.place(
 				dress,
-				"Banner",
-				Vector3.new(0.2, 4, 2.6),
-				at(sx * (hw - 0.2), 8.6, hd + 0.8) * CFrame.Angles(0, math.rad(90), 0),
-				BANNER[((base:GetAttribute("BaseIndex") :: number?) or 1) % #BANNER + 1],
-				{ collide = false, studs = false }
+				"FlagPole",
+				at(sx * (hw + 2.2), 0, hd + 2.2) * CFrame.Angles(0, math.rad(sx * 90), 0),
+				0.85,
+				flag
 			)
 		end
 	end
-	if level >= PEN_MAX_LEVEL then -- the top level: a gold arch over the pen gate
-		for _, sx in { -6.6, 6.6 } do
-			block(dress, "ArchPost", Vector3.new(1.4, 8, 1.4), at(sx, 4, -hd), rgb(45, 50, 66))
+	if level >= PEN_MAX_LEVEL then -- the top level: glowing gold crowns on the gate posts
+		for _, sx in { -7.4, 7.4 } do
+			block(
+				dress,
+				"Crown",
+				Vector3.new(1.6, 1.6, 1.6),
+				at(sx, 9.6, -hd) * CFrame.Angles(0, math.rad(45), 0),
+				rgb(255, 214, 80),
+				{ material = Enum.Material.Neon, collide = false }
+			)
 		end
-		block(dress, "ArchTop", Vector3.new(14.6, 1.4, 1.6), at(0, 8.7, -hd), rgb(255, 200, 60))
-		Bricks.glow(dress, "ArchStar", Vector3.new(1.6, 1.6, 0.6), at(0, 10, -hd), rgb(255, 240, 160))
 	end
+	Coplanar.separate(pen, 0.1, { movable = decorative(base), skipUndersides = true }) -- also after upgrades
 	base:SetAttribute("PenBuiltLevel", level)
 end
 
@@ -1257,137 +805,24 @@ local function buildBase(parent: Instance, i: number)
 	end)
 end
 
-local function tree(parent: Instance, pos: Vector3, scale: number) -- the approved chunky kit tree
-	stamp(Props.kit.tree, CFrame.new(pos) * CFrame.Angles(0, math.rad(pos.Z * 7 % 360), 0), scale, parent)
-end
-
--- Stepped, planted terrace against a hub wall: a low wide step and a taller narrow one (grass caps) with bushes,
--- along the wall face a -> b; `inward` points into the hub.
-local function terrace(parent: Instance, a: Vector3, b: Vector3, inward: Vector3, seed: number)
-	local along = (b - a).Unit
-	local len = (b - a).Magnitude
-	local rot = CFrame.lookAt(Vector3.zero, along)
-	local mid = (a + b) / 2
-	local soil, soilDark = DIRT:Lerp(Color3.new(1, 1, 1), 0.06), DIRT:Lerp(Color3.new(0, 0, 0), 0.1)
-	local steps = { { depth = 11, height = 5, color = soil }, { depth = 5, height = 13, color = soilDark } }
-	for k, st in steps do
-		local c = mid + inward * (st.depth / 2) -- both steps start at the wall; the tall one is a little shorter
-		local l = if k == 1 then len else len - 0.6 -- (no coplanar end faces)
-		block(
-			parent,
-			"Terrace",
-			Vector3.new(st.depth, st.height, l),
-			CFrame.new(c.X, st.height / 2, c.Z) * rot,
-			st.color,
-			{
-				sideStuds = true,
-			}
-		)
-		block(parent, "TerraceCap", Vector3.new(st.depth, 0.8, l), CFrame.new(c.X, st.height + 0.4, c.Z) * rot, GRASS)
-	end
-	local rng = Random.new(seed)
-	local d = 4
-	while d < len - 4 do
-		local p = a + along * d + inward * 8
-		stamp(
-			Props.kit.bush,
-			CFrame.new(p.X, 5.8, p.Z) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 3) * 90), 0),
-			rng:NextNumber(0.9, 1.2),
-			parent
-		)
-		d += rng:NextNumber(10, 16)
-	end
-end
-
--- Warm pale stone paths: the spine from the pad to pen 5, side paths to the four side gates, the walk linking the
--- shop and the stand, and the square around the fountain. No two paths overlap (no z-fighting).
-local PATH = rgb(236, 222, 196)
-local function paths(parent: Instance)
-	local f = folder(parent, "Paths")
-	local function slab(name: string, x0: number, x1: number, z0: number, z1: number)
-		block(f, name, Vector3.new(x1 - x0, 0.15, z1 - z0), CFrame.new((x0 + x1) / 2, 0.075, (z0 + z1) / 2), PATH, {
-			studs = false,
-		})
-	end
-	slab("Spine", -12, 12, -287, -16)
-	for _, k in { -1, 1 } do
-		for _, z in { -100, -210 } do
-			slab("SidePath", if k < 0 then -91 else 12, if k < 0 then -12 else 91, z - 8, z + 8)
-		end
-		slab("ShopWalk", if k < 0 then -72 else 12, if k < 0 then -12 else 72, -54, -42)
-	end
-	slab("FountainSquare", -44, -16, -164, -136)
-end
-
 local function buildSafeZone(map: Instance)
 	local zone = folder(map, "SafeZone")
-	-- Ground: dirt cliff block + grass layer + light checker squares (26-stud tiles)
+	-- Ground: the clay cliff under the plaza and a smooth lawn (World.Hub adds paths, patches and gardens)
 	block(
 		zone,
 		"Cliff",
 		Vector3.new(2 * W, CLIFF - 1, DEPTH),
 		CFrame.new(0, -1 - (CLIFF - 1) / 2, -DEPTH / 2),
-		DIRT,
+		HUB_CLIFF,
 		{ sideStuds = true }
 	)
-	block(
-		zone,
-		"GrassLayer",
-		Vector3.new(2 * W, 1, DEPTH),
-		CFrame.new(0, -0.5, -DEPTH / 2),
-		GRASS_DARK,
-		{ sideStuds = true }
-	)
-	local tile = 26
-	for tx = 0, (2 * W) / tile - 1 do
-		for tz = 0, DEPTH / tile - 1 do
-			if (tx + tz) % 2 == 0 then
-				block(
-					zone,
-					"Grass",
-					Vector3.new(tile, 0.1, tile),
-					CFrame.new(-W + (tx + 0.5) * tile, 0.05, -(tz + 0.5) * tile),
-					GRASS
-				)
-			end
-		end
-	end
-	block(zone, "Sand", Vector3.new(2 * (INNER + 8), 0.14, 16), CFrame.new(0, 0.07, -8), rgb(240, 215, 160))
-	-- Walls: back (canyon side, two segments around the mouth) and both sides; the far edge is an open cliff
-	-- the front walls stop 0.1 short of the canyon (x = +-INNER): the canyon wall below shares that plane
-	wall(
-		zone,
-		Vector3.new(-W, 0, 0),
-		Vector3.new(-INNER - 0.1, 0, 0),
-		Vector3.new(0, 0, -1),
-		DIRT,
-		GRASS,
-		101,
-		WALL_T,
-		0
-	)
-	wall(zone, Vector3.new(INNER + 0.1, 0, 0), Vector3.new(W, 0, 0), Vector3.new(0, 0, -1), DIRT, GRASS, 102, 0, WALL_T)
-	wall(zone, Vector3.new(-W, 0, -DEPTH), Vector3.new(-W, 0, 0), Vector3.new(1, 0, 0), DIRT, GRASS, 103)
-	wall(zone, Vector3.new(W, 0, -DEPTH), Vector3.new(W, 0, 0), Vector3.new(-1, 0, 0), DIRT, GRASS, 104)
-	-- Stepped planted terraces break up the walls (not behind the wheel / boards, not at the canyon mouth)
-	local terraces = folder(zone, "Terraces")
-	terrace(terraces, Vector3.new(-W + 11, 0, 0), Vector3.new(-INNER - 12, 0, 0), Vector3.new(0, 0, -1), 201)
-	terrace(terraces, Vector3.new(INNER + 12, 0, 0), Vector3.new(W - 11, 0, 0), Vector3.new(0, 0, -1), 202)
-	for k, x in { -W, W } do
-		local inward = Vector3.new(if x < 0 then 1 else -1, 0, 0)
-		terrace(terraces, Vector3.new(x, 0, -11), Vector3.new(x, 0, -118), inward, 210 + k)
-		terrace(terraces, Vector3.new(x, 0, -192), Vector3.new(x, 0, -DEPTH + 4), inward, 220 + k)
-	end
-	-- Keep players from walking off the cliff
-	block(
-		zone,
-		"EdgeBarrier",
-		Vector3.new(2 * W, 14, 2),
-		CFrame.new(0, 7, -DEPTH - 1),
-		Color3.new(1, 1, 1),
-		{ transparency = 1, studs = false }
-	)
-	block(map, "Ocean", Vector3.new(2400, 2, 2400), CFrame.new(0, -CLIFF - 1, 600), rgb(40, 120, 215), {
+	block(zone, "GrassLayer", Vector3.new(2 * W, 1, DEPTH), CFrame.new(0, -0.5, -DEPTH / 2), LAWN, { sideStuds = true })
+	-- Keep players from walking off the cliff (the back edge is an open lookout over the ocean)
+	block(zone, "EdgeBarrier", Vector3.new(2 * W, 14, 2), CFrame.new(0, 7, -DEPTH - 1), Color3.new(1, 1, 1), {
+		transparency = 1,
+		studs = false,
+	})
+	block(map, "Ocean", Vector3.new(2400, 2, 2400), CFrame.new(0, -CLIFF - 1, 600), rgb(40, 140, 225), {
 		material = Enum.Material.SmoothPlastic,
 		studs = false,
 	})
@@ -1398,103 +833,36 @@ local function buildSafeZone(map: Instance)
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(10, 0.2, 10)
 	spawn.CFrame = CFrame.lookAt(Vector3.new(0, 0.25, -72), Vector3.new(0, 0.25, 0))
-	spawn.Color = rgb(250, 250, 250)
+	spawn.Color = rgb(255, 226, 120)
 	spawn.Material = Enum.Material.Plastic
 	spawn.TopSurface = Enum.SurfaceType.Studs
 	spawn.Duration = 0
 	spawn.Parent = zone
 
-	paths(zone)
-	-- set back toward the wall, so the straight tutorial trail from the pad to pens 1 / 2 passes in front of them
-	sackShop(zone, -58, -24, -1)
-	petStand(zone, 58, -28, -1)
+	-- set back toward the front, so the straight tutorial trail from the pad to pens 1 / 2 passes in front of them
+	Shops.sackShop(zone, -58, -24, -1)
+	Shops.petStand(zone, 58, -28, -1)
 
-	local decor = folder(zone, "Decor")
-	fountain(decor, Vector3.new(-30, 0, -150))
-	for _, x in { -16, 16 } do -- lamps along the central path, clear of the side-path junctions
-		for _, z in { -36, -70, -130, -170, -240, -272 } do
-			lamp(decor, Vector3.new(x, 0, z))
-		end
+	local pens, dirs = {}, {}
+	for _, slot in PENS do
+		table.insert(pens, Vector3.new(slot.cx, 0, slot.cz))
+		table.insert(dirs, slot.dir)
 	end
-	for _, p in
-		{
-			Vector3.new(-30, 0, -78),
-			Vector3.new(30, 0, -78),
-			Vector3.new(30, 0, -150),
-			Vector3.new(-62, 0, -150),
-			Vector3.new(36, 0, -255),
-			Vector3.new(-36, 0, -255),
-		}
-	do
-		block(decor, "FlowerBed", Vector3.new(7, 0.8, 4), CFrame.new(p + Vector3.new(0, 0.4, 0)), rgb(120, 82, 52))
-		for _, dx in { -2, 0, 2 } do
-			stamp(Props.kit.bush, CFrame.new(p + Vector3.new(dx, 0.8, 0)), 0.55, decor)
-		end
-	end
-	-- garden islands in the open lawns: a low grass mound, a tree, bushes and flowers
-	local FLOWERS = { rgb(255, 120, 170), rgb(255, 220, 80), rgb(150, 200, 255), rgb(255, 255, 255) }
-	for k, p in
-		{
-			Vector3.new(-62, 0, -124),
-			Vector3.new(62, 0, -140),
-			Vector3.new(-58, 0, -262),
-			Vector3.new(58, 0, -262),
-			Vector3.new(-150, 0, -36),
-			Vector3.new(150, 0, -36),
-			Vector3.new(-150, 0, -300),
-			Vector3.new(150, 0, -300),
-			Vector3.new(-118, 0, -356),
-			Vector3.new(118, 0, -356),
-		}
-	do
-		local g = folder(decor, "Garden")
-		block(
-			g,
-			"Mound",
-			Vector3.new(18, 0.8, 13),
-			CFrame.new(p + Vector3.new(0, 0.4, 0)),
-			rgb(98, 186, 62),
-			{ sideStuds = true }
-		)
-		block(g, "MoundTop", Vector3.new(12, 0.8, 8), CFrame.new(p + Vector3.new(0, 1.2, 0)), rgb(112, 200, 70))
-		tree(g, p + Vector3.new(if k % 2 == 0 then 3 else -3, 1.6, 0), 0.9)
-		for i = 0, 5 do
-			local a = i / 6 * math.pi * 2
-			local q = p + Vector3.new(math.cos(a) * 7, 0.8, math.sin(a) * 4.6)
-			if i % 2 == 0 then
-				stamp(Props.kit.bush, CFrame.new(q), 0.5, g)
-			else
-				block(
-					g,
-					"Flower",
-					Vector3.new(1, 1, 1),
-					CFrame.new(q + Vector3.new(0, 0.5, 0)),
-					FLOWERS[(i + k) % #FLOWERS + 1],
-					{
-						collide = false,
-					}
-				)
-			end
-		end
-	end
-	for _, p in
-		{
-			Vector3.new(-176, 0, -40),
-			Vector3.new(176, 0, -40),
-			Vector3.new(-176, 0, -262),
-			Vector3.new(176, 0, -262),
-			Vector3.new(-176, 0, -350),
-			Vector3.new(176, 0, -350),
-			Vector3.new(-82, 0, -352),
-			Vector3.new(82, 0, -352),
-			Vector3.new(-62, 0, -282),
-			Vector3.new(62, 0, -282),
-		}
-	do
-		tree(decor, p, 1)
-	end
+	Hub.build(zone, {
+		halfWidth = W,
+		depth = DEPTH,
+		sea = -(CLIFF + PLAZA_Y), -- the hub is built at 0, then lifted PLAZA_Y; the ocean sits CLIFF below the plaza
+		inner = INNER,
+		pens = pens,
+		penDirs = dirs,
+		reserve = PEN_MAX + Vector2.new(4, 4),
+		plaza = Vector3.new(0, 0, -155),
+		shop = Vector3.new(-58, 0, -24),
+		stand = Vector3.new(58, 0, -28),
+		spawn = Vector3.new(0, 0, -72),
+	})
 
-	-- Prize Wheel on the +X wall between pens 2 and 4: as tall as the wall
+	-- Prize Wheel on the +X side between pens 2 and 4: as tall as the cliffs behind it
 	local wheelRadius = (WALL_H - 4) / 2
 	WheelBuilder.build(
 		zone,
@@ -1502,7 +870,7 @@ local function buildSafeZone(map: Instance)
 		wheelRadius,
 		0
 	)
-	-- Opposite wall (-X), facing the wheel: the global Kick Power leaderboard and the top donators board
+	-- Opposite side (-X), facing the wheel: the global Kick Power leaderboard and the top donators board
 	local function westFace(z: number, y: number): CFrame
 		return CFrame.fromMatrix(Vector3.new(-W, y, z), Vector3.new(0, 0, -1), Vector3.new(0, 1, 0))
 	end
@@ -1517,61 +885,20 @@ end
 
 ------------------------------------------------------------------ runway zones
 
-local function buildRiver(parent: Instance, zone: Zones.Zone)
-	local r = RIVERS[zone.id]
-	if not r then
-		return
-	end
-	local z = zone.start + 4
-	local w = 2 * INNER
-	if r == "rainbow" then
-		for i = 1, 6 do
-			block(
-				parent,
-				"River",
-				Vector3.new(w, 0.12, 1),
-				CFrame.new(0, 0.06, z - 3.5 + i),
-				Color3.fromHSV((i - 1) / 6, 0.6, 1),
-				{
-					material = Enum.Material.Neon,
-					collide = false,
-				}
-			)
-		end
-		return
-	end
-	local river = r :: River
-	block(parent, "River", Vector3.new(w, 0.12, 6), CFrame.new(0, 0.06, z), river.color, {
-		material = river.material or Enum.Material.SmoothPlastic,
-		transparency = river.transparency,
-		collide = false,
-		studs = false,
-	})
-	for _, x in { -(HALF + 9), -(HALF + 3), HALF + 3, HALF + 9 } do
-		block(
-			parent,
-			"SteppingStone",
-			Vector3.new(3, 0.4, 3),
-			CFrame.new(x, 0.2, z) * CFrame.Angles(0, math.rad(x * 3), 0),
-			rgb(150, 145, 140)
-		)
-	end
-end
-
-local function buildZone(parent: Instance, zone: Zones.Zone)
+-- A remodelled zone (world remodel 2026-10-16): the same gameplay floor as before (the 48-stud lane tagged
+-- LandingSurface, the studded shoulders out to x = +-40, the accent lane edges and lane lights), the canyon walls
+-- replaced by invisible collision walls on exactly the same planes (x = +-40, 50 tall), and the open valley around it
+-- from World/Zones (decoration only: nothing there collides, takes touches or blocks raycasts).
+local function buildWorldZone(parent: Instance, zone: Zones.Zone, art: (any, Instance) -> ())
 	local f = folder(parent, "Zone" .. zone.id)
 	local z0, len = zone.start, zone.length
-	local mid = z0 + len / 2
-	local rng = Random.new(zone.id * 7919)
 	local field = zone.ground:Lerp(Color3.new(0, 0, 0), 0.08)
-	local face = Scenery.wallColor(zone.id) or zone.ground:Lerp(DIRT, 0.55)
-	-- Zone 1 opens with the launch ramp: its flat floor and floor decor start at RAMP_END
 	local fz0 = if zone.id == 1 then RAMP_END else z0
 	local flen = z0 + len - fz0
 	local fmid = fz0 + flen / 2
-	local minZ = fz0 + 4
-
-	local lane = block(f, "Lane", Vector3.new(Chase.RunwayWidth, 2, flen), CFrame.new(0, -1, fmid), zone.ground)
+	local lane = block(f, "Lane", Vector3.new(Chase.RunwayWidth, 2, flen), CFrame.new(0, -1, fmid), zone.ground, {
+		sideStuds = true,
+	})
 	CollectionService:AddTag(lane, Chase.Landing.tag) -- eggs land only on lanes and the ramp (KickService)
 	for k = -1, 1, 2 do
 		block(
@@ -1579,167 +906,39 @@ local function buildZone(parent: Instance, zone: Zones.Zone)
 			"Field",
 			Vector3.new(INNER - HALF, 2, flen),
 			CFrame.new(k * (HALF + (INNER - HALF) / 2), -1, fmid),
-			field
+			field,
+			{
+				sideStuds = true,
+			}
 		)
-		block(f, "LaneEdge", Vector3.new(1.2, 0.4, flen), CFrame.new(k * (HALF + 0.6), 0.2, fmid), zone.accent)
-		-- zone 1's walls run under the raised plaza wall to close the canyon mouth
+		block(f, "LaneEdge", Vector3.new(1.2, 0.4, flen), CFrame.new(k * (HALF + 0.6), 0.2, fmid), zone.accent, {
+			sideStuds = true,
+		})
+		-- the canyon walls' collision, unchanged planes: inner face at x = +-INNER, from the ground up to WALL_H
 		local wz = if zone.id == 1 then 0.5 else z0
-		wall(
+		local wlen = z0 + len - wz
+		WorldParts.proxy(
 			f,
-			Vector3.new(k * INNER, 0, wz),
-			Vector3.new(k * INNER, 0, z0 + len),
-			Vector3.new(-k, 0, 0),
-			face,
-			zone.ground,
-			zone.id * 31 + k
-		)
-		-- Rim plateau beyond the wall, flush with the caps (zone 1's starts behind the plaza wall)
-		local rz0 = if zone.id == 1 then WALL_T else z0
-		local rlen = z0 + len - rz0
-		block(
-			f,
-			"Rim",
-			Vector3.new(RIM_W, 6, rlen),
-			CFrame.new(k * (INNER + WALL_T + RIM_W / 2), RIM_TOP - 3, rz0 + rlen / 2),
-			zone.ground:Lerp(DIRT, 0.3),
-			{ sideStuds = true }
+			"Wall",
+			Vector3.new(WALL_T, WALL_H, wlen),
+			CFrame.new(k * (INNER + WALL_T / 2), WALL_H / 2, wz + wlen / 2)
 		)
 	end
-	buildRiver(f, zone)
-
-	-- Glowing lane lights in the zone accent, so every zone reads at a glance from the air
 	for lz = fz0 + 6, z0 + len - 4, 16 do
 		for k = -1, 1, 2 do
-			block(
-				f,
-				"LaneLight",
-				Vector3.new(0.8, 1.2, 0.8),
-				CFrame.new(k * (HALF + 1.6), 0.6, lz),
-				zone.accent,
-				{ material = Enum.Material.Neon, collide = false }
-			)
+			block(f, "LaneLight", Vector3.new(0.8, 1.2, 0.8), CFrame.new(k * (HALF + 1.6), 0.6, lz), zone.accent, {
+				material = Enum.Material.Neon,
+				collide = false,
+			})
 		end
 	end
+	art(zone, f)
+end
 
-	-- Patches in four separate slots (never overlap), then tufts and pebbles
-	local patch = zone.ground:Lerp(zone.accent, 0.18)
-	for k = 0, 3 do
-		local s = rng:NextInteger(5, 9)
-		local cz = z0 + (k + 0.5) * len / 4 + rng:NextNumber(-3, 3)
-		local px, pyaw = rng:NextNumber(-HALF + 6, HALF - 6), rng:NextInteger(0, 3)
-		if cz >= minZ then
-			block(
-				f,
-				"Patch",
-				Vector3.new(s, 0.06, s),
-				CFrame.new(px, 0.03, math.max(cz, z0 + 12)) * CFrame.Angles(0, math.rad(pyaw * 15), 0),
-				patch,
-				{
-					collide = false,
-				}
-			)
-		end
-	end
-	local small = Props.small(zone.id, zone.ground)
-	for i = 1, 12 do
-		local x = (if i % 2 == 0 then 1 else -1) * rng:NextNumber(HALF + 2, INNER - 3)
-		local tuft = rng:NextNumber() < 0.6
-		if tuft then
-			local tz = z0 + rng:NextNumber(10, len - 4)
-			if tz >= minZ then
-				stamp(small[2], CFrame.new(x, 0, tz) * CFrame.Angles(0, math.rad(rng:NextInteger(0, 3) * 90), 0), 1, f)
-			end
-			continue
-		end
-		local c = if tuft then zone.ground:Lerp(rgb(0, 0, 0), 0.25) else zone.accent:Lerp(rgb(255, 255, 255), 0.2)
-		local s = rng:NextNumber(0.5, 1.1)
-		local tz, tyaw = z0 + rng:NextNumber(10, len - 4), rng:NextInteger(0, 89)
-		if tz >= minZ then
-			block(
-				f,
-				if tuft then "Tuft" else "Pebble",
-				Vector3.new(s, if tuft then s * 1.4 else s * 0.5, s),
-				CFrame.new(x, s * 0.3, tz) * CFrame.Angles(0, math.rad(tyaw), 0),
-				c,
-				{
-					collide = false,
-				}
-			)
-		end
-	end
-
-	local kinds = Props.forZone(zone.id)
-	local props = folder(f, "Props")
-	for k = 0, 3 do
-		local sideSign = if k % 2 == 0 then -1 else 1
-		local z = z0 + 15 + k * (len - 30) / 3 + rng:NextNumber(-4, 4)
-		local yaw = CFrame.Angles(0, math.rad(rng:NextInteger(0, 7) * 45), 0)
-		local bandX, s2 = rng:NextNumber(PROP_BAND[1], PROP_BAND[2]), rng:NextNumber(1.2, 1.5)
-		if z >= minZ then
-			local low = small[if k % 2 == 0 then 1 else 3]
-			stamp(low, CFrame.new(sideSign * bandX, 0, z) * yaw, 1, props)
-		end
-		if z + 10 >= minZ then
-			local kind = kinds[(k + 1) % #kinds + 1]
-			local s = if Props.native[kind] then rng:NextNumber(0.95, 1.1) else s2
-			stamp(kind, CFrame.new(-sideSign * (INNER - 5), 0, z + 10) * yaw, s, props)
-		end
-	end
-
-	-- The zone's landmark on the rim (alternating sides), facing the canyon, plus rim decor
-	local side = if zone.id % 2 == 0 then 1 else -1
-	local landmarkPos = Vector3.new(side * (INNER + WALL_T + 24), RIM_TOP, mid)
-	Landmarks.build(zone.id, f, CFrame.lookAt(landmarkPos, Vector3.new(0, RIM_TOP, mid)))
-	local rimDecor = folder(f, "RimDecor")
-	local rimStart = if zone.id == 1 then WALL_T + 6 else z0
-	for k = -1, 1, 2 do
-		for i = 0, 2 do
-			local rz = z0 + 15 + i * (len - 30) / 2
-			local rx = k * (INNER + WALL_T + rng:NextNumber(5, RIM_W - 8))
-			local yaw = CFrame.Angles(0, math.rad(rng:NextInteger(0, 7) * 45), 0)
-			local scale = rng:NextNumber(1.3, 1.8)
-			local nearLandmark = k == side and math.abs(rz - mid) < 18
-			if not nearLandmark and rz >= rimStart then
-				local kind = kinds[(i + k + 3) % #kinds + 1]
-				local s = if Props.native[kind] then 1 else scale
-				stamp(kind, CFrame.new(rx, RIM_TOP, rz) * yaw, s, rimDecor)
-			end
-		end
-	end
-
-	-- Themed canyon ledges + rim lip, background silhouettes beyond the rims, and hand-over props at the boundaries
-	Scenery.build(zone, f, {
-		inner = INNER,
-		half = HALF,
-		wallT = WALL_T,
-		wallH = WALL_H,
-		rimW = RIM_W,
-		rimTop = RIM_TOP,
-		landmarkSide = side,
-		stamp = function(spec: any, cf: CFrame, scale: number, parent: Instance): Model
-			return stamp(spec, cf, scale, parent)
-		end,
-	}, fz0, if zone.id > 1 then zone.id - 1 else nil, if zone.id < #Zones then zone.id + 1 else nil)
-
-	-- Zone ambience (petals, snow, embers, bubbles... from Config/Zones.ambient)
-	local rising = {
-		Bubbles = true,
-		Spores = true,
-		Embers = true,
-		Sparkles = true,
-		Fireflies = true,
-		Neon = true,
-		Wisps = true,
-		Clouds = true,
-		ToxicBubbles = true,
-		Steam = true,
-		Aurora = true,
-		Magma = true,
-		Stars = true,
-		Rainbow = true,
-	}
-	local y = if rising[zone.ambient] then 1 else 26
-	MapFx.emit(anchor(f, "AmbientFx", Vector3.new(2 * INNER - 4, 0.2, len - 4), Vector3.new(0, y, mid)), zone.ambient)
+local function buildZone(parent: Instance, zone: Zones.Zone)
+	local art = WorldZones[zone.id]
+	assert(art, `no world composition for zone {zone.id}`)
+	buildWorldZone(parent, zone, art)
 end
 
 -- Builds (or rebuilds) workspace.Map. Returns the Map model.
@@ -1773,7 +972,7 @@ function MapBuilder.build(): Model
 		"CliffBase",
 		Vector3.new(2 * W, PLAZA_Y, DEPTH),
 		CFrame.new(0, -CLIFF + PLAZA_Y / 2, -DEPTH / 2), -- ocean surface up to the plaza's cliff
-		DIRT,
+		HUB_CLIFF,
 		{ sideStuds = true }
 	)
 	buildDrop(map)
@@ -1782,21 +981,28 @@ function MapBuilder.build(): Model
 	for _, zone in Zones do
 		buildZone(runway, zone)
 	end
+	-- The end of the track: the same collision plane as the old end wall (inner face at TRACK_END, WALL_T thick,
+	-- WALL_H tall), invisible, behind the Heaven Gate with the Golden Egg trophy on top (World kit).
 	local last = Zones[#Zones]
 	local endZ = last.start + last.length
-	wall(
-		map,
-		Vector3.new(-INNER, 0, endZ),
-		Vector3.new(INNER, 0, endZ),
-		Vector3.new(0, 0, -1),
-		Scenery.wallColor(last.id) or last.ground:Lerp(DIRT, 0.55),
-		last.ground,
-		999,
-		WALL_T,
-		WALL_T
+	local finale = folder(map, "Finale")
+	WorldParts.proxy(
+		finale,
+		"EndWall",
+		Vector3.new(2 * INNER + 2 * WALL_T, WALL_H, WALL_T),
+		CFrame.new(0, WALL_H / 2, endZ + WALL_T / 2)
+	)
+	local heaven = Palettes.zones[last.id] or Palettes.hub
+	Kit.place(finale, "HeavenGate", Kit.at(0, 0, endZ + 3, 0), 1, heaven)
+	Kit.place(finale, "GoldenEgg", Kit.at(0, 46.4, endZ + 2, 0), 1.05, heaven)
+	WorldParts.light(
+		WorldParts.anchor(finale, "EggGlow", Vector3.one, Vector3.new(0, 62, endZ - 6)),
+		Color3.fromRGB(255, 220, 140),
+		50,
+		1.4
 	)
 
-	Props.studAll(map) -- reference style: studs on the sides too
+	Coplanar.separate(map, 0.1, { movable = decorative(map), skipUndersides = true }) -- where pieces meet
 	map.Parent = workspace
 	return map
 end

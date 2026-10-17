@@ -261,6 +261,7 @@ function Shop.define()
 						card.state = if granted then "Granted" else "Buy"
 						paint(card)
 						if granted then
+							Modal.sfx("ShopPurchase") -- (a tier 3 sound: the toast chime under it is masked)
 							Modal.toast(`+{Ui.money(amount)} cash!`, "good")
 							Motion.burst(Modal.layer(), card.gui.AbsolutePosition + card.gui.AbsoluteSize / 2, "cash")
 						else
