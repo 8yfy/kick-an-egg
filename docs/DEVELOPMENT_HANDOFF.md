@@ -1,12 +1,13 @@
 # Development handoff
 
 ## Current checkpoint
-- Task: fix the remaining upward Shift Lock snap on both entry and exit while walking with nothing equipped. The travelling pen wave is preserved.
+- Task: add floating SACK SHOP / SELL PETS labels that hide out of view or beyond 150 studs. Shift Lock and pen-wave fixes are preserved.
 - Branch: `codex/pen-upgrade-feedback`, based on setup commit `4aa9292` and combined game `origin/a/full-build` at `2f59bee` (character-animation merge, PR #49).
 - Working directory: `C:/Users/kerem/Documents/Codex/2026-10-13/ca/work/kte-setup`.
 - Existing Claude worktrees remain intact. `kick-an-egg` has untracked `tools/icons/icons2d.py`; `kte-anim` has untracked `build/`. Do not discard them.
 
 ## Completed and changed
+- Added `Controllers/ShopLabelController.luau`: outlined, world-sized shop labels above the roof decorations, player/camera distance gates and per-frame viewport visibility. Local UI only; physical signs, prompts and gameplay are unchanged. See `docs/ShopLabels.md`.
 - Added `src/client/UI/Hud/PenUpgradeFeedback.luau`, wired it into `UI/init.luau`, and removed the drawer's duplicate success feedback. Confirmed level increases use the existing DataChanged flow; server gameplay code is untouched.
 - Latest revision changes that module and its tests: the title lives above PenArea, below the owner portrait, and no success notice is placed in the HUD. The richer sequence cleans itself up at 1.6 s; Low Detail and Reduced Motion remain supported. Existing avatar/name code is unchanged and its preservation is tested.
 - Newest revision waves visible fence/gate posts and rails from the gate around both sides. Only local cosmetic copies move. Added `Controllers/ShiftLockController.luau`, `tools/tests/ShiftLock.client.lua` and `docs/ShiftLock.md` for the measured default shoulder-offset jump; normal gameplay/character controls remain Roblox-owned.
@@ -17,6 +18,8 @@
 - Registered Blender MCP 2.1.9 with telemetry disabled; retained the installed protocol-13 add-on. Existing Studio MCP and Rojo reused.
 
 ## Verification this session
+- Current label addition: 14 visibility/text/depth checks passed in a fresh single-player Studio session. Both labels visually reviewed together. Rojo binary/XML build includes all 286 source scripts with no QA/probe scripts. Current deliverable: `outputs/KickTheEgg-ShopLabels.rbxl`; source applied to open Studio, returned to Edit with NumberOfPlayers=0. No multiplayer tests started.
+- The following Shift Lock/pen measurements are historical results from the preceding revisions; those suites were not rerun for this label-only addition.
 - Latest fix: native cursor trace reproduced the off-centre trigger. A `(−2, −42)` mouse packet arrived on frame three (0.031 s), producing a 16.170-degree upward pitch change after the two-frame guard expired. Replaced that guard with 0.12 s of relative-input suppression via the public MouseDeltaSensitivity property. Exact prior sensitivity is restored, rapid toggles/Destroy are safe, and the original shake priority is restored. No default camera internals are patched.
 - Fresh Studio production-source checks: eight controlled native toggles across four off-centre cursor positions, 0 degrees of pitch/yaw change each; sensitivity restored to 1. Walking during toggles travelled 20.80 studs with normal speed/AutoRotate/subject. Scriptable-camera handoff: 0 unwanted displacement and input restored. 27 offline regression checks pass; the two-frame controller fails the new delayed-packet test. See `docs/ShiftLock.md` and `tools/tests/ShiftLockNative.client.lua`.
 - Current source is applied in the open Studio Edit session. TestService.NumberOfPlayers=0, QA scripts absent. Current deliverable: `outputs/KickTheEgg-ShiftLockFixed.rbxl`. Older ShiftLockPitch builds are superseded. No multiplayer test was started.
@@ -38,6 +41,6 @@ That document reports 365 passing and 3 existing failing server tests; these are
 ## Pending / next steps
 1. Review the pen-upgrade feature branch and built Studio deliverable. Do not merge automatically.
 2. Physical mobile and published-server asset permissions remain unverified. Studio multiplayer and iPhone simulation passed.
-3. Prior checkpoints: `a127074`, `9c43b00`, `ca7f62f`, `c02e28c`; latest cursor fix follows on the same local feature branch (`fix(camera): reject delayed shift-lock cursor deltas`). GitHub push remains blocked pending explicit approval to export source to `8yfy/kick-an-egg`. Do not work around it. No remote branch or PR has been created.
+3. Prior checkpoints: `a127074`, `9c43b00`, `ca7f62f`, `c02e28c`, `1ffaf24`; latest shop label addition follows on the same local feature branch. GitHub push remains blocked pending explicit approval to export source to `8yfy/kick-an-egg`. Do not work around it. No remote branch or PR has been created.
 4. Blender is configured but not needed for this feature. Before future modeling, connect the existing add-on and inspect the live scene.
 5. Preserve inherited animation follow-ups above; they are outside this feature's scope.
