@@ -4,6 +4,7 @@
 - Task: add floating SACK SHOP / SELL PETS labels that hide out of view or beyond 150 studs. Shift Lock and pen-wave fixes are preserved.
 - Branch: `codex/pen-upgrade-feedback`, based on setup commit `4aa9292` and combined game `origin/a/full-build` at `2f59bee` (character-animation merge, PR #49).
 - Working directory: `C:/Users/kerem/Documents/Codex/2026-10-13/ca/work/kte-setup`.
+- GitHub: completed pen feedback, Shift Lock fixes and shop labels are committed and pushed to `origin/codex/pen-upgrade-feedback` at the user's request on 2026-10-18. Latest feature commit: `f372b4c`. No PR or merge was created.
 - Existing Claude worktrees remain intact. `kick-an-egg` has untracked `tools/icons/icons2d.py`; `kte-anim` has untracked `build/`. Do not discard them.
 
 ## Completed and changed
@@ -41,6 +42,6 @@ That document reports 365 passing and 3 existing failing server tests; these are
 ## Pending / next steps
 1. Review the pen-upgrade feature branch and built Studio deliverable. Do not merge automatically.
 2. Physical mobile and published-server asset permissions remain unverified. Studio multiplayer and iPhone simulation passed.
-3. Prior checkpoints: `a127074`, `9c43b00`, `ca7f62f`, `c02e28c`, `1ffaf24`; latest shop label addition follows on the same local feature branch. GitHub push remains blocked pending explicit approval to export source to `8yfy/kick-an-egg`. Do not work around it. No remote branch or PR has been created.
+3. Prior checkpoints: `a127074`, `9c43b00`, `ca7f62f`, `c02e28c`, `1ffaf24`, `f372b4c`. The user authorized committing the changes to the repository; the feature branch was pushed successfully to `8yfy/kick-an-egg`. Review that branch before merging. No PR or automatic merge was created.
 4. Blender is configured but not needed for this feature. Before future modeling, connect the existing add-on and inspect the live scene.
 5. Preserve inherited animation follow-ups above; they are outside this feature's scope.
