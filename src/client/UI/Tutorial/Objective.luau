@@ -98,7 +98,7 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 		heading.Text = if complete
 			then "FIRST PET, FIRST ADVENTURE!"
 			elseif optional then "OPTIONAL NEXT STEP"
-			else "YOUR FIRST PET"
+			else `STEP {stage or 1}/4 • YOUR FIRST PET`
 		icon.Image = if complete or os.clock() < successUntil then Assets.Checkmark else Assets.WorldArrow
 		skipButton.Text = if optional then "LATER" else "SKIP"
 		skipButton.Visible = not complete

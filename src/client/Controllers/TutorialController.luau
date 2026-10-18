@@ -16,6 +16,7 @@ local Data = require(UI.System.Data)
 local Spotlight = require(UI.Tutorial.Spotlight)
 local WorldGuide = require(UI.Tutorial.WorldGuide)
 local Objective = require(UI.Tutorial.Objective)
+local Welcome = require(UI.Tutorial.Welcome)
 local S = Rules.Steps
 local Controller = {}
 local player = Players.LocalPlayer
@@ -23,6 +24,7 @@ local BINDING = "KickTheEggReactiveTutorial"
 local started = false
 local gui: ScreenGui?
 local spot: any, world: any, objective: any
+local welcome: any
 local connections: { RBXScriptConnection } = {}
 local replay, dismissed, completedHere = false, false, false
 local celebrateUntil, flightUntil = 0, 0
@@ -32,8 +34,7 @@ local replayPetAt: number? = nil
 local replayCharacter: Model? = nil
 local replayHits, replayLastHits = 0, 0
 local replayTrained = false
-local welcomeUntil = 0
-local welcomed = false
+local begun, welcomeVisible, completionPending = false, false, false
 local optionalSeen: { [string]: boolean } = {}
 local optional: { kind: string, untilAt: number, level: number }? = nil
 
@@ -198,9 +199,9 @@ local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vec
 			local rail = h and h:FindFirstChild("RightRail", true)
 			return if isEgg then "Open your Eggs." else "Open your Pets.",
 				find(rail, if isEgg then "Eggs" else "Pets"),
-				p,
-				thing,
-				floor,
+				nil,
+				nil,
+				nil,
 				false
 		end
 		return if inside
@@ -229,6 +230,7 @@ local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vec
 end
 
 local function finish()
+	welcome:show(false)
 	replay, dismissed, completedHere = false, false, true
 	replayPetAt = nil
 	celebrateUntil = os.clock() + 2.3
@@ -302,6 +304,7 @@ function Controller:Replay()
 	replayLastHits = if replayCharacter then (replayCharacter:GetAttribute("SackHits") or 0) else 0
 	replayHits = (Data.state.tutorial or {}).trainingHits or 0
 	replayTrained = Data.power() > Economy.KickPower.base or (Data.state.tutorial or {}).trained == true
+	begun, welcomeVisible, completionPending = false, false, false
 end
 
 function Controller:Start()
@@ -318,7 +321,7 @@ function Controller:Start()
 	screen.Parent = player:WaitForChild("PlayerGui")
 	gui = screen
 	spot, world = Spotlight.new(screen), WorldGuide.new(screen)
-	objective = Objective.new(screen, function()
+	local function skip()
 		if optional then
 			optionalSeen[optional.kind] = true
 			optional = nil
@@ -331,8 +334,19 @@ function Controller:Start()
 			Remotes.get("SkipTutorial"):FireServer()
 		end
 		dismissed, completedHere, celebrateUntil = true, false, 0
+		screen:SetAttribute("AwaitingContinue", false)
+		welcome:show(false)
 		clear()
-	end)
+	end
+	objective = Objective.new(screen, skip)
+	welcome = Welcome.new(screen, function()
+		begun, welcomeVisible = true, false
+		welcome:show(false)
+		screen:SetAttribute("AwaitingContinue", false)
+		if completionPending and not replay then
+			finish()
+		end
+	end, skip)
 	table.insert(
 		connections,
 		Remotes.get("KickResult").OnClientEvent:Connect(function(result)
@@ -358,12 +372,17 @@ function Controller:Start()
 		connections,
 		player:GetAttributeChangedSignal("TutorialDone"):Connect(function()
 			if player:GetAttribute("TutorialDone") and not dismissed then
-				finish()
+				if begun then
+					finish()
+				else
+					completionPending = true
+				end
 			end
 		end)
 	)
 	RunService:BindToRenderStep(BINDING, Enum.RenderPriority.Camera.Value + 5, function(dt)
 		objective:layout()
+		welcome:layout()
 		local t = os.clock()
 		local cinematic = workspace:GetServerTimeNow() < EggKick.cameraBusyUntil + 0.15
 		local h = hud()
@@ -379,7 +398,18 @@ function Controller:Start()
 			spot:set(nil)
 			world:set(nil, nil, nil, false)
 		end
-		if not paused and Data.loaded() and not dismissed then
+		local waiting = false
+		if not paused and Data.loaded() and not dismissed and not begun then
+			local saved = Data.state.tutorial or {}
+			if welcomeVisible or replay or (not saved.done and not saved.skipped) then
+				welcomeVisible, waiting = true, true
+				clear()
+				welcome:show(true)
+				screen:SetAttribute("ObjectiveId", "welcome")
+				screen:SetAttribute("AwaitingContinue", true)
+			end
+		end
+		if not paused and Data.loaded() and not dismissed and begun then
 			if t < celebrateUntil then
 				-- Completion is short and never owns movement, input or the camera.
 			else
@@ -411,13 +441,6 @@ function Controller:Start()
 					if step > 0 and step ~= S.DONE then
 						objective:optional(false)
 						local sentence, target, position, thing, floor, trail = view(step)
-						if not welcomed then
-							welcomed = true
-							welcomeUntil = if step == S.TRAIN then t + 1 else 0
-						end
-						if t < welcomeUntil and step == S.TRAIN and not held("KickSack") then
-							sentence = "Welcome! Let's hatch your first pet."
-						end
 						local definition = Rules.Definitions[step]
 						local stage = if definition then definition.stage else 1
 						objective:show(sentence, stage)
@@ -446,7 +469,8 @@ function Controller:Start()
 				end
 			end
 		else
-			if not paused then
+			if not paused and not waiting then
+				welcome:show(false)
 				clear()
 			end
 		end
@@ -470,6 +494,9 @@ function Controller:Destroy()
 	if objective then
 		objective:destroy()
 	end
+	if welcome then
+		welcome:destroy()
+	end
 	if gui then
 		gui:Destroy()
 		gui = nil
@@ -478,6 +505,7 @@ function Controller:Destroy()
 	celebrateUntil, flightUntil, previousStage = 0, 0, 0
 	chase, replayPetAt, optional = false, nil, nil
 	replayCharacter, replayHits, replayLastHits, replayTrained = nil, 0, 0, false
+	begun, welcomeVisible, completionPending = false, false, false
 end
 
 return Controller
