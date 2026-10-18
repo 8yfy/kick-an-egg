@@ -26,6 +26,7 @@ local function capture(action, duration)
 	local scaleChanged = false
 	local worldAnchored, hudNotice = false, false
 	local originals = {}
+	local waves = {}
 	local start = os.clock()
 	local lastNotice = 0
 	local connection = game:GetService("RunService").Heartbeat:Connect(function()
@@ -54,6 +55,22 @@ local function capture(action, duration)
 					end
 				end
 				emitterCount = math.max(emitterCount, emitters)
+				for _, model in f:GetChildren() do
+					local phase = model:GetAttribute("WavePhase")
+					local probe = model:IsA("Model") and model:FindFirstChildWhichIsA("BasePart", true)
+					if typeof(phase) == "number" and probe then
+						local w = waves[model]
+						if not w then
+							w = { min = probe.Position.Y, max = probe.Position.Y, peak = 0, phase = phase }
+							waves[model] = w
+						end
+						w.min = math.min(w.min, probe.Position.Y)
+						if probe.Position.Y > w.max + 0.001 then
+							w.max = probe.Position.Y
+							w.peak = os.clock() - start
+						end
+					end
+				end
 			end
 		end
 		maxFX = math.max(maxFX, n)
@@ -74,6 +91,20 @@ local function capture(action, duration)
 	action()
 	task.wait(duration or 1.95)
 	connection:Disconnect()
+	local early, late, earlyCount, lateCount, moving = 0, 0, 0, 0, 0
+	for _, w in waves do
+		if w.max - w.min > 0.3 then
+			moving += 1
+			if w.phase < 0.2 then
+				early += w.peak
+				earlyCount += 1
+			end
+			if w.phase > 0.8 then
+				late += w.peak
+				lateCount += 1
+			end
+		end
+	end
 	return {
 		notice = seen,
 		fx = fxSeen,
@@ -84,6 +115,8 @@ local function capture(action, duration)
 		lastNotice = lastNotice,
 		worldAnchored = worldAnchored,
 		hudNotice = hudNotice,
+		waveParts = moving,
+		waveLag = if earlyCount > 0 and lateCount > 0 then late / lateCount - early / earlyCount else 0,
 		cleaned = workspace:FindFirstChild("PenUpgradeFX") == nil
 			and workspace:FindFirstChild("PenUpgradeNotice", true) == nil,
 	}
@@ -120,6 +153,11 @@ local ok, err = xpcall(function()
 		success
 	)
 	check("collision and original geometry unchanged", not success.colliding and not success.geometryMoved)
+	check(
+		"fence parts travel in a wave",
+		success.waveParts >= 8 and success.waveLag > 0.2,
+		{ models = success.waveParts, delay = success.waveLag }
+	)
 	check("title belongs above the pen, not the HUD", success.worldAnchored and not success.hudNotice)
 	check(
 		"owner portrait preserved",

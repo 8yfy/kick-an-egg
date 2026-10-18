@@ -27,6 +27,22 @@ function Feedback.isIncrease(previous: number?, level: any): boolean
 		and level > previous
 end
 
+-- Distance along either half of the perimeter: front gate -> side -> rear centre.
+local function wavePhase(area: BasePart, position: Vector3): number
+	local p = area.CFrame:PointToObjectSpace(position)
+	local hw, hd = area.Size.X / 2, area.Size.Z / 2
+	local side, front, back = math.abs(math.abs(p.X) - hw), math.abs(p.Z + hd), math.abs(p.Z - hd)
+	local distance
+	if front <= side and front <= back then
+		distance = math.abs(p.X)
+	elseif back <= side then
+		distance = 2 * hw + 2 * hd - math.abs(p.X)
+	else
+		distance = hw + p.Z + hd
+	end
+	return math.clamp(distance / (2 * hw + 2 * hd), 0, 1)
+end
+
 function Feedback.new()
 	local me = Players.LocalPlayer
 	local lastLevel: number? = nil
@@ -243,6 +259,57 @@ function Feedback.new()
 		end
 	end
 
+	local function waveCopy(
+		source: Model,
+		area: BasePart,
+		fx: Model,
+		hidden: { [BasePart]: number },
+		token: number,
+		reduced: boolean
+	): Model
+		local pivot = source:GetPivot()
+		local phase = wavePhase(area, pivot.Position)
+		local delay = 0.04 + phase * 0.55
+		local copy = source:Clone()
+		copy.Name = if source.Name == "GatePost" then "DecorativePost" else "WaveFence"
+		copy:SetAttribute("WavePhase", phase)
+		copy:SetAttribute("SourceKind", source.Name)
+		for _, p in copy:GetDescendants() do
+			if p:IsA("BasePart") then
+				p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery = true, false, false, false
+			elseif p:IsA("LuaSourceContainer") then
+				p:Destroy()
+			end
+		end
+		copy.Parent = fx
+		for _, p in source:GetDescendants() do
+			if p:IsA("BasePart") then
+				hidden[p] = p.LocalTransparencyModifier
+				p.LocalTransparencyModifier = 1
+			end
+		end
+		if not reduced then
+			for _, p in copy:GetDescendants() do
+				if not p:IsA("BasePart") then
+					continue
+				end
+				local size, cf = p.Size, p.CFrame
+				local rel = pivot:ToObjectSpace(cf)
+				local scale = if source.Name == "GatePost" then 1.07 else 1.025
+				later(token, delay, function()
+					tween(p, 0.18, {
+						Size = size * scale,
+						CFrame = pivot * (CFrame.new(rel.Position * scale + Vector3.new(0, 1.05, 0)) * rel.Rotation),
+					}, Enum.EasingStyle.Sine)
+					later(token, 0.18, function()
+						tween(p, 0.3, { Size = size, CFrame = cf }, Enum.EasingStyle.Sine)
+					end)
+				end)
+			end
+		end
+		return copy
+	end
+
 	local function decorate(base: Model, pen: Instance, area: BasePart, level: number, token: number, reduced: boolean)
 		local dressing = pen:FindFirstChild("Dressing")
 		if not dressing then
@@ -287,41 +354,20 @@ function Feedback.new()
 		if not reduced then
 			perimeter(fx, area, token, low)
 		end
+		local fence = pen:FindFirstChild("Fence")
+		if fence and not reduced then
+			for _, model in fence:GetChildren() do
+				if model:IsA("Model") and (model.Name == "FencePost" or (model.Name == "FenceRail" and not low)) then
+					waveCopy(model, area, fx, hidden, token, false)
+				end
+			end
+		end
 		for _, post in dressing:GetChildren() do
 			if post.Name ~= "GatePost" or not post:IsA("Model") then
 				continue
 			end
 			local pivot = post:GetPivot()
-			local copy = post:Clone()
-			copy.Name = "DecorativePost"
-			for _, p in copy:GetDescendants() do
-				if p:IsA("BasePart") then
-					p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery = true, false, false, false
-				elseif p:IsA("LuaSourceContainer") then
-					p:Destroy()
-				end
-			end
-			copy.Parent = fx
-			for _, p in post:GetDescendants() do
-				if p:IsA("BasePart") then
-					hidden[p] = p.LocalTransparencyModifier
-					p.LocalTransparencyModifier = 1
-				end
-			end
-			for _, p in copy:GetDescendants() do
-				if not p:IsA("BasePart") or reduced then
-					continue
-				end
-				local size, cf = p.Size, p.CFrame
-				local rel = pivot:ToObjectSpace(cf)
-				tween(p, 0.18, {
-					Size = size * 1.09,
-					CFrame = pivot * (CFrame.new(rel.Position * 1.09 + Vector3.new(0, 0.25, 0)) * rel.Rotation),
-				})
-				later(token, 0.18, function()
-					tween(p, 0.3, { Size = size, CFrame = cf }, Enum.EasingStyle.Back)
-				end)
-			end
+			local copy = waveCopy(post, area, fx, hidden, token, reduced)
 			local glow = Instance.new("Highlight")
 			glow.Adornee, glow.DepthMode = copy, Enum.HighlightDepthMode.Occluded
 			glow.FillColor, glow.OutlineColor = GOLD, CREAM
