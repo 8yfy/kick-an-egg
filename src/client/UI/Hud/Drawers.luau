@@ -263,10 +263,8 @@ function Drawers.new(parent: Instance): Drawers
 			5,
 			function(ok: boolean)
 				penPending = false
-				if ok then
-					Modal.sfx("PenUpgrade")
-					Modal.toast(`Pen upgraded: room for {Data.pen().slots}!`, "good")
-				else
+				-- Success feedback is centralized in PenUpgradeFeedback for every purchase entry point.
+				if not ok then
 					Modal.toast("Pen upgrade failed. Try again.", "error")
 				end
 				paintPen()

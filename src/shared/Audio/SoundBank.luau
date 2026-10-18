@@ -887,4 +887,16 @@ for event, id in Premium.loops do
 	end
 end
 
+-- Pen feedback: short free Creator Store pop + pickup chime; isolated from the premium sound sheet.
+-- Source/Studio playback verification: docs/PenUpgradeFeedback.md.
+SoundBank.Sources.penPop = { id = "rbxassetid://6586979979", gain = 1, length = 0.24 }
+SoundBank.Sources.penDing = { id = "rbxassetid://4612374393", gain = 1, length = 0.6 }
+SoundBank.CUSTOM.PenUpgrade = nil
+SoundBank.Events.PenUpgrade = ev("UI", 2, false, 0.05, 2, {
+	{
+		L("penPop", 1.05, 0.32, { length = 0.2, fade = { 0.005, 0.04 } }),
+		L("penDing", 1.15, 0.22, { delay = 0.09, length = 0.55, fade = { 0.005, 0.12 } }),
+	},
+})
+
 return SoundBank

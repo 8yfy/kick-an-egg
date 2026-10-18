@@ -38,9 +38,11 @@ local Donate = require(script.Screens.Donate)
 local Bag = require(script.Screens.Bag)
 local WeatherWidget = require(script.Hud.WeatherWidget)
 local WeatherToast = require(script.Hud.WeatherToast)
+local PenUpgradeFeedback = require(script.Hud.PenUpgradeFeedback)
 local WeatherPreview = require(script.Dev.WeatherPreview)
 
 local UI = {}
+local penFeedback: { observe: ({ [string]: any }) -> (), destroy: () -> () }? = nil
 
 local data: { [string]: any } = {}
 local quest: QuestBar.QuestBar
@@ -124,6 +126,13 @@ function UI:Init()
 	-- weather: the ONE bottom-right widget + its notice in the toast lane (both read WeatherFx.State); Studio: dev panel
 	WeatherWidget.new(root)
 	WeatherToast.new(Modal.toastLane)
+	penFeedback = PenUpgradeFeedback.new()
+	gui.Destroying:Connect(function()
+		if penFeedback then
+			penFeedback.destroy()
+			penFeedback = nil
+		end
+	end)
 	WeatherPreview.mount(root)
 	Drawers.openTrade = function()
 		menus.open("Trade")
@@ -186,6 +195,9 @@ function UI:Start()
 				data[k] = v
 			end
 			Data.apply(partial)
+			if penFeedback then
+				penFeedback.observe(partial)
+			end
 			quest.update(data)
 			menus.update(data)
 			if interactUpdate then
