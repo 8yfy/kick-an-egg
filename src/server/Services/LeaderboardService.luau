@@ -16,6 +16,8 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local AnnounceService = require(script.Parent.AnnounceService)
+local LeaderboardPodiums = require(script.Parent.Parent.Util.LeaderboardPodiums)
+local podiums = LeaderboardPodiums.new()
 
 export type Entry = { userId: number, value: number, name: string? }
 
@@ -112,17 +114,22 @@ local function paint(key: string, entries: { Entry }, global: boolean)
 		return
 	end
 	local board = Leaderboards.Boards[key]
+	local winners: { LeaderboardPodiums.Entry } = {}
 	for i = 1, Leaderboards.Rows do
 		local row = list:FindFirstChild("Row" .. i)
 		if not row then
 			continue
 		end
 		local e = entries[i]
+		local displayName = if e then (e.name or nameOf(e.userId)) else "---"
+		if e and i <= 3 then
+			table.insert(winners, { userId = e.userId, name = displayName })
+		end
 		local name = row:FindFirstChild("Name") :: TextLabel?
 		local value = row:FindFirstChild("Value") :: TextLabel?
 		local avatar = row:FindFirstChild("Avatar") :: ImageLabel?
 		if name then
-			name.Text = if e then (e.name or nameOf(e.userId)) else "---"
+			name.Text = displayName
 		end
 		if value then
 			value.Text = if e then board.unit .. LeaderboardService.format(e.value) else ""
@@ -131,6 +138,7 @@ local function paint(key: string, entries: { Entry }, global: boolean)
 			avatar.Image = if e and e.userId > 0 then `rbxthumb://type=AvatarHeadShot&id={e.userId}&w=150&h=150` else ""
 		end
 	end
+	podiums:Update(model :: Instance, winners)
 	local footer = gui:FindFirstChild("Footer") :: TextLabel?
 	if footer then
 		footer.Text = if global

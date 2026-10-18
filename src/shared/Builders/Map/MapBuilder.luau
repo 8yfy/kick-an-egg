@@ -874,8 +874,8 @@ local function buildSafeZone(map: Instance)
 	local function westFace(z: number, y: number): CFrame
 		return CFrame.fromMatrix(Vector3.new(-W, y, z), Vector3.new(0, 0, -1), Vector3.new(0, 1, 0))
 	end
-	Boards.build(zone, westFace(-141, 19), "Power", rgb(255, 190, 40), 0)
-	Boards.build(zone, westFace(-169, 19), "Donations", rgb(200, 80, 255), 0)
+	Boards.build(zone, westFace(-141, 25), "Power", rgb(255, 190, 40), 0)
+	Boards.build(zone, westFace(-169, 25), "Donations", rgb(200, 80, 255), 0)
 
 	local bases = folder(zone, "Bases")
 	for i = 1, #PENS do

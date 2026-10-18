@@ -5,6 +5,7 @@
 --                              and .Footer (status text)
 --     .Podium                  (Donations only) Part with the ProximityPrompt Action "OpenMenu:Donate"
 -- Built from studded blocks: a coloured frame + title header with a crown, a dark screen and a light.
+--     .Winners.Rank<1..3>      Podium models; .AvatarAnchor marks the winner's feet, facing the plaza
 local Bricks = require(script.Parent.Bricks)
 local Leaderboards = require(script.Parent.Parent.Parent.Config.Leaderboards)
 
@@ -38,6 +39,69 @@ local function label(
 	s.Parent = l
 	l.Parent = parent
 	return l
+end
+
+local function winners(model: Model, face: CFrame, groundY: number)
+	local group = Instance.new("Folder")
+	group.Name = "Winners"
+	group.Parent = model
+	local colors = { rgb(255, 205, 50), rgb(210, 220, 235), rgb(225, 140, 70) }
+	local heights = { 4.8, 3.4, 2.5 }
+	local positions = { 0, -7.5, 7.5 }
+	for rank = 1, 3 do
+		local podium = Instance.new("Model")
+		podium.Name = "Rank" .. rank
+		podium:SetAttribute("Rank", rank)
+		podium:SetAttribute("AvatarStatus", "Empty")
+		podium.Parent = group
+		local center = face:PointToWorldSpace(Vector3.new(positions[rank], 0, 8))
+		local origin = CFrame.new(center.X, groundY, center.Z) * face.Rotation
+		local color, height = colors[rank], heights[rank]
+		Bricks.part(podium, "Foot", Vector3.new(7.2, 0.6, 6.4), origin * CFrame.new(0, 0.3, 0), color)
+		local body = Bricks.part(
+			podium,
+			"Body",
+			Vector3.new(6.6, height - 0.6, 5.8),
+			origin * CFrame.new(0, (height + 0.6) / 2, 0),
+			color:Lerp(SCREEN, 0.65)
+		)
+		Bricks.part(podium, "Cap", Vector3.new(7.2, 0.5, 6.4), origin * CFrame.new(0, height + 0.25, 0), color)
+		Bricks.glow(podium, "Trim", Vector3.new(6.8, 0.14, 5.95), origin * CFrame.new(0, height - 0.15, 0), color)
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "Display"
+		gui.Face = Enum.NormalId.Back
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 45
+		gui.LightInfluence = 0
+		gui.Parent = body
+		label(
+			gui,
+			"Rank",
+			"#" .. rank,
+			UDim2.fromScale(0.9, 0.56),
+			UDim2.fromScale(0.05, 0.02),
+			Enum.TextXAlignment.Center,
+			color
+		)
+		label(
+			gui,
+			"PlayerName",
+			"UNCLAIMED",
+			UDim2.fromScale(0.94, 0.29),
+			UDim2.fromScale(0.03, 0.65),
+			Enum.TextXAlignment.Center
+		)
+		local anchor = Bricks.part(
+			podium,
+			"AvatarAnchor",
+			Vector3.one * 0.1,
+			origin * CFrame.new(0, height + 0.5, 0) * CFrame.Angles(0, math.pi, 0),
+			color,
+			{ transparency = 1, collide = false, studs = false }
+		)
+		anchor.CanQuery = false
+		podium.PrimaryPart = anchor
+	end
 end
 
 -- `face`: the board centre on the wall surface; local Z points out of the wall, X to the viewer's right.
@@ -169,9 +233,10 @@ function Boards.build(parent: Instance, face: CFrame, key: string, accent: Color
 		rgb(184, 192, 212)
 	)
 
+	winners(model, face, groundY)
 	if key == "Donations" then
 		local podiumCF = CFrame.lookAt(
-			face:PointToWorldSpace(Vector3.new(0, 0, 9)) * Vector3.new(1, 0, 1) + Vector3.new(0, groundY + 1.5, 0),
+			face:PointToWorldSpace(Vector3.new(0, 0, 18)) * Vector3.new(1, 0, 1) + Vector3.new(0, groundY + 1.5, 0),
 			face.Position * Vector3.new(1, 0, 1) + Vector3.new(0, groundY + 1.5, 0)
 		)
 		local podium = Bricks.part(model, "Podium", Vector3.new(10, 3, 6), podiumCF, dark)
