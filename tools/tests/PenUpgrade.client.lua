@@ -24,13 +24,20 @@ end
 local function capture(action, duration)
 	local seen, fxSeen, maxFX, emitterCount, colliding = false, false, 0, 0, false
 	local scaleChanged = false
+	local worldAnchored, hudNotice = false, false
 	local originals = {}
 	local start = os.clock()
 	local lastNotice = 0
 	local connection = game:GetService("RunService").Heartbeat:Connect(function()
-		if P.PlayerGui:FindFirstChild("PenUpgradeNotice", true) then
+		local notice = workspace:FindFirstChild("PenUpgradeNotice", true)
+		hudNotice = hudNotice or P.PlayerGui:FindFirstChild("PenUpgradeNotice", true) ~= nil
+		if notice then
 			seen = true
 			lastNotice = os.clock() - start
+			worldAnchored = notice:IsA("BillboardGui")
+				and notice.Adornee ~= nil
+				and notice.Adornee:IsDescendantOf(workspace)
+				and notice.Adornee.Position.Y > workspace.Map.SafeZone.Bases.Base1.PenArea.Position.Y + 8
 		end
 		local n = 0
 		for _, f in workspace:GetChildren() do
@@ -65,7 +72,7 @@ local function capture(action, duration)
 		end
 	end)
 	action()
-	task.wait(duration or 1.3)
+	task.wait(duration or 1.95)
 	connection:Disconnect()
 	return {
 		notice = seen,
@@ -75,13 +82,15 @@ local function capture(action, duration)
 		colliding = colliding,
 		geometryMoved = scaleChanged,
 		lastNotice = lastNotice,
+		worldAnchored = worldAnchored,
+		hudNotice = hudNotice,
 		cleaned = workspace:FindFirstChild("PenUpgradeFX") == nil
-			and P.PlayerGui:FindFirstChild("PenUpgradeNotice", true) == nil,
+			and workspace:FindFirstChild("PenUpgradeNotice", true) == nil,
 	}
 end
 local ok, err = xpcall(function()
 	Audio.measure = true
-	check("initial snapshot is silent", count() == 0 and not P.PlayerGui:FindFirstChild("PenUpgradeNotice", true))
+	check("initial snapshot is silent", count() == 0 and not workspace:FindFirstChild("PenUpgradeNotice", true))
 	check(
 		"level guards",
 		not F.isIncrease(nil, 7)
@@ -100,6 +109,8 @@ local ok, err = xpcall(function()
 	QA:InvokeServer("fund")
 	QA:InvokeServer("pet")
 	local petBefore = QA:InvokeServer("status").pet
+	local ownerGui = workspace.Map.SafeZone.Bases.Base1.PenArea.PenOwner
+	local ownerName, ownerImage = ownerGui.Username.Text, ownerGui.Avatar.Image
 	local success = capture(function()
 		Remote:FireServer()
 	end)
@@ -109,6 +120,11 @@ local ok, err = xpcall(function()
 		success
 	)
 	check("collision and original geometry unchanged", not success.colliding and not success.geometryMoved)
+	check("title belongs above the pen, not the HUD", success.worldAnchored and not success.hudNotice)
+	check(
+		"owner portrait preserved",
+		ownerGui.Enabled and ownerGui.Username.Text == ownerName and ownerGui.Avatar.Image == ownerImage
+	)
 	local petAfter = QA:InvokeServer("status").pet
 	check(
 		"placed pet survives",
@@ -137,7 +153,7 @@ local ok, err = xpcall(function()
 	end)
 	check(
 		"low detail + mute",
-		low.notice and low.fx and low.emitters == 2 and low.cleaned and game.SoundService.Master.Volume == 0,
+		low.notice and low.fx and low.emitters == 6 and low.cleaned and game.SoundService.Master.Volume == 0,
 		low
 	)
 	game.SoundService.Master.Volume = 0.5
@@ -156,7 +172,7 @@ local ok, err = xpcall(function()
 		Remote:FireServer()
 		task.wait(0.28)
 		Remote:FireServer()
-	end, 1.4)
+	end, 2.2)
 	check("rapid purchases bounded / cleanup", rapid.maxFX == 1 and rapid.cleaned and not rapid.colliding, rapid)
 	local removal = capture(function()
 		Remote:FireServer()

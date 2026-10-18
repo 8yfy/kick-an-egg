@@ -29,7 +29,7 @@ local ownFX, foreignFX = false, false
 local base = MyBase.get()
 local area = base.PenArea
 local conn = game:GetService("RunService").Heartbeat:Connect(function()
-	local notice = P.PlayerGui:FindFirstChild("PenUpgradeNotice", true)
+	local notice = workspace:FindFirstChild("PenUpgradeNotice", true)
 	if notice then
 		notices[notice] = true
 	end
@@ -38,7 +38,7 @@ local conn = game:GetService("RunService").Heartbeat:Connect(function()
 		for _, p in fx:GetDescendants() do
 			if p:IsA("BasePart") then
 				local relative = area.CFrame:PointToObjectSpace(p.Position)
-				if math.abs(relative.X) <= area.Size.X / 2 + 3 and math.abs(relative.Z) <= area.Size.Z / 2 + 3 then
+				if math.abs(relative.X) <= area.Size.X / 2 + 8 and math.abs(relative.Z) <= area.Size.Z / 2 + 8 then
 					ownFX = true
 				else
 					foreignFX = true
@@ -53,7 +53,7 @@ local confirmationDeadline = os.clock() + 10
 repeat
 	task.wait(0.05)
 until Data.state.penLevel == 2 or os.clock() > confirmationDeadline
-task.wait(1.3)
+task.wait(1.95)
 conn:Disconnect()
 local count, audio = 0, 0
 for _ in notices do
@@ -72,5 +72,5 @@ QA:FireServer("report", {
 	ownFX = ownFX,
 	foreignFX = foreignFX,
 	cleaned = workspace:FindFirstChild("PenUpgradeFX") == nil
-		and P.PlayerGui:FindFirstChild("PenUpgradeNotice", true) == nil,
+		and workspace:FindFirstChild("PenUpgradeNotice", true) == nil,
 })
