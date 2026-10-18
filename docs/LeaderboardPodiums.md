@@ -1,6 +1,6 @@
 # Leaderboard podiums
 
-Both global boards now have three physical podiums: gold #1 in the center, silver #2 on the left and bronze #3 on the right. Each displays the same winner as its corresponding leaderboard row, including players who are offline. Existing ranking stores, score rules and the 60-second refresh remain unchanged. Boards sit six studs higher to leave room for the avatars; the existing Donate prompt sits in front of the donation podiums.
+Both global boards now have three physical podiums: gold #1 in the center, silver #2 on the left and bronze #3 on the right. Each displays the same winner as its corresponding leaderboard row, including players who are offline. Existing ranking stores, score rules and the 60-second refresh remain unchanged. Boards sit six studs higher to leave room for the avatars. The Donate stand sits beside the bronze donation podium, parallel with the display, with a 2.6-stud gap so it leaves the winners clear.
 
 ## Avatar and emote behavior
 
@@ -19,7 +19,8 @@ Animation resolution caches at most 64 catalog IDs and shares simultaneous reque
 ## Verification, 2026-10-18
 
 - 24 isolated single-player server checks passed: layout, Donate access, appearance safety/fitting, shared requests, rank swaps, delayed loads, empty slots, failures/retry, invalid IDs, board removal, equipped-only selection and native avatar assembly.
-- Seven client checks passed with six real-avatar fixtures: nearby badge visibility/style, equipped-only loop playback, visible replicated joint movement, player distance, camera distance and out-of-view hiding.
+- Seven client checks passed with six real-avatar fixtures in the preceding podium revision: nearby badge visibility/style, equipped-only loop playback, visible replicated joint movement, player distance, camera distance and out-of-view hiding. These were not repeated for the later Donate relocation.
+- Donate relocation: all 24 server checks passed again, including the revised clearance assertion. Measured 2.6 studs of lateral clearance, zero forward offset, no collidable scenery overlap, and reviewed all six avatars with Donate beside the bronze podium.
 - Native production fallback correctly showed the local player's avatar and matching leaderboard name. Six-avatar preview used playtest-only sample rankings for users 1340874349, 3953001499 and 1; these sample rankings are not saved or shipped. The first two profiles played randomly selected equipped emotes; user 1 had none equipped and stood normally.
 - StyLua, whitespace checks and Rojo binary/XML packaging passed. All 289 source scripts match the XML package; no QA/probe/candidate scripts ship. Deliverable: `outputs/KickTheEgg-LeaderboardPodiums.rbxl`, outside the repository.
 - Studio returned to Edit with NumberOfPlayers=0. No multiplayer test or live DataStore write was performed. Published global rankings and published-server asset permissions remain unverified; the unpublished Studio place uses the existing local fallback.

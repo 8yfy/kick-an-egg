@@ -70,11 +70,15 @@ local ok, err = pcall(function()
 	)
 	check("avatars face out from the board", first.AvatarAnchor.CFrame.LookVector:Dot(Vector3.zAxis) > 0.99)
 	local prompt = donations.Podium:FindFirstChildOfClass("ProximityPrompt")
+	local bronze = donations.Winners.Rank3.Cap
+	local donationTrim = donations.PodiumTrim
+	local side = bronze.CFrame:PointToObjectSpace(donationTrim.Position)
 	check(
-		"Donate prompt preserved in front of winners",
+		"Donate prompt sits beside winners with a clear gap",
 		prompt ~= nil
 			and prompt:GetAttribute("Action") == "OpenMenu:Donate"
-			and donations.Podium.Position.Z > donations.Winners.Rank1.Cap.Position.Z + 6
+			and side.X - donationTrim.Size.X / 2 - bronze.Size.X / 2 >= 2
+			and math.abs(side.Z) < 0.1
 	)
 
 	local calls: { [number]: number } = {}

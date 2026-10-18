@@ -1,14 +1,14 @@
 # Development handoff
 
 ## Current checkpoint
-- Task: three ranked avatar podiums for each global leaderboard, random equipped emotes, and nearby gold/silver/bronze placement badges. Shop labels, Shift Lock and pen-wave fixes are preserved.
+- Task: move the Donate stand beside the bronze donation podium so it clears the three placement podiums. The preceding avatar/emote/badge addition, shop labels, Shift Lock and pen-wave fixes are preserved.
 - Branch: `codex/pen-upgrade-feedback`, based on setup commit `4aa9292` and combined game `origin/a/full-build` at `2f59bee` (character-animation merge, PR #49).
 - Working directory: `C:/Users/kerem/Documents/Codex/2026-10-13/ca/work/kte-setup`.
 - GitHub: pen feedback, Shift Lock fixes, shop labels and the leaderboard podium/emote/badge revision use `origin/codex/pen-upgrade-feedback`. Source and handoff notes are committed and pushed at the user's request. Prior shop-label checkpoint: `f372b4c`; use the branch tip for the podium revision. No PR or merge was created.
 - Existing Claude worktrees remain intact. `kick-an-egg` has untracked `tools/icons/icons2d.py`; `kte-anim` has untracked `build/`. Do not discard them.
 
 ## Completed and changed
-- Added six podiums in `Builders/Map/Boards`, adjusted board height and moved Donate forward. `Services/LeaderboardService` now feeds its same top-three entries into `Util/LeaderboardPodiums`. Native appearances use private WorldModel assembly, bounded caching and stale-request rejection. `Util/PodiumEmotes` loops only actually equipped emotes via their resolved catalog Animation assets. `Controllers/LeaderboardDisplayController` adds locally faded nearby medal badges. See `docs/LeaderboardPodiums.md`.
+- Added six podiums in `Builders/Map/Boards`, adjusted board height and moved Donate beside the bronze podium with a 2.6-stud gap. `Services/LeaderboardService` now feeds its same top-three entries into `Util/LeaderboardPodiums`. Native appearances use private WorldModel assembly, bounded caching and stale-request rejection. `Util/PodiumEmotes` loops only actually equipped emotes via their resolved catalog Animation assets. `Controllers/LeaderboardDisplayController` adds locally faded nearby medal badges. See `docs/LeaderboardPodiums.md`.
 - Added `Controllers/ShopLabelController.luau`: outlined, world-sized shop labels above the roof decorations, player/camera distance gates and per-frame viewport visibility. Local UI only; physical signs, prompts and gameplay are unchanged. See `docs/ShopLabels.md`.
 - Added `src/client/UI/Hud/PenUpgradeFeedback.luau`, wired it into `UI/init.luau`, and removed the drawer's duplicate success feedback. Confirmed level increases use the existing DataChanged flow; server gameplay code is untouched.
 - Latest revision changes that module and its tests: the title lives above PenArea, below the owner portrait, and no success notice is placed in the HUD. The richer sequence cleans itself up at 1.6 s; Low Detail and Reduced Motion remain supported. Existing avatar/name code is unchanged and its preservation is tested.
@@ -20,6 +20,7 @@
 - Registered Blender MCP 2.1.9 with telemetry disabled; retained the installed protocol-13 add-on. Existing Studio MCP and Rojo reused.
 
 ## Verification this session
+- Donate relocation: all 24 server checks passed again with the updated lateral-clearance assertion. Measured 2.6 studs between the Donate trim and bronze cap, zero forward offset and no nearby collidable scenery blocking the stand. Six populated podiums visually reviewed with Donate on their right. Rebuilt the same Studio deliverable; no multiplayer test. The seven client emote/badge checks below are inherited from the preceding podium commit and were not repeated for this placement-only change.
 - Leaderboard addition: 24 server checks and seven client checks passed in single-player Studio, including native avatar appearance, equipped-only emotes, replicated joint motion, nearby badges, rank changes and asynchronous failure cleanup. Six actual-avatar slots visually reviewed. No live DataStore writes or multiplayer tests; NumberOfPlayers remains 0. Updated deliverable: `outputs/KickTheEgg-LeaderboardPodiums.rbxl`, all 289 source scripts packaged, no diagnostic scripts. Source applied to the open Studio. Published global rankings/asset permissions remain unverified.
 - All entries below are inherited results from the preceding shop-label/camera/pen revisions, not fresh reruns for the podium addition.
 - Current label addition: 14 visibility/text/depth checks passed in a fresh single-player Studio session. Both labels visually reviewed together. Rojo binary/XML build includes all 286 source scripts with no QA/probe scripts. Current deliverable: `outputs/KickTheEgg-ShopLabels.rbxl`; source applied to open Studio, returned to Edit with NumberOfPlayers=0. No multiplayer tests started.

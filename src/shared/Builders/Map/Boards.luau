@@ -235,10 +235,9 @@ function Boards.build(parent: Instance, face: CFrame, key: string, accent: Color
 
 	winners(model, face, groundY)
 	if key == "Donations" then
-		local podiumCF = CFrame.lookAt(
-			face:PointToWorldSpace(Vector3.new(0, 0, 18)) * Vector3.new(1, 0, 1) + Vector3.new(0, groundY + 1.5, 0),
-			face.Position * Vector3.new(1, 0, 1) + Vector3.new(0, groundY + 1.5, 0)
-		)
+		-- Beside #3, with a 2.6-stud gap: keep the whole three-winner display clear from the plaza.
+		local position = face:PointToWorldSpace(Vector3.new(19, 0, 8))
+		local podiumCF = CFrame.new(position.X, groundY + 1.5, position.Z) * face.Rotation
 		local podium = Bricks.part(model, "Podium", Vector3.new(10, 3, 6), podiumCF, dark)
 		Bricks.part(model, "PodiumTrim", Vector3.new(10.6, 0.6, 6.6), podiumCF * CFrame.new(0, 1.8, 0), accent)
 		local prompt = Instance.new("ProximityPrompt")
