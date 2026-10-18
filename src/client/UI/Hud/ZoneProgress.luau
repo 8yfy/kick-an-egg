@@ -1,5 +1,5 @@
 --!strict
--- Zone progress (top centre, under the quest bar): the kick progress bar for the CURRENT zone with the zone's
+-- Zone progress (top centre, below active tutorial guidance): the kick progress bar for the CURRENT zone with the zone's
 -- name label under it, from the supplied art (zone_bar_* frames, zone_label_NN). It replaces the old brick track.
 --   * What it follows: your egg while it flies (positions from the server's KickResult, exactly like
 --     FlightController) and while you steer it (the server model workspace.Chases[eggUid]); otherwise your
@@ -150,10 +150,27 @@ function ZoneProgress.new(parent: Instance): ZoneProgress
 	local labelArt = Ui.art(label, "zone_label_01")
 	labelArt.ZIndex = 2
 
-	-- directly under the quest bar (both auto-scale; the quest bar is 100 px tall at y 24 / 4 on phones)
+	-- Share the top area with the tutorial; hidden guidance leaves no empty quest-banner slot.
 	local compactNow = false
 	local function place()
-		root.Position = UDim2.new(0.5, 0, 0, (if compactNow then 4 else 24) + 104 * scale.Scale)
+		local y = if compactNow then 4 else 24
+		local playerGui = player:FindFirstChildOfClass("PlayerGui")
+		local tutorial = playerGui and playerGui:FindFirstChild("Tutorial")
+		local objective = tutorial and tutorial:FindFirstChild("Objective")
+		if
+			tutorial
+			and tutorial:IsA("ScreenGui")
+			and tutorial.Enabled
+			and objective
+			and objective:IsA("GuiObject")
+			and objective.Visible
+		then
+			local parentTop = if parent:IsA("GuiObject") or parent:IsA("ScreenGui")
+				then parent.AbsolutePosition.Y
+				else 0
+			y = math.max(y, objective.AbsolutePosition.Y - parentTop + objective.AbsoluteSize.Y + 16)
+		end
+		root.Position = UDim2.new(0.5, 0, 0, y)
 	end
 	Kit.onLayout(function(compact: boolean)
 		compactNow = compact
@@ -223,6 +240,7 @@ function ZoneProgress.new(parent: Instance): ZoneProgress
 	local pinned = false
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt: number)
+		place()
 		if pinned then
 			return
 		end
