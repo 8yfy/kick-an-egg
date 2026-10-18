@@ -190,6 +190,37 @@ function SettingsMenu.new(parent: Instance): Menu
 	)
 
 	-- gamepads: opening the window selects its first option (the list scrolls along with the selection)
+	local tutorialRow = Kit.panel({
+		name = "Tutorial",
+		size = UDim2.new(1, -40, 0, 92),
+		parent = body,
+		colors = { Color3.fromRGB(70, 65, 95), Color3.fromRGB(50, 46, 70) },
+		radius = 18,
+	})
+	rows += 1
+	tutorialRow.LayoutOrder = rows
+	Kit.label({
+		name = "Title",
+		text = "Tutorial",
+		size = UDim2.new(1, -260, 0, 44),
+		position = UDim2.fromOffset(24, 24),
+		parent = tutorialRow,
+		align = Enum.TextXAlignment.Left,
+	})
+	Kit.button({
+		name = "ReplayTutorial",
+		text = "REPLAY",
+		size = UDim2.fromOffset(180, 66),
+		position = UDim2.new(1, -16, 0.5, 0),
+		anchor = Vector2.new(1, 0.5),
+		parent = tutorialRow,
+		colors = Kit.Colors.blue,
+		onClick = function()
+			window.close()
+			require(script.Parent.Parent.Parent.Controllers.TutorialController):Replay()
+		end,
+	})
+
 	window.onOpen(function()
 		local UserInputService = game:GetService("UserInputService")
 		local last = UserInputService:GetLastInputType()

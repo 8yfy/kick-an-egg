@@ -1,103 +1,48 @@
 --!strict
--- The show-don't-tell tutorial (server side). The current step is WORKED OUT from the player's real data and what
--- the server sees (never from time, never from the client's word), so it can't be skipped by accident, survives
--- rejoining (it is the data) and can't softlock: every step is finished by an action the player can always do.
---   1 KICK_LINE   reach the kick line                       (the server sees you on the pad; or you kicked before)
---   2 PRESS_KICK  press KICK                                (the client shows 2 / 3 around the meter)
---   3 TIME_KICK   time your kick                            (2 and 3 end with your first real kick)
---   4 WATCH_EGG   watch your egg fly, then steer it home    (ends when your first chase ends, won or lost)
---   5 COLLECT     bring an egg home                         (first secured egg; after a loss: kick again /
---                                                            the client suggests Run Speed)
---   6 PLACE_EGG   hold the egg and put it down in your pen  (an egg placed, hatching or hatched)
---   7 HATCH       wait for it to hatch                      (you own a pet)
---   8 INCOME      your pet earns money                      (a pet in your pen and money earned)
---   9 UPGRADE     a real upgrade, when you can afford one   (Run Speed level, a Kick Sack or a bigger pen)
---  10 DONE        celebration; data.tutorial.done = true
--- (The spec's order put UPGRADE before placing the egg; a new player has no money until a pet earns, so the real
--- upgrade comes once it is affordable instead of asking for an impossible purchase.)
--- The step is mirrored on the player as attribute TutorialStep (0 = finished / skipped); SkipTutorial ends it.
-
+-- Observes existing server gameplay. First pet + a brief income introduction finish the main tutorial;
+-- upgrades are optional client tips. There are no tutorial rewards, teleports or gameplay modifiers.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Rules = require(Shared.Tutorial.Rules)
 local KickPad = require(Shared.KickPad)
+local Economy = require(Shared.Config.Economy)
 local Remotes = require(Shared.Remotes)
-
-local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
+local KickService = require(script.Parent.KickService)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
-
-local TutorialService = {}
-
-TutorialService.Steps = {
-	KICK_LINE = 1,
-	PRESS_KICK = 2,
-	TIME_KICK = 3,
-	WATCH_EGG = 4,
-	COLLECT = 5,
-	PLACE_EGG = 6,
-	HATCH = 7,
-	INCOME = 8,
-	UPGRADE = 9,
-	DONE = 10,
-}
-local S = TutorialService.Steps
-
-local TICK = 0.5
+local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local TutorialService = { Steps = Rules.Steps }
+local S = Rules.Steps
 local limiter = RateLimiter.new()
-local onPad: { [Player]: boolean } = {} -- seen on the kick line this session (step 1 for new players)
-local moneyAt: { [Player]: number } = {} -- money when the first pet was in the pen (step 8)
+type State = { character: Model?, hits: number, money: number, earned: boolean, petAt: number?, updating: boolean }
+local states: { [Player]: State } = {}
 
-local function count(t: any): number
-	local n = 0
-	if typeof(t) == "table" then
-		for _ in t do
-			n += 1
-		end
-	end
-	return n
+-- Compatibility for the existing server test harness; the shared decision function is also used by replay.
+function TutorialService.stepFor(data: { [string]: any }, onPad: boolean, earned: boolean): number
+	return Rules.choose(data, { onPad = onPad, incomeExplained = earned })
 end
 
--- The step for this data (pure; the tests call it). `seenOnPad`: the server saw the character on the kick pad.
--- `earned`: money has gone up since a pet was first in the pen.
-function TutorialService.stepFor(data: { [string]: any }, seenOnPad: boolean, earned: boolean): number
-	local tutorial = data.tutorial or {}
-	if tutorial.done or tutorial.skipped then
-		return 0
-	end
-	local stats = data.stats or {}
-	local kicks, secured, lost = stats.kicks or 0, stats.secured or 0, stats.lost or 0
-	local pets, placedEggs, eggs = count(data.pets), count(data.plots), count(data.eggs)
-	local placedPets = 0
-	for _, pet in data.pets or {} do
-		if typeof(pet) == "table" and pet.placed then
-			placedPets += 1
+local function baseFor(player: Player): Model?
+	local map = workspace:FindFirstChild("Map")
+	local safe = map and map:FindFirstChild("SafeZone")
+	local bases = safe and safe:FindFirstChild("Bases")
+	local index = player:GetAttribute("BaseIndex")
+	local base = bases and typeof(index) == "number" and bases:FindFirstChild("Base" .. index)
+	return if base and base:IsA("Model") and base:GetAttribute("OwnerUserId") == player.UserId then base else nil
+end
+
+local function hasSack(player: Player): boolean
+	for _, holder in { player:FindFirstChild("SackGear"), player.Character, player:FindFirstChildOfClass("Backpack") } do
+		if holder then
+			for _, tool in holder:GetChildren() do
+				if tool:IsA("Tool") and tool:GetAttribute("KickSack") then
+					return true
+				end
+			end
 		end
 	end
-	local upgraded = (data.speedLevel or 0) > 0 or (data.rackLevel or 1) > 1 or (data.penLevel or 1) > 1
-	if kicks == 0 then
-		return if seenOnPad then S.PRESS_KICK else S.KICK_LINE
-	end
-	if secured + lost == 0 and eggs + placedEggs + pets == 0 then
-		return S.WATCH_EGG
-	end
-	if secured == 0 and eggs + placedEggs + pets == 0 then
-		return S.COLLECT
-	end
-	if placedEggs + pets == 0 then
-		return S.PLACE_EGG
-	end
-	if pets == 0 then
-		return S.HATCH
-	end
-	if placedPets > 0 and not earned then
-		return S.INCOME
-	end
-	if not upgraded then
-		return S.UPGRADE
-	end
-	return S.DONE
+	return false
 end
 
 local function update(player: Player)
@@ -105,31 +50,91 @@ local function update(player: Player)
 	if not data then
 		return
 	end
-	local character = player.Character
-	if not onPad[player] and character and KickPad.has(character, KickPad.ACCEPT_RADIUS) then
-		onPad[player] = true
+	local tutorial = data.tutorial
+	if tutorial.done or tutorial.skipped then
+		player:SetAttribute("TutorialStep", 0)
+		return
 	end
-	-- step 8: money has to actually arrive from a placed pet
-	local placedPet = false
-	for _, pet in data.pets do
-		if typeof(pet) == "table" and pet.placed then
-			placedPet = true
+	local state = states[player]
+	if not state then
+		state = { character = nil, hits = 0, money = data.money, earned = false, updating = false }
+		states[player] = state
+		-- Older profiles already above base power should not repeat starter training after migration.
+		if data.kickPower > Economy.KickPower.base then
+			local saved = table.clone(tutorial)
+			saved.trained = true
+			DataService:Set(player, { tutorial = saved })
+			tutorial = saved
 		end
 	end
-	if placedPet and not moneyAt[player] then
-		moneyAt[player] = data.money
+	if state.updating then
+		return
 	end
-	local earned = moneyAt[player] ~= nil and data.money > (moneyAt[player] :: number)
-	local step = TutorialService.stepFor(data, onPad[player] == true, earned)
+	state.updating = true
+	local character = player.Character
+	if character ~= state.character then
+		state.character, state.hits = character, 0
+	end
+	local hits = if character then character:GetAttribute("SackHits") else nil
+	local total = if typeof(hits) == "number" then math.max(0, math.floor(hits)) else 0
+	local trainingHits, high = Rules.trainingProgress(tutorial.trainingHits or 0, state.hits, total)
+	state.hits = high
+	local base = baseFor(player)
+	local area = base and base:FindFirstChild("PenArea")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local inPen = false
+	if area and area:IsA("BasePart") and root and root:IsA("BasePart") then
+		local p = area.CFrame:PointToObjectSpace(root.Position)
+		inPen = math.abs(p.X) <= area.Size.X / 2 and math.abs(p.Z) <= area.Size.Z / 2 and math.abs(p.Y) < 12
+	end
+	if trainingHits ~= (tutorial.trainingHits or 0) or (inPen and not tutorial.foundPen) then
+		local saved = table.clone(tutorial)
+		saved.trainingHits = trainingHits
+		saved.trained = tutorial.trained == true or trainingHits >= Rules.TRAIN_HITS
+		saved.foundPen = tutorial.foundPen == true or inPen
+		DataService:Set(player, { tutorial = saved })
+		tutorial = saved
+	end
+	local petPlaced = false
+	for _, pet in data.pets do
+		if typeof(pet) == "table" and pet.placed then
+			petPlaced = true
+			break
+		end
+	end
+	if petPlaced then
+		state.petAt = state.petAt or os.clock()
+		if data.money > state.money and (player:GetAttribute("IncomePerSecond") or 0) > 0 then
+			state.earned = true
+		end
+	else
+		state.petAt, state.earned = nil, false
+	end
+	state.money = data.money
+	local age = if state.petAt then os.clock() - state.petAt else 0
+	-- The income sentence is observational. A delayed income tick never forces a purchase or fake payment.
+	local explained = age >= 2 and (state.earned or age >= 5)
+	local step = Rules.choose(data, {
+		active = KickService:GetActive(player) ~= nil,
+		onPad = character ~= nil and KickPad.has(character, KickPad.ACCEPT_RADIUS),
+		hasPen = base ~= nil,
+		hasSack = hasSack(player),
+		incomeExplained = explained,
+	})
+	player:SetAttribute("TutorialHits", trainingHits)
 	if step == S.DONE then
-		DataService:Set(player, { tutorial = { done = true, skipped = false } })
+		local saved = table.clone(tutorial)
+		saved.done, saved.skipped = true, false
+		DataService:Set(player, { tutorial = saved })
 		Analytics.custom(player, "TutorialDone", 1)
-		player:SetAttribute("TutorialDone", true) -- the client plays the celebration once
+		player:SetAttribute("TutorialIncomeObserved", state.earned)
+		player:SetAttribute("TutorialDone", true)
 		step = 0
 	end
 	if player:GetAttribute("TutorialStep") ~= step then
 		player:SetAttribute("TutorialStep", step)
 	end
+	state.updating = false
 end
 
 function TutorialService:Start()
@@ -138,21 +143,32 @@ function TutorialService:Start()
 		if not limiter:allow(player) or not data or data.tutorial.done then
 			return
 		end
-		DataService:Set(player, { tutorial = { done = false, skipped = true } })
+		local saved = table.clone(data.tutorial)
+		saved.skipped = true
+		DataService:Set(player, { tutorial = saved })
 		player:SetAttribute("TutorialStep", 0)
 	end)
+	DataService:OnChanged(function(player)
+		local state = states[player]
+		if not state or not state.updating then
+			update(player)
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
-		onPad[player] = nil
-		moneyAt[player] = nil
+		states[player] = nil
 	end)
 	task.spawn(function()
 		while true do
-			task.wait(TICK)
 			for _, player in Players:GetPlayers() do
-				xpcall(update, function(err)
+				local ok, err = pcall(update, player)
+				if not ok then
+					if states[player] then
+						states[player].updating = false
+					end
 					warn(`[TutorialService] {player.Name}: {err}`)
-				end, player)
+				end
 			end
+			task.wait(0.25)
 		end
 	end)
 end

@@ -1,0 +1,50 @@
+{
+  "Pointer": {
+    "file": "assets/tutorial/Pointer.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
+  },
+  "WorldArrow": {
+    "file": "assets/tutorial/WorldArrow.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
+  },
+  "Checkmark": {
+    "file": "assets/tutorial/Checkmark.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
+  },
+  "Sparkle": {
+    "file": "assets/tutorial/Sparkle.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
+  },
+  "TargetRing": {
+    "file": "assets/tutorial/TargetRing.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
+  },
+  "PathMarker": {
+    "file": "assets/tutorial/PathMarker.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
+  }
+}

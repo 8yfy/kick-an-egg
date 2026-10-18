@@ -1,13 +1,14 @@
 # Development handoff
 
 ## Current checkpoint
-- Task: move the Donate stand beside the bronze donation podium so it clears the three placement podiums. The preceding avatar/emote/badge addition, shop labels, Shift Lock and pen-wave fixes are preserved.
-- Branch: `codex/pen-upgrade-feedback`, based on setup commit `4aa9292` and combined game `origin/a/full-build` at `2f59bee` (character-animation merge, PR #49).
+- Task complete: reactive tutorial toward the first pet, early-action recognition, short objectives, skip/replay, optional upgrades and custom uploaded PNG guidance. Clean Studio preview and `outputs/KickTheEgg-ReactiveTutorial.rbxl` are ready. See `docs/ReactiveTutorial.md` for evidence and live-validation limits.
+- Branch: `codex/reactive-tutorial`, based on podium relocation `164cb63` on `codex/pen-upgrade-feedback`, itself based on setup commit `4aa9292` and combined game `origin/a/full-build` at `2f59bee` (character-animation merge, PR #49).
 - Working directory: `C:/Users/kerem/Documents/Codex/2026-10-13/ca/work/kte-setup`.
-- GitHub: pen feedback, Shift Lock fixes, shop labels and the leaderboard podium/emote/badge revision use `origin/codex/pen-upgrade-feedback`. Source and handoff notes are committed and pushed at the user's request. Prior shop-label checkpoint: `f372b4c`; use the branch tip for the podium revision. No PR or merge was created.
+- GitHub: current tutorial uses `codex/reactive-tutorial`; prior pen feedback, Shift Lock, shop labels and podium work remain on `origin/codex/pen-upgrade-feedback` at `164cb63`. Use the tutorial branch tip for the assembled revision. No PR or automatic merge is created.
 - Existing Claude worktrees remain intact. `kick-an-egg` has untracked `tools/icons/icons2d.py`; `kte-anim` has untracked `build/`. Do not discard them.
 
 ## Completed and changed
+- Reactive tutorial: shared pure Rules, authoritative TutorialService observers, persisted training/pen facts, rewritten contextual client controller, reusable real-control spotlight/world guide/objective modules, six actual SVG/transparent PNG assets uploaded under existing verified creator, and local replay from Settings. Main completion requires the first placed pet and brief income explanation; upgrades are optional. Existing gameplay and shared remote/config contracts are unchanged.
 - Added six podiums in `Builders/Map/Boards`, adjusted board height and moved Donate beside the bronze podium with a 2.6-stud gap. `Services/LeaderboardService` now feeds its same top-three entries into `Util/LeaderboardPodiums`. Native appearances use private WorldModel assembly, bounded caching and stale-request rejection. `Util/PodiumEmotes` loops only actually equipped emotes via their resolved catalog Animation assets. `Controllers/LeaderboardDisplayController` adds locally faded nearby medal badges. See `docs/LeaderboardPodiums.md`.
 - Added `Controllers/ShopLabelController.luau`: outlined, world-sized shop labels above the roof decorations, player/camera distance gates and per-frame viewport visibility. Local UI only; physical signs, prompts and gameplay are unchanged. See `docs/ShopLabels.md`.
 - Added `src/client/UI/Hud/PenUpgradeFeedback.luau`, wired it into `UI/init.luau`, and removed the drawer's duplicate success feedback. Confirmed level increases use the existing DataChanged flow; server gameplay code is untouched.
@@ -20,6 +21,8 @@
 - Registered Blender MCP 2.1.9 with telemetry disabled; retained the installed protocol-13 add-on. Existing Studio MCP and Rojo reused.
 
 ## Verification this session
+- Tutorial: 60 decision/counter, 45 responsive component layout and five saved-fact sanitization checks passed. Native walkthrough reached a rendered pet and real income in 102.28s without a purchase/reward. Native skip/replay, partial-training respawn and early-egg HOLD/pen guidance verified. Six PNGs load. Final clean Play has 18 services/19 controllers and no tutorial errors. Rojo binary: 294 source scripts, nine tutorial sources current/compilable, no QA scripts. Studio has a clean single-player preview; NumberOfPlayers remains 0. Physical device, multiplayer and published reconnect/permission tests remain pending. Details: `docs/ReactiveTutorial.md`.
+- Entries below are inherited results from the preceding podium/shop/pen revisions, not fresh reruns for the tutorial.
 - Donate relocation: all 24 server checks passed again with the updated lateral-clearance assertion. Measured 2.6 studs between the Donate trim and bronze cap, zero forward offset and no nearby collidable scenery blocking the stand. Six populated podiums visually reviewed with Donate on their right. Rebuilt the same Studio deliverable; no multiplayer test. The seven client emote/badge checks below are inherited from the preceding podium commit and were not repeated for this placement-only change.
 - Leaderboard addition: 24 server checks and seven client checks passed in single-player Studio, including native avatar appearance, equipped-only emotes, replicated joint motion, nearby badges, rank changes and asynchronous failure cleanup. Six actual-avatar slots visually reviewed. No live DataStore writes or multiplayer tests; NumberOfPlayers remains 0. Updated deliverable: `outputs/KickTheEgg-LeaderboardPodiums.rbxl`, all 289 source scripts packaged, no diagnostic scripts. Source applied to the open Studio. Published global rankings/asset permissions remain unverified.
 - All entries below are inherited results from the preceding shop-label/camera/pen revisions, not fresh reruns for the podium addition.
@@ -44,8 +47,8 @@ See `docs/CharacterAnimation.md`: flying egg starts at pad center instead of kic
 That document reports 365 passing and 3 existing failing server tests; these are historical results, not rerun here. Multiplayer, real mobile and live-server checks are still listed as untested.
 
 ## Pending / next steps
-1. Review the feature branch and updated leaderboard-podium Studio deliverable. Do not merge automatically.
-2. Physical mobile and published-server asset permissions remain unverified. Studio multiplayer and iPhone simulation passed.
+1. Review `codex/reactive-tutorial` and `outputs/KickTheEgg-ReactiveTutorial.rbxl`. Do not merge automatically.
+2. Validate on physical mobile/gamepad and a published test server, including reconnect and simultaneous players. This tutorial used single-player Studio, component phone-size previews and recovery fixtures; no multiplayer or native iPhone simulation was run.
 3. Prior checkpoints: `a127074`, `9c43b00`, `ca7f62f`, `c02e28c`, `1ffaf24`, `f372b4c`. The user authorized committing the changes to the repository; the feature branch was pushed successfully to `8yfy/kick-an-egg`. Review that branch before merging. No PR or automatic merge was created.
 4. Blender is configured but not needed for this feature. Before future modeling, connect the existing add-on and inspect the live scene.
 5. Preserve inherited animation follow-ups above; they are outside this feature's scope.

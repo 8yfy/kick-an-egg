@@ -1,410 +1,483 @@
 --!strict
--- The show-don't-tell tutorial (client). TutorialService (server) decides the step from your real actions (saved,
--- so it survives rejoining; never a timer; never asks for something you can't do) and mirrors it as
--- LocalPlayer.TutorialStep; this only SHOWS it, small and in the world:
---   * a ground TRAIL of glowing dots from you to where to go, and a small bobbing ARROW over it (kick pad, your
---     pen, the Boxing Sack Shop),
---   * a soft HIGHLIGHT on the real thing (the pad, the mystery egg in your hands, your placed egg, your pet),
---   * a gold glow on the one HUD element that matters (KICK, the meter, Power, Cash),
---   * one short prompt chip (a few words), and a small SKIP.
--- Nothing blocks input; it all hides during your kick cinematic. TutorialDone -> a short celebration once.
-
+-- Contextual presentation of authoritative tutorial progress. The player keeps movement/camera control;
+-- holding/placing an egg, finding a pen early, death and changing menus simply re-resolve the current target.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Economy = require(Shared.Config.Economy)
-local Upgrades = require(Shared.Config.Upgrades)
+local Rules = require(Shared.Tutorial.Rules)
 local Remotes = require(Shared.Remotes)
 local EggKick = require(Shared.Anim.EggKick)
-
-local TutorialController = {}
-
+local KickPad = require(Shared.KickPad)
+local Economy = require(Shared.Config.Economy)
+local UI = script.Parent.Parent.UI
+local Data = require(UI.System.Data)
+local Spotlight = require(UI.Tutorial.Spotlight)
+local WorldGuide = require(UI.Tutorial.WorldGuide)
+local Objective = require(UI.Tutorial.Objective)
+local S = Rules.Steps
+local Controller = {}
 local player = Players.LocalPlayer
-local GOLD = Color3.fromRGB(255, 215, 70)
-local INK = Color3.fromRGB(20, 24, 40)
+local BINDING = "KickTheEggReactiveTutorial"
+local started = false
+local gui: ScreenGui?
+local spot: any, world: any, objective: any
+local connections: { RBXScriptConnection } = {}
+local replay, dismissed, completedHere = false, false, false
+local celebrateUntil, flightUntil = 0, 0
+local chase = false
+local previousStage = 0
+local replayPetAt: number? = nil
+local replayCharacter: Model? = nil
+local replayHits, replayLastHits = 0, 0
+local replayTrained = false
+local welcomeUntil = 0
+local welcomed = false
+local optionalSeen: { [string]: boolean } = {}
+local optional: { kind: string, untilAt: number, level: number }? = nil
 
-local gui: ScreenGui
-local banner: TextLabel
-local sub: TextLabel
-local skip: TextButton
-local arrowPart: Part
-local arrowGui: BillboardGui
-local distLabel: TextLabel
-local data: { [string]: any } = {}
-local glowOn: GuiObject? = nil
-local glowStroke: UIStroke? = nil
-local inFlight, inChase = false, false
-local TRAIL_DOTS = 12
-local trailFolder: Folder
-local trail: { Part } = {}
-local highlight: Highlight
-
-local function label(parent: Instance, name: string, size: UDim2, pos: UDim2, textSize: number): TextLabel
-	local l = Instance.new("TextLabel")
-	l.Name = name
-	l.BackgroundTransparency = 1
-	l.AnchorPoint = Vector2.new(0.5, 0)
-	l.Size, l.Position = size, pos
-	l.Font = Enum.Font.FredokaOne
-	l.TextScaled = true
-	l.TextColor3 = Color3.new(1, 1, 1)
-	l.Active = false
-	local s = Instance.new("UIStroke")
-	s.Thickness = 4
-	s.Color = INK
-	s.Parent = l
-	l.Parent = parent
-	return l
+local function hud(): Instance?
+	return player.PlayerGui:FindFirstChild("HUD")
 end
 
-local function build()
-	gui = Instance.new("ScreenGui")
-	gui.Name = "Tutorial"
-	gui.ResetOnSpawn = false
-	gui.DisplayOrder = 8
-	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
-	banner = label(gui, "Banner", UDim2.fromOffset(420, 34), UDim2.new(0.5, 0, 0, 150), 28) -- the prompt chip
-	banner.TextColor3 = GOLD
-	sub = label(gui, "Sub", UDim2.fromOffset(420, 22), UDim2.new(0.5, 0, 0, 186), 18)
-	sub.Visible = false
-	skip = Instance.new("TextButton")
-	skip.Name = "Skip"
-	skip.AnchorPoint = Vector2.new(0.5, 0)
-	skip.Position = UDim2.new(0.5, 0, 0, 188)
-	skip.Size = UDim2.fromOffset(110, 22)
-	skip.BackgroundColor3 = INK
-	skip.BackgroundTransparency = 0.25
-	skip.Font = Enum.Font.FredokaOne
-	skip.TextScaled = true
-	skip.TextColor3 = Color3.fromRGB(200, 205, 225)
-	skip.Text = "SKIP TUTORIAL"
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, 10)
-	c.Parent = skip
-	skip.Parent = gui
-	skip.Activated:Connect(function()
-		Remotes.get("SkipTutorial"):FireServer()
-	end)
-	gui.Parent = player:WaitForChild("PlayerGui")
-
-	-- world arrow: a chunky gold arrow pointing down, bobbing over the target
-	arrowPart = Instance.new("Part")
-	arrowPart.Name = "TutorialArrow"
-	arrowPart.Anchored, arrowPart.CanCollide, arrowPart.CanQuery, arrowPart.CanTouch = true, false, false, false
-	arrowPart.Transparency = 1
-	arrowPart.Size = Vector3.new(1, 1, 1)
-	arrowPart.Parent = workspace
-	arrowGui = Instance.new("BillboardGui")
-	arrowGui.Name = "Arrow"
-	arrowGui.Size = UDim2.fromOffset(56, 76)
-	arrowGui.AlwaysOnTop = true
-	arrowGui.LightInfluence = 0
-	arrowGui.Adornee = arrowPart
-	arrowGui.Parent = arrowPart
-	local shaft = Instance.new("Frame")
-	shaft.AnchorPoint = Vector2.new(0.5, 0)
-	shaft.Position = UDim2.fromScale(0.5, 0.05)
-	shaft.Size = UDim2.fromScale(0.34, 0.42)
-	shaft.BackgroundColor3 = GOLD
-	shaft.Parent = arrowGui
-	local head = Instance.new("Frame")
-	head.AnchorPoint = Vector2.new(0.5, 0.5)
-	head.Position = UDim2.fromScale(0.5, 0.52)
-	head.Size = UDim2.fromScale(0.62, 0.62)
-	head.SizeConstraint = Enum.SizeConstraint.RelativeXX
-	head.Rotation = 45
-	head.BackgroundColor3 = GOLD
-	head.ZIndex = 0
-	head.Parent = arrowGui
-	for _, f in { shaft, head } do
-		local s = Instance.new("UIStroke")
-		s.Thickness = 4
-		s.Color = INK
-		s.Parent = f
-		local cr = Instance.new("UICorner")
-		cr.CornerRadius = UDim.new(0, 6)
-		cr.Parent = f
-	end
-	-- cover the head's top half so the arrow reads as one shape
-	local cover = Instance.new("Frame")
-	cover.AnchorPoint = Vector2.new(0.5, 1)
-	cover.Position = UDim2.fromScale(0.5, 0.52)
-	cover.Size = UDim2.fromScale(0.31, 0.12)
-	cover.BackgroundColor3 = GOLD
-	cover.BorderSizePixel = 0
-	cover.ZIndex = 2
-	cover.Parent = arrowGui
-	distLabel = label(arrowGui :: any, "Distance", UDim2.fromScale(1.6, 0.22), UDim2.fromScale(0.5, 0.86), 20)
-	arrowGui.Enabled = false
-	-- the ground trail: small glowing dots from you to the target
-	trailFolder = Instance.new("Folder")
-	trailFolder.Name = "TutorialTrail"
-	trailFolder.Parent = workspace
-	for i = 1, TRAIL_DOTS do
-		local dot = Instance.new("Part")
-		dot.Name = "Dot" .. i
-		dot.Shape = Enum.PartType.Ball
-		dot.Size = Vector3.new(0.6, 0.6, 0.6)
-		dot.Material = Enum.Material.Neon
-		dot.Color = GOLD
-		dot.Anchored, dot.CanCollide, dot.CanQuery, dot.CanTouch, dot.CastShadow = true, false, false, false, false
-		dot.Transparency = 1
-		dot.Parent = trailFolder
-		table.insert(trail, dot)
-	end
-	-- the highlight on the real thing
-	highlight = Instance.new("Highlight")
-	highlight.Name = "TutorialHighlight"
-	highlight.FillColor = GOLD
-	highlight.FillTransparency = 0.82
-	highlight.OutlineColor = GOLD
-	highlight.OutlineTransparency = 0.05
-	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-	highlight.Enabled = false
-	highlight.Parent = gui
-end
-
-local function setGlow(target: GuiObject?)
-	if target == glowOn then
-		return
-	end
-	if glowStroke then
-		glowStroke:Destroy()
-		glowStroke = nil
-	end
-	glowOn = target
-	if target then
-		local s = Instance.new("UIStroke")
-		s.Name = "TutorialGlow"
-		s.Color = GOLD
-		s.Thickness = 6
-		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		s.Parent = target
-		glowStroke = s
-	end
-end
-
-local function hud(name: string): GuiObject?
-	local pg = player:FindFirstChild("PlayerGui")
-	local h = pg and pg:FindFirstChild("HUD")
-	local found = h and h:FindFirstChild(name, true)
+local function find(parent: Instance?, name: string): GuiObject?
+	local found = parent and parent:FindFirstChild(name, true)
 	return if found and found:IsA("GuiObject") then found else nil
 end
 
-local function myBase(): Model?
-	local index = player:GetAttribute("BaseIndex")
+local function base(): Model?
 	local map = workspace:FindFirstChild("Map")
-	local safeZone = map and map:FindFirstChild("SafeZone")
-	local bases = safeZone and safeZone:FindFirstChild("Bases")
-	local base = if bases and typeof(index) == "number" then bases:FindFirstChild(`Base{index}`) else nil
-	return if base and base:IsA("Model") then base else nil
+	local zone = map and map:FindFirstChild("SafeZone")
+	local bases = zone and zone:FindFirstChild("Bases")
+	local index = player:GetAttribute("BaseIndex")
+	local b = bases and typeof(index) == "number" and bases:FindFirstChild("Base" .. index)
+	return if b and b:IsA("Model") and b:GetAttribute("OwnerUserId") == player.UserId then b else nil
 end
 
-local function firstOf(kind: string): Model?
-	local base = myBase()
-	local plots = base and base:FindFirstChild("Plots")
-	if not plots then
-		return nil
-	end
-	for _, child in plots:GetChildren() do
-		if child:IsA("Model") and child:GetAttribute("Kind") == kind then
-			return child
+local function placed(kind: string): Model?
+	local b = base()
+	local plots = b and b:FindFirstChild("Plots")
+	if plots then
+		for _, model in plots:GetChildren() do
+			if model:IsA("Model") and model:GetAttribute("Kind") == kind then
+				return model
+			end
 		end
 	end
 	return nil
 end
 
-local function holdingEgg(): boolean
-	local character = player.Character
-	local tool = character and character:FindFirstChildOfClass("Tool")
-	return tool ~= nil and typeof(tool:GetAttribute("EggUid")) == "string"
+local function held(attribute: string): Tool?
+	local c = player.Character
+	local tool = c and c:FindFirstChildOfClass("Tool")
+	return if tool and tool:GetAttribute(attribute) then tool else nil
 end
 
-local function cheapestUpgrade(): number
-	local cost = Economy.speedCost(if typeof(data.speedLevel) == "number" then data.speedLevel else 0)
-	local tier = if typeof(data.rackLevel) == "number" then data.rackLevel else 1
-	local nextSack = Upgrades.Sack.tiers[tier + 1]
-	if nextSack then
-		cost = math.min(cost, nextSack.cost)
+local function penTarget(): (Vector3?, Instance?, Vector3?, boolean)
+	local b = base()
+	local area = b and b:FindFirstChild("PenArea")
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not (area and area:IsA("BasePart") and root and root:IsA("BasePart")) then
+		return nil, nil, nil, false
 	end
-	return cost
+	local p = area.CFrame:PointToObjectSpace(root.Position)
+	local inside = math.abs(p.X) < area.Size.X / 2 and math.abs(p.Z) < area.Size.Z / 2
+	local floor = if inside
+		then area.Position
+		else area.CFrame:PointToWorldSpace(Vector3.new(0, 0, -area.Size.Z / 2 - 3))
+	return floor + Vector3.new(0, 5, 0), b, floor, inside
 end
 
--- What to show for a step: a short prompt, a world spot to go to, a HUD element to glow, a world thing to highlight.
-local function view(step: number): (string?, Vector3?, GuiObject?, Instance?)
+local function modelTarget(model: Model?): (Vector3?, Instance?, Vector3?)
+	if not model then
+		return nil, nil, nil
+	end
+	local cf, size = model:GetBoundingBox()
+	return cf.Position + Vector3.new(0, size.Y / 2 + 3, 0), model, cf.Position - Vector3.new(0, size.Y / 2, 0)
+end
+
+local function shopTarget(): (Vector3?, Instance?, Vector3?)
 	local map = workspace:FindFirstChild("Map")
-	local pad = map and map:FindFirstChild("KickPad")
-	local padPos = if pad and pad:IsA("BasePart") then pad.Position + Vector3.new(0, 4, 0) else nil
-	local kick = hud("KickPanel")
-	local onPad = kick ~= nil and kick.Visible
-	local meter = hud("Meter")
+	local shop = map and map:FindFirstChild("BoxingSackShop", true)
+	local approach = shop and shop:FindFirstChild("Approach")
+	if approach and approach:IsA("BasePart") then
+		return approach.Position + Vector3.new(0, 5, 0), shop, approach.Position
+	end
+	return nil, nil, nil
+end
+
+-- A single short sentence, the real UI target, and an optional world destination.
+local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vector3?, boolean)
+	local h = hud()
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local character = player.Character
-	if step == 1 then
-		return "Go to the kick line", padPos, nil, pad
-	elseif step == 2 or step == 3 then
-		if not onPad then
-			return "Back to the kick line", padPos, nil, pad
+	local gamepad = UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled and not touch
+	if step == S.GET_SACK then
+		local p, thing, floor = shopTarget()
+		return "Find your free training sack.", nil, p, thing, floor, true
+	elseif step == S.TRAIN then
+		if not held("KickSack") then
+			local hotbar = h and h:FindFirstChild("Hotbar", true)
+			local slot = hotbar and hotbar:FindFirstChild("Slot0")
+			return "Take out your training sack.", find(slot, "Tile"), nil, nil, nil, false
 		end
-		if meter and meter.Visible then
-			return "Stop it at the top!", nil, meter, nil
-		end
-		return "Press KICK!", nil, hud("Kick"), character and character:FindFirstChild("MysteryEgg")
-	elseif step == 4 then
-		if inFlight then
-			return "More POWER = farther kicks", nil, hud("Power"), nil -- progression, briefly
-		elseif inChase then
-			return "Steer it home!", nil, nil, nil
-		end
-		return "Kick an egg", padPos, nil, pad
-	elseif step == 5 then
-		if inChase then
-			return "Steer it home!", nil, nil, nil
-		end
-		return "Kick again!", padPos, nil, pad
-	elseif step == 6 then
-		local base = myBase()
-		local area = base and base:FindFirstChild("PenArea")
-		local penPos: Vector3? = nil
-		if area and area:IsA("BasePart") then
-			-- from outside: the pen's gate (the trail walks you in through it, never across a fence); inside: its middle
-			local root = character and character:FindFirstChild("HumanoidRootPart")
-			local here = if root and root:IsA("BasePart") then area.CFrame:PointToObjectSpace(root.Position) else nil
-			local inside = here ~= nil and math.abs(here.X) < area.Size.X / 2 and math.abs(here.Z) < area.Size.Z / 2
-			penPos = if inside
-				then area.Position + Vector3.new(0, 6, 0)
-				else (area.CFrame * CFrame.new(0, 6, -area.Size.Z / 2 - 3)).Position
-		end
-		if holdingEgg() then
-			return if touch then "Tap a spot in your pen" else "Click a spot in your pen", penPos, nil, nil
-		end
-		return if touch then "Tap your egg in the hotbar" else "Press 1 to hold your egg", penPos, nil, nil
-	elseif step == 7 then
-		local egg = firstOf("Egg")
-		return "It's hatching...", nil, nil, egg
-	elseif step == 8 then
-		return "Your pet earns money!", nil, hud("Cash"), firstOf("Pet")
-	elseif step == 9 then
-		local shop = map and map:FindFirstChild("BoxingSackShop", true)
-		-- in front of the entrance (map "Approach"), not the roof
-		local approach = shop and shop:FindFirstChild("Approach")
-		local shopPos = if approach and approach:IsA("BasePart")
-			then approach.Position + Vector3.new(0, 5, 0)
-			elseif shop and shop:IsA("Model") then shop:GetPivot().Position + Vector3.new(0, 18, 0)
-			else nil
-		local money = if typeof(data.money) == "number" then data.money else 0
-		return if money >= cheapestUpgrade() then "Buy an upgrade" else "Save up for an upgrade", shopPos, nil, shop
-	end
-	return nil, nil, nil, nil
-end
-
--- Lays the trail dots on the ground from you towards `target` (hidden when you're close or there's none).
-local function drawTrail(target: Vector3?, t: number)
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local from = if root and root:IsA("BasePart") then root.Position else nil
-	local show = target ~= nil and from ~= nil and (Vector3.new(target.X, from.Y, target.Z) - from).Magnitude > 14
-	for i, dot in trail do
-		if not show then
-			dot.Transparency = 1
-			continue
-		end
-		local a = (i - 0.5) / TRAIL_DOTS
-		local flat = (from :: Vector3):Lerp(target :: Vector3, a * 0.92)
-		local y = (from :: Vector3).Y - 2.6
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Exclude
-		params.FilterDescendantsInstances = { character :: Instance, trailFolder }
-		local hit = workspace:Raycast(Vector3.new(flat.X, y + 8, flat.Z), Vector3.new(0, -30, 0), params)
-		local pos = if hit then hit.Position + Vector3.new(0, 0.35, 0) else Vector3.new(flat.X, y, flat.Z)
-		dot.CFrame = CFrame.new(pos)
-		dot.Transparency = 0.15 + 0.55 * (0.5 + 0.5 * math.sin(t * 6 - i * 0.7)) -- a pulse running along it
-	end
-end
-
-local function celebrate()
-	banner.Visible, sub.Visible, skip.Visible = true, false, false
-	banner.Text = "TUTORIAL COMPLETE!"
-	local ok, VFX = pcall(require, Shared.VFX)
-	local character = player.Character
-	if ok and character then
-		pcall((VFX :: any).play, "SackUpgrade", character, { tier = 20, own = false })
-	end
-	task.delay(4, function()
-		if (player:GetAttribute("TutorialStep") or 0) == 0 then
-			banner.Visible, sub.Visible = false, false
-		end
-	end)
-end
-
-function TutorialController:Start()
-	build()
-	Remotes.get("DataChanged").OnClientEvent:Connect(function(partial: { [string]: any })
-		for k, v in partial do
-			data[k] = v
-		end
-	end)
-	Remotes.get("KickResult").OnClientEvent:Connect(function(result: { [string]: any })
-		inFlight = true
-		task.delay(math.max(0, result.launchTime + result.flightSeconds - workspace:GetServerTimeNow()), function()
-			inFlight = false
-		end)
-	end)
-	local me = player.UserId
-	Remotes.get("ChaseStart").OnClientEvent:Connect(function(p: { [string]: any })
-		if p.ownerUserId == me then
-			inChase = true
-		end
-	end)
-	Remotes.get("ChaseEnded").OnClientEvent:Connect(function()
-		inChase = false
-	end)
-	player:GetAttributeChangedSignal("TutorialDone"):Connect(function()
-		if player:GetAttribute("TutorialDone") then
-			celebrate()
-		end
-	end)
-	local t0 = os.clock()
-	RunService.RenderStepped:Connect(function()
-		local step = player:GetAttribute("TutorialStep")
-		local active = typeof(step) == "number" and step > 0
-		local cinematic = workspace:GetServerTimeNow() < EggKick.cameraBusyUntil + 0.3 -- your kick: hands off
-		if not active or cinematic then
-			arrowGui.Enabled = false
-			highlight.Enabled = false
-			drawTrail(nil, 0)
-			setGlow(nil)
-			if banner.Text ~= "TUTORIAL COMPLETE!" or cinematic then
-				banner.Visible, sub.Visible = false, false
+		local at = player.Character and player.Character:GetAttribute("SackAt")
+		local p = if typeof(at) == "CFrame" then at.Position + Vector3.new(0, 4, 0) else nil
+		local floor = if p and root and root:IsA("BasePart") then Vector3.new(p.X, root.Position.Y - 3, p.Z) else nil
+		return if touch
+			then "Tap to train your power."
+			elseif gamepad then "Press R2 to train."
+			else "Click to train your power.",
+			nil,
+			p,
+			nil,
+			floor,
+			false
+	elseif step == S.KICK_LINE or step == S.PRESS_KICK or step == S.TIME_KICK or step == S.COLLECT then
+		local panel = find(h, "KickPanel")
+		if panel and panel.Visible then
+			local meter = find(panel, "Meter")
+			if meter and meter.Visible then
+				return if gamepad then "Press R2 when the meter is high." else "Tap when the meter is high.",
+					meter,
+					nil,
+					nil,
+					nil,
+					false
 			end
-			skip.Visible = false
+			return "Press KICK to start.", find(panel, "Kick"), nil, nil, nil, false
+		end
+		local map = workspace:FindFirstChild("Map")
+		local pad = map and map:FindFirstChild("KickPad")
+		local p = if pad and pad:IsA("BasePart") then pad.Position else nil
+		return if step == S.COLLECT then "Try another kick!" else "Head to the kicking line.",
+			nil,
+			p and p + Vector3.new(0, 5, 0),
+			pad,
+			p,
+			true
+	elseif step == S.WATCH_EGG then
+		return if workspace:GetServerTimeNow() < flightUntil
+			then "There goes your egg!"
+			else "Steer your egg back home!",
+			nil,
+			nil,
+			nil,
+			nil,
+			false
+	elseif step == S.PLACE_EGG or step == S.PLACE_PET then
+		local isEgg = step == S.PLACE_EGG
+		local tool = held(if isEgg then "EggUid" else "PetUid")
+		local p, thing, floor, inside = penTarget()
+		if not tool then
+			local drawer = find(h, if isEgg then "EggsDrawer" else "PetsDrawer")
+			if drawer and drawer.Visible then
+				local uid: string? = nil
+				if isEgg then
+					for _, egg in Data.state.eggs or {} do
+						uid = egg.uid
+						break
+					end
+				else
+					for key, pet in Data.state.pets or {} do
+						if not pet.placed then
+							uid = key
+							break
+						end
+					end
+				end
+				local row = uid and drawer:FindFirstChild(uid, true)
+				return if isEgg then "Hold your egg." else "Place your pet in your pen.",
+					find(row, if isEgg then "Hold" else "Place"),
+					nil,
+					nil,
+					nil,
+					false
+			end
+			local rail = h and h:FindFirstChild("RightRail", true)
+			return if isEgg then "Open your Eggs." else "Open your Pets.",
+				find(rail, if isEgg then "Eggs" else "Pets"),
+				p,
+				thing,
+				floor,
+				false
+		end
+		return if inside
+			then (if isEgg then "Place your egg on the grass." else "Place your pet on the grass.")
+			else "Bring it to your pen.",
+			nil,
+			p,
+			thing,
+			floor,
+			not inside
+	elseif step == S.HATCH then
+		local p, thing, floor = modelTarget(placed("Egg"))
+		return "Your egg is hatching!", nil, p, thing, floor, false
+	elseif step == S.INCOME then
+		local p, thing, floor = modelTarget(placed("Pet"))
+		return "Your pet earns money for you!",
+			find(h and h:FindFirstChild("Counters", true), "Cash"),
+			p,
+			thing,
+			floor,
+			false
+	elseif step == S.WAIT_PEN then
+		return "Your pen will open soon.", nil, nil, nil, nil, false
+	end
+	return "", nil, nil, nil, nil, false
+end
+
+local function finish()
+	replay, dismissed, completedHere = false, false, true
+	replayPetAt = nil
+	celebrateUntil = os.clock() + 2.3
+	optional = nil
+	objective:optional(false)
+	objective:complete()
+	spot:set(nil)
+	world:set(nil, nil, nil, false)
+end
+
+local function clear()
+	objective:show(nil)
+	spot:set(nil)
+	world:set(nil, nil, nil, false)
+end
+
+local function optionalView(): boolean
+	if not completedHere or dismissed or Data.busy then
+		return false
+	end
+	if optional and os.clock() > optional.untilAt then
+		optionalSeen[optional.kind] = true
+		optional = nil
+	end
+	if not optional then
+		local pen, speed = Data.pen(), Data.speed()
+		if not optionalSeen.Pen and pen.cost and Data.money() >= pen.cost then
+			optional = { kind = "Pen", untilAt = os.clock() + 12, level = pen.level }
+		elseif not optionalSeen.Speed and speed.cost and Data.money() >= speed.cost then
+			optional = { kind = "Speed", untilAt = os.clock() + 12, level = speed.level }
+		end
+	end
+	if not optional then
+		return false
+	end
+	objective:optional(true)
+	spot:set(nil)
+	if optional.kind == "Pen" then
+		if Data.pen().level > optional.level then
+			optionalSeen.Pen = true
+			optional = nil
+			return false
+		end
+		local b = base()
+		local sign = b and b:FindFirstChild("PenSign")
+		local p = if sign and sign:IsA("BasePart") then sign.Position else nil
+		objective:show("More room? Upgrade your pen.", 4)
+		world:set(p and p + Vector3.new(0, 5, 0), sign, p, true)
+	else
+		if Data.speed().level > optional.level then
+			optionalSeen.Speed = true
+			optional = nil
+			return false
+		end
+		local p, thing, floor = shopTarget()
+		objective:show("Faster eggs? Visit the sack shop.", 4)
+		world:set(p, thing, floor, true)
+	end
+	return true
+end
+
+function Controller:Replay()
+	if not started then
+		return
+	end
+	replay, dismissed, completedHere = true, false, false
+	celebrateUntil, previousStage = 0, 0
+	replayPetAt, optional = nil, nil
+	optionalSeen = {}
+	replayCharacter = player.Character
+	replayLastHits = if replayCharacter then (replayCharacter:GetAttribute("SackHits") or 0) else 0
+	replayHits = (Data.state.tutorial or {}).trainingHits or 0
+	replayTrained = Data.power() > Economy.KickPower.base or (Data.state.tutorial or {}).trained == true
+end
+
+function Controller:Start()
+	if started then
+		return
+	end
+	started = true
+	local screen = Instance.new("ScreenGui")
+	screen.Name = "Tutorial"
+	screen.DisplayOrder = 50
+	screen.ResetOnSpawn = false
+	screen.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+	screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screen.Parent = player:WaitForChild("PlayerGui")
+	gui = screen
+	spot, world = Spotlight.new(screen), WorldGuide.new(screen)
+	objective = Objective.new(screen, function()
+		if optional then
+			optionalSeen[optional.kind] = true
+			optional = nil
+			clear()
 			return
 		end
-		local text, target, glow, thing = view(step :: number)
-		banner.Visible, sub.Visible, skip.Visible = text ~= nil, false, true
-		banner.Text = text or ""
-		local t = os.clock() - t0
-		local bob = math.sin(t * 4) * 0.6
-		if target then
-			arrowPart.CFrame = CFrame.new(target + Vector3.new(0, bob, 0))
-			local character = player.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart")
-			if root and root:IsA("BasePart") then
-				distLabel.Text = `{math.floor((root.Position - target).Magnitude)}m`
+		if replay then
+			replay = false
+		else
+			Remotes.get("SkipTutorial"):FireServer()
+		end
+		dismissed, completedHere, celebrateUntil = true, false, 0
+		clear()
+	end)
+	table.insert(
+		connections,
+		Remotes.get("KickResult").OnClientEvent:Connect(function(result)
+			flightUntil = result.launchTime + result.flightSeconds
+		end)
+	)
+	table.insert(
+		connections,
+		Remotes.get("ChaseStart").OnClientEvent:Connect(function(p)
+			if p.ownerUserId == player.UserId then
+				chase = true
+			end
+		end)
+	)
+	table.insert(
+		connections,
+		Remotes.get("ChaseEnded").OnClientEvent:Connect(function()
+			chase = false
+			flightUntil = 0
+		end)
+	)
+	table.insert(
+		connections,
+		player:GetAttributeChangedSignal("TutorialDone"):Connect(function()
+			if player:GetAttribute("TutorialDone") and not dismissed then
+				finish()
+			end
+		end)
+	)
+	RunService:BindToRenderStep(BINDING, Enum.RenderPriority.Camera.Value + 5, function(dt)
+		objective:layout()
+		local t = os.clock()
+		local cinematic = workspace:GetServerTimeNow() < EggKick.cameraBusyUntil + 0.15
+		local h = hud()
+		local settings, trade = find(h, "SettingsBackdrop"), find(h, "TradeBackdrop")
+		local modals = player.PlayerGui:FindFirstChild("Modals")
+		local scrim = modals and modals:FindFirstChild("Scrim")
+		local menuOpen = (settings and settings.Visible)
+			or (trade and trade.Visible)
+			or (scrim and scrim:IsA("GuiObject") and scrim.Visible)
+		local paused = cinematic or menuOpen
+		screen.Enabled = not paused
+		if paused then
+			spot:set(nil)
+			world:set(nil, nil, nil, false)
+		end
+		if not paused and Data.loaded() and not dismissed then
+			if t < celebrateUntil then
+				-- Completion is short and never owns movement, input or the camera.
+			else
+				local step = player:GetAttribute("TutorialStep") or 0
+				if replay then
+					if player.Character ~= replayCharacter then
+						replayCharacter, replayLastHits = player.Character, 0
+					end
+					local hits = if replayCharacter then (replayCharacter:GetAttribute("SackHits") or 0) else 0
+					replayHits, replayLastHits = Rules.trainingProgress(replayHits, replayLastHits, hits)
+					if placed("Pet") then
+						replayPetAt = replayPetAt or t
+					else
+						replayPetAt = nil
+					end
+					step = Rules.choose(Data.state, {
+						replay = true,
+						active = Data.busy or chase,
+						onPad = player.Character ~= nil and KickPad.has(player.Character, KickPad.ACCEPT_RADIUS),
+						hasPen = base() ~= nil,
+						trained = replayTrained or replayHits >= Rules.TRAIN_HITS,
+						incomeExplained = replayPetAt ~= nil and t - replayPetAt >= 2,
+					})
+					if step == S.DONE then
+						finish()
+					end
+				end
+				if t >= celebrateUntil then
+					if step > 0 and step ~= S.DONE then
+						objective:optional(false)
+						local sentence, target, position, thing, floor, trail = view(step)
+						if not welcomed then
+							welcomed = true
+							welcomeUntil = if step == S.TRAIN then t + 1 else 0
+						end
+						if t < welcomeUntil and step == S.TRAIN and not held("KickSack") then
+							sentence = "Welcome! Let's hatch your first pet."
+						end
+						local definition = Rules.Definitions[step]
+						local stage = if definition then definition.stage else 1
+						objective:show(sentence, stage)
+						if step == S.TRAIN then
+							objective:training(
+								if replay
+									then replayHits
+									else player:GetAttribute("TutorialHits")
+										or (Data.state.tutorial or {}).trainingHits
+										or 0
+							)
+						end
+						if previousStage > 0 and stage > previousStage then
+							objective:success()
+						end
+						previousStage = stage
+						spot:set(target)
+						world:set(position, thing, floor, trail)
+						screen:SetAttribute("ObjectiveId", definition and definition.id)
+					else
+						if not optionalView() then
+							clear()
+						end
+						screen:SetAttribute("ObjectiveId", optional and "optional_" .. optional.kind or nil)
+					end
+				end
+			end
+		else
+			if not paused then
+				clear()
 			end
 		end
-		arrowGui.Enabled = target ~= nil
-		drawTrail(target, t)
-		highlight.Adornee = thing
-		highlight.Enabled = thing ~= nil
-		setGlow(glow)
-		if glowStroke then
-			glowStroke.Thickness = 3 + math.abs(math.sin(t * 5)) * 3
-		end
+		spot:update(t)
+		world:update(dt, t)
 	end)
 end
 
-return TutorialController
+function Controller:Destroy()
+	RunService:UnbindFromRenderStep(BINDING)
+	for _, c in connections do
+		c:Disconnect()
+	end
+	connections = {}
+	if spot then
+		spot:destroy()
+	end
+	if world then
+		world:destroy()
+	end
+	if objective then
+		objective:destroy()
+	end
+	if gui then
+		gui:Destroy()
+		gui = nil
+	end
+	started, replay, dismissed, completedHere = false, false, false, false
+	celebrateUntil, flightUntil, previousStage = 0, 0, 0
+	chase, replayPetAt, optional = false, nil, nil
+	replayCharacter, replayHits, replayLastHits, replayTrained = nil, 0, 0, false
+end
+
+return Controller

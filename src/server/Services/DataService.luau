@@ -212,7 +212,15 @@ local function sanitize(data: Data)
 		end
 	end
 	data.indexMilestones = milestones
-	data.tutorial = { done = data.tutorial.done == true, skipped = data.tutorial.skipped == true }
+	data.tutorial = {
+		done = data.tutorial.done == true,
+		skipped = data.tutorial.skipped == true,
+		trained = data.tutorial.trained == true,
+		foundPen = data.tutorial.foundPen == true,
+		trainingHits = if isFinite(data.tutorial.trainingHits)
+			then math.clamp(math.floor(data.tutorial.trainingHits), 0, 3)
+			else 0,
+	}
 	-- pets: drop broken entries, keep placement fields typed
 	for uid, pet in data.pets do
 		if typeof(uid) ~= "string" or typeof(pet) ~= "table" or typeof(pet.petId) ~= "string" then

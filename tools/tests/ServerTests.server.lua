@@ -951,11 +951,13 @@ section("Tutorial, sack sounds, mystery egg, merchants", function()
 	local TS = require(Services.TutorialService) :: any
 	local St = TS.Steps
 	local fresh = { stats = { kicks = 0, secured = 0, lost = 0 }, pets = {}, plots = {}, eggs = {}, tutorial = {} }
-	check("tutorial: a new player starts at the kick line", TS.stepFor(fresh, false, false) == St.KICK_LINE)
-	check("tutorial: on the pad -> press KICK", TS.stepFor(fresh, true, false) == St.PRESS_KICK)
+	check("tutorial: a new player starts with training", TS.stepFor(fresh, false, false) == St.TRAIN)
+	local trained = table.clone(fresh)
+	trained.tutorial = { trained = true }
+	check("tutorial: trained on the pad -> press KICK", TS.stepFor(trained, true, false) == St.PRESS_KICK)
 	local kicked = table.clone(fresh)
 	kicked.stats = { kicks = 1, secured = 0, lost = 0 }
-	check("tutorial: kicked -> watch the egg", TS.stepFor(kicked, true, false) == St.WATCH_EGG)
+	check("tutorial: no live chase after a kick -> retry", TS.stepFor(kicked, true, false) == St.COLLECT)
 	local lost = table.clone(kicked)
 	lost.stats = { kicks = 1, secured = 0, lost = 1 }
 	check("tutorial: lost the first egg -> bring one home (never stuck)", TS.stepFor(lost, true, false) == St.COLLECT)
@@ -969,7 +971,7 @@ section("Tutorial, sack sounds, mystery egg, merchants", function()
 	local hatched = table.clone(placed)
 	hatched.plots, hatched.pets = {}, { p = { petId = "sprout_pup", placed = true } }
 	check("tutorial: hatched -> income", TS.stepFor(hatched, true, false) == St.INCOME)
-	check("tutorial: earning -> upgrade", TS.stepFor(hatched, true, true) == St.UPGRADE)
+	check("tutorial: core loop finishes without buying an upgrade", TS.stepFor(hatched, true, true) == St.DONE)
 	local upgraded = table.clone(hatched)
 	upgraded.speedLevel = 1
 	check("tutorial: upgraded -> done", TS.stepFor(upgraded, true, true) == St.DONE)
