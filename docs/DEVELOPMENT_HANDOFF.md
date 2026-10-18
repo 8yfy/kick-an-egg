@@ -15,7 +15,7 @@
 - Registered Blender MCP 2.1.9 with telemetry disabled; retained the installed protocol-13 add-on. Existing Studio MCP and Rojo reused.
 
 ## Verification this session
-- Pen feature: 14 Studio integration checks passed, including failures, duplicates, placed pet survival, collision preservation, mute/reduced effects, rapid purchases and cleanup. Desktop/iPhone landscape and zone-bar spacing visually checked. Real W input moved the player 11.47 studs during the effect.
+- Pen feature: 14 Studio integration checks passed, including failures, duplicates, placed pet survival, collision preservation, mute/reduced effects, rapid purchases and cleanup. Desktop/iPhone landscape and zone-bar spacing visually checked. Real W input moved the player 11.47 studs during the effect. Real simultaneous two-client testing also passed: one notice/audio per owner, correct pen isolation and complete cleanup on both clients.
 - Both selected Creator Store clips loaded and played with measured nonzero loudness. No uploads needed. Rojo and StyLua checks passed. Detailed evidence and limitations: `docs/PenUpgradeFeedback.md`.
 - Studio MCP: open `KickTheEgg-full-2026-10-18.rbxl` in Edit mode; read hierarchy/services and server Main source successfully without mutations.
 - Blender MCP: initialization and tool listing passed; installed add-on protocol matches. Blender socket connection refused because no Blender GUI is running. Scene/object inspection remains unverified.
@@ -28,7 +28,7 @@ That document reports 365 passing and 3 existing failing server tests; these are
 
 ## Pending / next steps
 1. Review the pen-upgrade feature branch and built Studio deliverable. Do not merge automatically.
-2. Real simultaneous two-client upgrades, physical mobile and published-server asset permissions remain unverified; simulated other-owner isolation passed.
-3. GitHub CLI was unauthenticated during setup. Verify remote branch/PR status before continuing repository work.
+2. Physical mobile and published-server asset permissions remain unverified. Studio multiplayer and iPhone simulation passed.
+3. Local implementation commit: `a127074`; multiplayer QA/docs recorded in the following commit. The GitHub push was blocked by automatic approval review pending explicit user approval to export source to `8yfy/kick-an-egg`. Do not work around that block; request destination approval before retrying. No remote branch or PR has been created.
 4. Blender is configured but not needed for this feature. Before future modeling, connect the existing add-on and inspect the live scene.
 5. Preserve inherited animation follow-ups above; they are outside this feature's scope.
