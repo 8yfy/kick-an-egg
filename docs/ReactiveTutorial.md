@@ -30,6 +30,8 @@ Six original 512px RGBA PNGs extend the existing SVG icon language: Pointer, Wor
 
 ## Delivery and validation limits
 
+Top-slot follow-up: the redundant Quest/Eggs secured banner is no longer mounted or updated by UI. The tutorial card now uses its former top-center slot (24px desktop / 4px compact, inside the safe area). Toast placement accounts for the visible tutorial and zone bar. Fresh Studio verified the absent Quest, working native sack input/data updates, the new card positions and 20px notification clearance. The binary was rebuilt and checked; the full gameplay walkthrough above was not repeated for this layout-only change.
+
 Studio has current sources and a clean single-player preview. TestService.NumberOfPlayers remains **0**; no multiplayer session was started. Deliverable: `C:/Users/kerem/Documents/Codex/2026-10-13/ca/outputs/KickTheEgg-ReactiveTutorial.rbxl`.
 
 Physical phone/gamepad input, simultaneous multiplayer isolation, published DataStore reconnect and published-server asset permissions remain unverified. Fixtures do not replace those live checks. No automatic merge or publishing.

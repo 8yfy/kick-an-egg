@@ -3,7 +3,7 @@
 --   local UI = require(script.Parent.UI); UI:Init(); UI:Start()
 -- Reads only DataChanged and the chase remotes; never computes rewards.
 -- Kick The Egg UI system (UI handoff + final approved icons): left rail (Shop / Index / Rebirth), cash + kick
--- power counters, right rail (Eggs / Pets drawers), quest bar, settings + sound, all with the approved icon art
+-- power counters, right rail (Eggs / Pets drawers), settings + sound, all with the approved icon art
 -- animated by UI/System/IconMotion and UI/System/UiVfx, and the modal screens in UI/Screens on UI/System.
 -- Contextual only: the kick controls (UI/Hud/KickPanel: on the kick pad) and the zone progress bar
 -- (UI/Hud/ZoneProgress: in a zone). No Training button and no Tool / SACK slot: sacks are bought at the
@@ -13,7 +13,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Kit = require(script.Kit)
-local QuestBar = require(script.Hud.QuestBar)
 local SoundToggle = require(script.Hud.SoundToggle)
 local KickPanel = require(script.Hud.KickPanel)
 local ChaseOverlay = require(script.Hud.ChaseOverlay)
@@ -45,7 +44,6 @@ local UI = {}
 local penFeedback: { observe: ({ [string]: any }) -> (), destroy: () -> () }? = nil
 
 local data: { [string]: any } = {}
-local quest: QuestBar.QuestBar
 local kick: KickPanel.KickPanel
 local zoneBar: ZoneProgress.ZoneProgress
 local overlay: ChaseOverlay.ChaseOverlay
@@ -112,7 +110,6 @@ function UI:Init()
 	Bag.define()
 
 	menus = Menus.new(root, { tiles = false }) -- Settings gear + Trade window; the rail replaces the tiles
-	quest = QuestBar.new(root)
 	SoundToggle.new(root)
 	kick = KickPanel.new(root)
 	SackGear.start(root) -- key 1 / gamepad Y, the "click to kick" hint
@@ -140,18 +137,16 @@ function UI:Init()
 	Rail.openTrade = function() -- the TRADE button on the left rail (no Trade button in the Pets drawer any more)
 		menus.open("Trade")
 	end
-	-- toasts stay below the quest bar, and below the zone progress bar while it shows
-	local questBar = root:FindFirstChild("Quest") :: GuiObject?
+	-- The tutorial owns the top slot; toasts also clear the zone progress bar while it shows.
 	local zoneRoot = root:FindFirstChild("ZoneProgress") :: GuiObject?
 	local function anchorToasts()
-		Modal.setToastAnchor(if zoneRoot and zoneRoot.Visible then zoneRoot else questBar)
+		Modal.setToastAnchor(if zoneRoot and zoneRoot.Visible then zoneRoot else nil)
 	end
 	anchorToasts()
 	if zoneRoot then
 		zoneRoot:GetPropertyChangedSignal("Visible"):Connect(anchorToasts)
 	end
 	Kit.watchViewport()
-	quest.update(data)
 	menus.update(data)
 	Data.onChanged(function()
 		rail.update()
@@ -198,7 +193,6 @@ function UI:Start()
 			if penFeedback then
 				penFeedback.observe(partial)
 			end
-			quest.update(data)
 			menus.update(data)
 			if interactUpdate then
 				interactUpdate(data)

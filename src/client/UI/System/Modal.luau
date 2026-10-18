@@ -9,7 +9,7 @@
 --   * open 280 ms (scale .90 -> 1.025 -> 1, Y +14 -> 0, content fades in), close 160 ms (-> .96, Y +8, fade);
 --     a generation counter drops stale completions so rapid open/close settles on the latest request,
 --   * scrim tap / ButtonB / close button close it; gamepad focus moves in and returns to the launcher.
--- Also owns the transient reward layer, the toast lane (max 3, kept below the "Eggs secured" bar) and, in
+-- Also owns the transient reward layer, the toast lane (max 3, kept below active top guidance) and, in
 -- Studio, the LOCAL ART banner while supplied PNGs have no uploaded ids.
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -438,7 +438,7 @@ end
 
 -- Toasts ---------------------------------------------------------------------------------------------------
 
--- Toasts sit in their own lane at least 20 px below this HUD element (the "Eggs secured" bar).
+-- Toasts sit in their own lane at least 20 px below active tutorial/zone guidance.
 -- Plays a SoundBank event for a UI action (screens don't need their own Audio require). replacesClick = this
 -- sound stands in for the button click of the same press.
 function Modal.sfx(event: string, replacesClick: boolean?)
@@ -454,17 +454,36 @@ end
 
 local function placeToasts()
 	local y = topInset() + 16
+	local rootY = if root:IsA("GuiObject") then root.AbsolutePosition.Y else 0
+	local screen = if root:IsA("ScreenGui") then root else root:FindFirstAncestorWhichIsA("ScreenGui")
+	local function below(gui: GuiObject): number
+		local owner = gui:FindFirstAncestorWhichIsA("ScreenGui")
+		local insetFix = if owner and screen
+			then GuiService:GetInsetArea(owner.ScreenInsets).Min.Y - GuiService:GetInsetArea(screen.ScreenInsets).Min.Y
+			else 0
+		return gui.AbsolutePosition.Y - rootY + insetFix + gui.AbsoluteSize.Y + 20
+	end
 	local anchor = toastAnchor
 	if anchor and anchor.Parent and anchor.Visible then
-		local rootY = if root:IsA("GuiObject") then root.AbsolutePosition.Y else 0
-		local anchorTop = anchor.AbsolutePosition.Y - rootY
-		local insetFix = if root:IsA("ScreenGui") and root.IgnoreGuiInset then GuiService:GetGuiInset().Y else 0
-		y = math.max(y, anchorTop + insetFix + anchor.AbsoluteSize.Y + 20)
+		y = math.max(y, below(anchor))
+	end
+	local playerGui = root:FindFirstAncestorOfClass("PlayerGui")
+	local tutorial = playerGui and playerGui:FindFirstChild("Tutorial")
+	local objective = tutorial and tutorial:FindFirstChild("Objective")
+	if
+		tutorial
+		and tutorial:IsA("ScreenGui")
+		and tutorial.Enabled
+		and objective
+		and objective:IsA("GuiObject")
+		and objective.Visible
+	then
+		y = math.max(y, below(objective))
 	end
 	toastLayer.Position = UDim2.new(0.5, 0, 0, y)
 end
 
--- The toast lane itself (a vertical list under the quest / zone bar), for HUD pieces that post their own toast
+-- The toast lane itself (a vertical list under tutorial / zone guidance), for HUD pieces that post their own toast
 -- frames (the weather toast) so every toast shares one lane and nothing overlaps. Re-places the lane first.
 function Modal.toastLane(): Frame
 	placeToasts()

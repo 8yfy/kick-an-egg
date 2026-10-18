@@ -117,7 +117,7 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 		local narrow = width < 340
 		local inset = if narrow then 54 else 67
 		card.Size = UDim2.fromOffset(width, 92)
-		card.Position = UDim2.new(0.5, 0, 0, if compact then 52 else 90)
+		card.Position = UDim2.new(0.5, 0, 0, if compact then 4 else 24)
 		icon.Size = UDim2.fromOffset(if narrow then 36 else 48, if narrow then 36 else 48)
 		icon.Position = UDim2.fromOffset(10, if narrow then 22 else 17)
 		heading.Position = UDim2.fromOffset(inset, 10)
