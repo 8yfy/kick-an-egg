@@ -44,11 +44,22 @@ end
 local old = workspace.CurrentCamera.CFrame
 local oldMouse = U.MouseBehavior
 local window = 0
-local stats = { inputs = 0, transitions = 0, maxStationaryLateralStep = 0, maxAngle = 0, states = {} }
+local pitchAtShift = math.asin(old.LookVector.Y)
+local stats = {
+	inputs = 0,
+	transitions = 0,
+	maxStationaryLateralStep = 0,
+	maxVerticalStep = 0,
+	maxPitchStep = 0,
+	maxPitchDeparture = 0,
+	maxAngle = 0,
+	states = {},
+}
 local input = U.InputBegan:Connect(function(i)
 	if i.KeyCode == Enum.KeyCode.LeftShift or i.KeyCode == Enum.KeyCode.RightShift then
 		stats.inputs += 1
 		window = os.clock() + 0.35
+		pitchAtShift = math.asin(old.LookVector.Y)
 	end
 end)
 R:BindToRenderStep("ShiftLockQAMeasure_" .. mode, Enum.RenderPriority.Camera.Value + 3, function()
@@ -61,6 +72,12 @@ R:BindToRenderStep("ShiftLockQAMeasure_" .. mode, Enum.RenderPriority.Camera.Val
 	end
 	if os.clock() < window then
 		stats.maxAngle = math.max(stats.maxAngle, angle)
+		local pitch = math.asin(math.clamp(cf.LookVector.Y, -1, 1))
+		local oldPitch = math.asin(math.clamp(old.LookVector.Y, -1, 1))
+		-- Keep recentering rotations in these metrics; excluding them hid the upward snap.
+		stats.maxPitchStep = math.max(stats.maxPitchStep, math.deg(math.abs(pitch - oldPitch)))
+		stats.maxPitchDeparture = math.max(stats.maxPitchDeparture, math.deg(math.abs(pitch - pitchAtShift)))
+		stats.maxVerticalStep = math.max(stats.maxVerticalStep, math.abs(cf.Position.Y - old.Position.Y))
 		-- Ignore mouse-look/recentering performed by test input tools; measure the stationary shoulder step.
 		if angle < 0.5 and mouse ~= Enum.MouseBehavior.LockCurrentPosition then
 			stats.maxStationaryLateralStep =
