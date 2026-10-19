@@ -57,6 +57,8 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 	hint.gui.AnchorPoint, hint.gui.Position = Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0)
 	hint.gui.Visible = false
 	local scale = Motion.scaleOf(reveal)
+	local headingScale = Motion.scaleOf(heading)
+	local lastTrainingHits = 0
 	local api = {}
 	function api:show(value: string?, stage: number?, done: boolean?)
 		card.Visible = value ~= nil
@@ -102,22 +104,42 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 			alpha = if alpha < 0.5 then 0 else 1
 		end
 		reveal.GroupTransparency, reveal.Visible = alpha, alpha < 1
+		reveal.Position = UDim2.fromOffset(-6, -6 + (if Motion.reduced() then 0 else alpha * 6))
 		scale.Scale = if Motion.reduced() or complete then 1 else 1 - alpha * 0.03
 		hint.gui.Visible = not complete and not reveal.Visible
 		gui:SetAttribute("PromptVisible", card.Visible and reveal.Visible)
 	end
-	function api:success() end -- The existing progress-bar tween supplies feedback without extra effects.
+	function api:success()
+		Motion.stop(headingScale)
+		if Motion.reduced() then
+			headingScale.Scale = 1
+			return
+		end
+		headingScale.Scale = 0.96
+		Motion.tween(headingScale, 0.12, { Scale = 1.035 }).Completed:Once(function(state)
+			if state == Enum.PlaybackState.Completed and heading.Parent then
+				Motion.tween(headingScale, 0.18, { Scale = 1 })
+			end
+		end)
+	end
 	function api:optional(on: boolean)
 		optional = on
 	end
 	function api:training(hits: number)
 		heading.Text = "TRAINING " .. math.min(hits, 3) .. "/3"
+		if hits > lastTrainingHits then
+			epoch = os.clock()
+			self:success()
+		end
+		lastTrainingHits = hits
 	end
 	function api:complete()
 		self:show("You're ready!", 4, true)
+		self:success()
 	end
 	function api:destroy()
 		Motion.stop(scale)
+		Motion.stop(headingScale)
 		card:Destroy()
 	end
 	return api

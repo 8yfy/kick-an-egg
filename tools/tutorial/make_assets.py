@@ -2,6 +2,7 @@
 Run with the bundled Python. Sources are editable SVGs; PNGs are actual 512px RGBA assets.
 """
 import importlib.util
+import argparse
 import json
 from pathlib import Path
 import subprocess
@@ -18,7 +19,13 @@ GOLD = "#ffd43a"
 
 def make(name):
     icon = icons.Icon()
-    if name == "Pointer":
+    if name == "FocusArrow":
+        path = 'd="M35 88 H125 V40 L222 128 L125 216 V168 H35 Q25 168 25 158 V98 Q25 88 35 88Z"'
+        icon.raw(f'<path {path} transform="translate(0 5)" fill="#080a10" stroke="#080a10" stroke-width="22" stroke-linejoin="round"/>')
+        icon.raw(f'<path {path} fill="#fff2ed" stroke="#fff2ed" stroke-width="11" stroke-linejoin="round"/>')
+        icon.shape("path", path, "#ff493e", 4)
+        icon.gloss("path", 'd="M39 100 H137 V67 L192 117 H39 Q35 117 35 111 V104 Q35 100 39 100Z"', .45)
+    elif name == "Pointer":
         icon.shape("path", 'd="M38 91 H132 V43 L220 128 L132 213 V165 H38 Z"', GOLD)
         icon.gloss("path", 'd="M50 102 H145 V72 L194 120 H50 Z"', .5)
         icon.sparkle(166, 107, 10)
@@ -46,10 +53,14 @@ def make(name):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("names", nargs="*", choices=["FocusArrow", "Pointer", "WorldArrow", "Checkmark", "Sparkle", "TargetRing", "PathMarker"])
+    args = parser.parse_args()
     SOURCE.mkdir(parents=True, exist_ok=True)
     chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-    results = {}
-    for name in ["Pointer", "WorldArrow", "Checkmark", "Sparkle", "TargetRing", "PathMarker"]:
+    manifest = OUT / "local-assets.json"
+    results = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+    for name in args.names or ["FocusArrow", "Pointer", "WorldArrow", "Checkmark", "Sparkle", "TargetRing", "PathMarker"]:
         svg, png = SOURCE / f"{name}.svg", OUT / f"{name}.png"
         svg.write_text(make(name), encoding="utf-8")
         subprocess.run([str(chrome), "--headless=new", "--disable-gpu", "--hide-scrollbars",
@@ -64,7 +75,7 @@ def main():
         image.save(png)
         results[name] = {"file": f"assets/tutorial/{name}.png", "size": [512, 512], "alpha": True}
         print(f"{name}: 512x512 RGBA, transparent corners", flush=True)
-    (OUT / "local-assets.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    manifest.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

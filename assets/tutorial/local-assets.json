@@ -46,5 +46,13 @@
       512
     ],
     "alpha": true
+  },
+  "FocusArrow": {
+    "file": "assets/tutorial/FocusArrow.png",
+    "size": [
+      512,
+      512
+    ],
+    "alpha": true
   }
 }

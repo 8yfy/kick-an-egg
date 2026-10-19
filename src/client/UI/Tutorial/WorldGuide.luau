@@ -1,11 +1,12 @@
 --!strict
 -- A continuous, bounded route from the player's CURRENT feet to the target.
--- Native red geometry keeps guidance visible without loading image assets.
+-- Native ground geometry plus a projected, bouncing PNG pointer above the world target.
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 local Style = require(script.Parent.Style)
+local Motion = require(script.Parent.Parent.System.Motion)
 local Route = require(script.Parent.Route)
 local WorldGuide = {}
 local RED = Style.RED
@@ -25,17 +26,10 @@ function WorldGuide.new(gui: ScreenGui)
 	folder.Name = "TutorialGuidance"
 	folder.Parent = workspace
 	local anchor = part(folder, "WorldTarget", Vector3.one * 0.1)
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "WorldArrow"
-	billboard.Adornee = anchor
-	billboard.Size = UDim2.fromOffset(54, 70)
-	billboard.AlwaysOnTop = true
-	billboard.LightInfluence = 0
-	billboard.MaxDistance = 300
-	billboard.Enabled = false
-	billboard.Parent = anchor
-	local arrow = Style.arrow(billboard, "Arrow", 1)
-	arrow.Position, arrow.Rotation = UDim2.fromScale(0.5, 0.5), 90
+	-- Keep the pointer in the tutorial's own layer, so it shares the UI's visibility and draw order.
+	local arrow = Style.arrow(gui, "WorldPointer", 35)
+	arrow.Size = UDim2.fromOffset(72, 72)
+	arrow.Rotation, arrow.Visible = 90, false
 	local ring = part(folder, "TargetRing", Vector3.new(7, 0.05, 7))
 	local ringParts: { Part } = {}
 	for i = 1, 16 do
@@ -135,9 +129,11 @@ function WorldGuide.new(gui: ScreenGui)
 			invalidate()
 		end
 		local root = character and character:FindFirstChild("HumanoidRootPart")
-		billboard.Enabled = target ~= nil
+		local reduced = Motion.reduced()
+		local wave = if reduced then 0 else math.sin(t * math.pi * 2 / 1.25)
+		arrow.Visible = false
 		if target then
-			anchor.CFrame = CFrame.new(target)
+			anchor.CFrame = CFrame.new(target + Vector3.new(0, wave * 0.4, 0))
 		end
 		if ground then
 			ring.CFrame = CFrame.new(project(ground) + Vector3.new(0, 0.08, 0))
@@ -145,15 +141,19 @@ function WorldGuide.new(gui: ScreenGui)
 		for i, segment in ringParts do
 			local angle = i * math.pi / 8
 			segment.CFrame = ring.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(3.5, 0, 0)
-			segment.Transparency = if target and ground then 0.2 else 1
+			segment.Transparency = if target and ground then 0.23 + wave * 0.07 else 1
 		end
 		local camera = workspace.CurrentCamera
 		edge.Visible = false
 		if target and camera then
-			local point, visible = camera:WorldToViewportPoint(target)
+			local point, visible = camera:WorldToViewportPoint(anchor.Position)
+			local size = gui.AbsoluteSize
+			local p = Vector2.new(point.X, point.Y) - GuiService:GetInsetArea(gui.ScreenInsets).Min
+			if visible and point.Z > 0 then
+				arrow.Position = UDim2.fromOffset(math.clamp(p.X, 36, size.X - 36), math.clamp(p.Y, 36, size.Y - 36))
+				arrow.Visible = true
+			end
 			if not visible or point.Z <= 0 then
-				local size = gui.AbsoluteSize
-				local p = Vector2.new(point.X, point.Y) + GuiService:GetInsetArea(Enum.ScreenInsets.None).Min
 				local direction = p - size / 2
 				if point.Z <= 0 then
 					direction = -direction
@@ -292,6 +292,7 @@ function WorldGuide.new(gui: ScreenGui)
 		alive = false
 		version += 1
 		folder:Destroy()
+		arrow:Destroy()
 		edge:Destroy()
 	end
 	return api

@@ -1,10 +1,12 @@
 --!strict
 -- The approved menu proportions, borders, gradients, typography and interaction motion,
--- expressed with native UI so tutorial decorations never depend on PNGs.
+-- Native panels with one explicitly approved custom PNG for tutorial pointers.
+local ContentProvider = game:GetService("ContentProvider")
 local System = script.Parent.Parent.System
 local Ui = require(System.Ui)
 local Theme = require(System.Theme)
 local Motion = require(System.Motion)
+local Assets = require(script.Parent.Assets)
 local Style = {}
 Style.RED = Theme.Colors.danger
 
@@ -57,17 +59,25 @@ function Style.button(parent: Instance, options: Ui.ButtonOpts)
 	}
 end
 
--- A right-facing arrow made from three bars; glyph fallback cannot turn it into a missing character.
-function Style.arrow(parent: Instance, name: string, z: number): Frame
-	local arrow = Ui.frame(parent, name, UDim2.fromOffset(52, 52))
+-- The same outlined red arrow is reused above controls, world targets and at screen edges.
+function Style.arrow(parent: Instance, name: string, z: number): ImageLabel
+	local arrow = Instance.new("ImageLabel")
+	arrow.Name, arrow.BackgroundTransparency = name, 1
+	arrow.Image, arrow.ScaleType = Assets.FocusArrow, Enum.ScaleType.Fit
+	arrow.Size = UDim2.fromOffset(64, 64)
 	arrow.AnchorPoint, arrow.Active, arrow.ZIndex = Vector2.new(0.5, 0.5), false, z
-	for i, data in { { 0.42, 0.5, 0.62, 0 }, { 0.58, 0.36, 0.45, 45 }, { 0.58, 0.64, 0.45, -45 } } do
-		local bar = Ui.frame(arrow, "Bar" .. i, UDim2.fromScale(data[3], 0.1), UDim2.fromScale(data[1], data[2]))
-		bar.AnchorPoint, bar.Rotation, bar.ZIndex = Vector2.new(0.5, 0.5), data[4], z
-		bar.BackgroundColor3, bar.BackgroundTransparency = Style.RED, 0
-		Ui.corner(bar, 2)
-	end
+	arrow.Parent = parent
 	return arrow
+end
+
+local preloaded = false
+function Style.preload()
+	if not preloaded then
+		preloaded = true
+		task.spawn(function()
+			pcall(ContentProvider.PreloadAsync, ContentProvider, { Assets.FocusArrow })
+		end)
+	end
 end
 
 return Style

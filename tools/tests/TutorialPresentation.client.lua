@@ -6,6 +6,10 @@ local player = game.Players.LocalPlayer
 local modules = player.PlayerScripts.Client.UI.Tutorial
 local Objective, Welcome, Focus = require(modules.Objective), require(modules.Welcome), require(modules.Focus)
 local Style = require(modules.Style)
+local Assets = require(modules.Assets)
+local Spotlight = require(modules.Spotlight)
+local WorldGuide = require(modules.WorldGuide)
+local previousReduced = player:GetAttribute("ReducedMotion")
 local count = 0
 local function check(name: string, pass: boolean)
 	assert(pass, name)
@@ -14,14 +18,16 @@ end
 local screen = Instance.new("ScreenGui")
 screen.Name = "TutorialPresentationQA"
 screen.Parent = player.PlayerGui
-local function noImages(root: Instance)
-	local images = 0
+local function approvedImagesOnly(root: Instance)
+	local unexpected = 0
 	for _, object in root:GetDescendants() do
 		if object:IsA("ImageLabel") or object:IsA("ImageButton") then
-			images += 1
+			if not object:IsA("ImageLabel") or object.Image ~= Assets.FocusArrow then
+				unexpected += 1
+			end
 		end
 	end
-	check("No tutorial images in " .. root.Name, images == 0)
+	check("Only approved arrow images in " .. root.Name, unexpected == 0)
 end
 local ok, problem = pcall(function()
 	for _, size in { Vector2.new(844, 390), Vector2.new(390, 844), Vector2.new(320, 568) } do
@@ -74,7 +80,7 @@ local ok, problem = pcall(function()
 		objective:update(os.clock())
 		task.wait()
 		check("Completion fits", host.Objective.Reveal.Content.Panel.Header.TitleRow.Heading.TextFits)
-		noImages(host)
+		approvedImagesOnly(host)
 		welcome:destroy()
 		objective:destroy()
 		host:Destroy()
@@ -100,12 +106,111 @@ local ok, problem = pcall(function()
 	check("Wrapper cleanup", #hud:GetChildren() == 4)
 	focus:destroy()
 	hud:Destroy()
+	-- Exercise the real hole geometry and motion on a control near the bottom of the viewport.
+	local button = Instance.new("TextButton")
+	button.Name, button.Size = "Target", UDim2.fromOffset(64, 64)
+	button.Position, button.Parent = UDim2.new(0.5, 0, 1, -90), screen
+	local spot = Spotlight.new(screen)
+	spot:set(button)
+	task.wait(0.25)
+	player:SetAttribute("ReducedMotion", false)
+	spot:update(0)
+	local layer, pointer = screen.Spotlight, screen.Spotlight.Pointer
+	local firstY, firstX = pointer.AbsolutePosition.Y, pointer.AbsolutePosition.X
+	check(
+		"Custom PNG points down above control",
+		pointer:IsA("ImageLabel")
+			and pointer.Image == Assets.FocusArrow
+			and pointer.Rotation == 90
+			and pointer.Position.Y.Offset + 32 < layer.Focus.Position.Y.Offset
+	)
+	spot:update(0.3125)
+	check(
+		"Pointer bounces vertically",
+		math.abs(pointer.AbsolutePosition.Y - firstY) > 2 and pointer.AbsolutePosition.X == firstX
+	)
+	task.wait() -- Roblox settles the changed rectangles before reading their absolute sizes.
+	local center = layer.Focus.AbsolutePosition + layer.Focus.AbsoluteSize / 2
+	local area = layer.Focus.AbsoluteSize.X * layer.Focus.AbsoluteSize.Y
+	for _, name in { "Top", "Bottom", "Left", "Right" } do
+		local mask = layer:FindFirstChild(name) :: Frame
+		local a, b = mask.AbsolutePosition, mask.AbsolutePosition + mask.AbsoluteSize
+		check(
+			"Mask leaves control clear: " .. name,
+			not (center.X > a.X and center.X < b.X and center.Y > a.Y and center.Y < b.Y)
+		)
+		check("Mask cannot capture input: " .. name, not mask.Active and mask.BackgroundTransparency < 0.6)
+		area += mask.AbsoluteSize.X * mask.AbsoluteSize.Y
+	end
+	check("Masks cover surroundings without gaps", math.abs(area - screen.AbsoluteSize.X * screen.AbsoluteSize.Y) < 2)
+	player:SetAttribute("ReducedMotion", true)
+	spot:update(0)
+	local reducedY, thickness = pointer.Position.Y.Offset, layer.Focus.UIStroke.Thickness
+	spot:update(0.3125)
+	check(
+		"Reduced Motion freezes pointer and pulse",
+		pointer.Position.Y.Offset == reducedY and layer.Focus.UIStroke.Thickness == thickness
+	)
+	button.Position = UDim2.fromOffset(100, 4)
+	task.wait()
+	spot:update(0)
+	check("Top-edge control uses downward-space fallback", pointer.Rotation == 270)
+	spot:set(nil)
+	spot:update(0)
+	check("Clearing target removes dimming", not layer.Visible)
+	spot:destroy()
+	button:Destroy()
+	local liveFolder = workspace:FindFirstChild("TutorialGuidance")
+	local world = WorldGuide.new(screen)
+	local folder: Instance? = nil
+	for _, child in workspace:GetChildren() do
+		if child.Name == "TutorialGuidance" and child ~= liveFolder then
+			folder = child
+		end
+	end
+	assert(folder, "World QA folder missing")
+	folder.Name = "TutorialWorldQA"
+	local anchor = folder:FindFirstChild("WorldTarget") :: Part
+	local worldArrow = screen.WorldPointer
+	world:set(Vector3.new(0, 1000, 0), nil, nil, false)
+	player:SetAttribute("ReducedMotion", false)
+	world:update(1 / 60, 0)
+	local startY = anchor.Position.Y
+	world:update(1 / 60, 0.3125)
+	check("World arrow floats above target", math.abs(anchor.Position.Y - startY - 0.4) < 0.001)
+	check("World arrow uses same downward PNG", worldArrow.Image == Assets.FocusArrow and worldArrow.Rotation == 90)
+	player:SetAttribute("ReducedMotion", true)
+	world:update(1 / 60, 0)
+	startY = anchor.Position.Y
+	world:update(1 / 60, 0.3125)
+	check("Reduced Motion freezes world bob", anchor.Position.Y == startY)
+	local camera = workspace.CurrentCamera
+	local inFront = camera.CFrame:PointToWorldSpace(Vector3.new(0, 0, -30))
+	world:set(inFront, nil, nil, false)
+	world:update(1 / 60, 0)
+	local projected = camera:WorldToViewportPoint(inFront)
+	local inset = game:GetService("GuiService"):GetInsetArea(screen.ScreenInsets).Min
+	check(
+		"World pointer tracks screen projection and safe inset",
+		worldArrow.Visible
+			and math.abs(worldArrow.Position.X.Offset - (projected.X - inset.X)) <= 1
+			and math.abs(worldArrow.Position.Y.Offset - (projected.Y - inset.Y)) <= 1
+	)
+	world:set(camera.CFrame:PointToWorldSpace(Vector3.new(0, 0, 30)), nil, nil, false)
+	world:update(1 / 60, 0)
+	check("Behind-camera target uses edge pointer", not worldArrow.Visible and screen.OffscreenDirection.Visible)
+	world:set(nil, nil, nil, false)
+	world:update(1 / 60, 0)
+	check("Clearing world target hides pointers", not worldArrow.Visible and not screen.OffscreenDirection.Visible)
+	world:destroy()
+	check("World effect cleanup", folder.Parent == nil and worldArrow.Parent == nil)
 	local tutorial = player.PlayerGui.Tutorial
-	noImages(tutorial)
-	noImages(workspace.TutorialGuidance)
+	approvedImagesOnly(tutorial)
+	approvedImagesOnly(workspace.TutorialGuidance)
 	check("Live pointer red", tutorial.Spotlight.Focus.UIStroke.Color == Style.RED)
 end)
 screen:Destroy()
+player:SetAttribute("ReducedMotion", previousReduced)
 player:SetAttribute("TutorialPresentationQA", if ok then "Passed " .. count .. " checks" else tostring(problem))
 assert(ok, tostring(problem))
 script:Destroy()

@@ -1,8 +1,9 @@
 --!strict
--- A red outline around the REAL control. No dark masks, cloned controls or input capture.
+-- Darken the surroundings of the REAL control, leaving a clickable hole and red bouncing pointer.
 -- Rectangles are remeasured every frame, including scrolling, UIScale and differing ScreenGui safe areas.
 local GuiService = game:GetService("GuiService")
 local Style = require(script.Parent.Style)
+local Motion = require(script.Parent.Parent.System.Motion)
 local Spotlight = {}
 
 local function origin(gui: ScreenGui): Vector2
@@ -31,8 +32,9 @@ function Spotlight.rect(target: GuiObject, gui: ScreenGui): Rect?
 		parent = parent.Parent
 	end
 	local size = gui.AbsoluteSize
-	a = Vector2.new(math.max(0, a.X - 8), math.max(0, a.Y - 8))
-	b = Vector2.new(math.min(size.X, b.X + 8), math.min(size.Y, b.Y + 8))
+	-- Round the shared edges once. Independently truncating UDim2 offsets leaves bright 1px seams.
+	a = Vector2.new(math.floor(math.max(0, a.X - 8)), math.floor(math.max(0, a.Y - 8)))
+	b = Vector2.new(math.ceil(math.min(size.X, b.X + 8)), math.ceil(math.min(size.Y, b.Y + 8)))
 	return if b.X - a.X >= 4 and b.Y - a.Y >= 4 then Rect.new(a, b) else nil
 end
 
@@ -44,6 +46,14 @@ function Spotlight.new(gui: ScreenGui)
 	layer.Active = false
 	layer.Visible = false
 	layer.Parent = gui
+	local masks: { Frame } = {}
+	for _, name in { "Top", "Bottom", "Left", "Right" } do
+		local mask = Instance.new("Frame")
+		mask.Name, mask.BorderSizePixel = name, 0
+		mask.BackgroundColor3, mask.BackgroundTransparency = Color3.new(0, 0, 0), 1
+		mask.Active, mask.ZIndex, mask.Parent = false, 10, layer
+		table.insert(masks, mask)
+	end
 	local focus = Instance.new("Frame")
 	focus.Name = "Focus"
 	focus.BackgroundTransparency = 1
@@ -58,12 +68,22 @@ function Spotlight.new(gui: ScreenGui)
 	stroke.Thickness = 3
 	stroke.Parent = focus
 	local arrow = Style.arrow(layer, "Pointer", 13)
+	Style.preload()
 	local target: GuiObject? = nil
 	local api = {}
 	function api:set(nextTarget: GuiObject?)
+		if nextTarget ~= target and nextTarget then
+			Motion.popIn(arrow)
+			if not target then
+				for _, mask in masks do
+					mask.BackgroundTransparency = 1
+					Motion.tween(mask, 0.2, { BackgroundTransparency = 0.48 })
+				end
+			end
+		end
 		target = nextTarget
 	end
-	function api:update(_t: number)
+	function api:update(t: number)
 		local rect = target and Spotlight.rect(target, gui)
 		layer.Visible = rect ~= nil
 		if not rect then
@@ -74,12 +94,32 @@ function Spotlight.new(gui: ScreenGui)
 			frame.Position, frame.Size = UDim2.fromOffset(x, y), UDim2.fromOffset(math.max(0, w), math.max(0, h))
 		end
 		put(focus, a.X, a.Y, b.X - a.X, b.Y - a.Y)
-		local left = a.X > 80
-		arrow.Rotation = if left then 0 else 180
-		arrow.Position =
-			UDim2.fromOffset(if left then a.X - 36 else b.X + 36, math.clamp((a.Y + b.Y) / 2, 36, size.Y - 36))
+		put(masks[1], 0, 0, size.X, a.Y)
+		put(masks[2], 0, b.Y, size.X, size.Y - b.Y)
+		put(masks[3], 0, a.Y, a.X, b.Y - a.Y)
+		put(masks[4], b.X, a.Y, size.X - b.X, b.Y - a.Y)
+		local reduced = Motion.reduced()
+		local bounce = if reduced then 0 else (1 - math.cos(t * math.pi * 2 / 1.25)) * 4
+		local center = (a + b) / 2
+		-- Prefer above the egg/control; fall back only when that would leave the safe viewport.
+		if a.Y >= 78 then
+			arrow.Rotation, arrow.Position =
+				90, UDim2.fromOffset(math.clamp(center.X, 38, size.X - 38), a.Y - 38 - bounce)
+		elseif size.Y - b.Y >= 78 then
+			arrow.Rotation, arrow.Position =
+				270, UDim2.fromOffset(math.clamp(center.X, 38, size.X - 38), b.Y + 38 + bounce)
+		elseif a.X >= 78 then
+			arrow.Rotation, arrow.Position = 0, UDim2.fromOffset(a.X - 38 - bounce, center.Y)
+		else
+			arrow.Rotation, arrow.Position = 180, UDim2.fromOffset(b.X + 38 + bounce, center.Y)
+		end
+		stroke.Thickness = if reduced then 3 else 3.25 + math.sin(t * 4) * 0.45
 	end
 	function api:destroy()
+		Motion.stop(Motion.scaleOf(arrow))
+		for _, mask in masks do
+			Motion.stop(mask)
+		end
 		layer:Destroy()
 	end
 	return api
