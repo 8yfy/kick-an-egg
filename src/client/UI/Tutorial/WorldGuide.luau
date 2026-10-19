@@ -3,7 +3,6 @@
 -- Native ground geometry plus a projected, bouncing PNG pointer above the world target.
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
-local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 local Style = require(script.Parent.Style)
 local Motion = require(script.Parent.Parent.System.Motion)
@@ -11,6 +10,8 @@ local Route = require(script.Parent.Route)
 local WorldGuide = {}
 local RED = Style.RED
 local MAX_MARKERS, MAX_LINES = 40, 64
+-- The opaque tip of FocusArrow.svg lies 0.34 canvas widths from its center.
+local ARROW_SIZE, TIP_OFFSET, TIP_GAP = 72, 0.34, 8
 
 local function part(parent: Instance, name: string, size: Vector3): Part
 	local p = Instance.new("Part")
@@ -28,7 +29,7 @@ function WorldGuide.new(gui: ScreenGui)
 	local anchor = part(folder, "WorldTarget", Vector3.one * 0.1)
 	-- Keep the pointer in the tutorial's own layer, so it shares the UI's visibility and draw order.
 	local arrow = Style.arrow(gui, "WorldPointer", 35)
-	arrow.Size = UDim2.fromOffset(72, 72)
+	arrow.Size = UDim2.fromOffset(ARROW_SIZE, ARROW_SIZE)
 	arrow.Rotation, arrow.Visible = 90, false
 	local ring = part(folder, "TargetRing", Vector3.new(7, 0.05, 7))
 	local ringParts: { Part } = {}
@@ -132,11 +133,12 @@ function WorldGuide.new(gui: ScreenGui)
 		local reduced = Motion.reduced()
 		local wave = if reduced then 0 else math.sin(t * math.pi * 2 / 1.25)
 		arrow.Visible = false
-		if target then
-			anchor.CFrame = CFrame.new(target + Vector3.new(0, wave * 0.4, 0))
-		end
 		if ground then
 			ring.CFrame = CFrame.new(project(ground) + Vector3.new(0, 0.08, 0))
+		end
+		if target then
+			-- The target stays on the actual spot. Only the screen pointer bounces.
+			anchor.CFrame = CFrame.new(if trailOn and ground then ring.Position else target)
 		end
 		for i, segment in ringParts do
 			local angle = i * math.pi / 8
@@ -146,14 +148,42 @@ function WorldGuide.new(gui: ScreenGui)
 		local camera = workspace.CurrentCamera
 		edge.Visible = false
 		if target and camera then
-			local point, visible = camera:WorldToViewportPoint(anchor.Position)
-			local size = gui.AbsoluteSize
-			local p = Vector2.new(point.X, point.Y) - GuiService:GetInsetArea(gui.ScreenInsets).Min
-			if visible and point.Z > 0 then
-				arrow.Position = UDim2.fromOffset(math.clamp(p.X, 36, size.X - 36), math.clamp(p.Y, 36, size.Y - 36))
-				arrow.Visible = true
+			-- CoreUISafeInsets is relative to the core area; it does not include the top-bar offset.
+			local point, visible
+			if gui.IgnoreGuiInset then
+				point, visible = camera:WorldToViewportPoint(anchor.Position)
+			else
+				point, visible = camera:WorldToScreenPoint(anchor.Position)
 			end
-			if not visible or point.Z <= 0 then
+			local size = gui.AbsoluteSize
+			local p = Vector2.new(point.X, point.Y)
+			local bounce = if reduced then 0 else (1 - math.cos(t * math.pi * 2 / 1.25)) * 4
+			local offset = ARROW_SIZE * TIP_OFFSET + TIP_GAP
+			local margin = ARROW_SIZE / 2 + 6
+			local function place(direction: Vector2, rotation: number): boolean
+				local rest = p - direction * offset
+				local peak = rest - direction * (if reduced then 0 else 8)
+				-- Reserve the full bounce so an idle arrow cannot flip sides every cycle at an edge.
+				if
+					math.min(rest.X, peak.X) < margin
+					or math.max(rest.X, peak.X) > size.X - margin
+					or math.min(rest.Y, peak.Y) < margin
+					or math.max(rest.Y, peak.Y) > size.Y - margin
+				then
+					return false
+				end
+				local at = rest - direction * bounce
+				arrow.Position, arrow.Rotation = UDim2.fromOffset(at.X, at.Y), rotation
+				arrow.Visible = true
+				return true
+			end
+			if visible and point.Z > 0 then
+				-- Align the visible tip to the destination; never clamp a downward arrow past its target.
+				if not place(Vector2.yAxis, 90) and not place(-Vector2.yAxis, 270) and not place(Vector2.xAxis, 0) then
+					place(-Vector2.xAxis, 180)
+				end
+			end
+			if not arrow.Visible then
 				local direction = p - size / 2
 				if point.Z <= 0 then
 					direction = -direction

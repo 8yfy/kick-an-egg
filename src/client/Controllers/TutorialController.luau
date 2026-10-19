@@ -89,7 +89,7 @@ local function penTarget(): (Vector3?, Instance?, Vector3?, boolean)
 	local floor = if inside
 		then area.Position
 		else area.CFrame:PointToWorldSpace(Vector3.new(0, 0, -area.Size.Z / 2 - 3))
-	return floor + Vector3.new(0, 5, 0), b, floor, inside
+	return floor, b, floor, inside
 end
 
 local function modelTarget(model: Model?): (Vector3?, Instance?, Vector3?)
@@ -97,7 +97,7 @@ local function modelTarget(model: Model?): (Vector3?, Instance?, Vector3?)
 		return nil, nil, nil
 	end
 	local cf, size = model:GetBoundingBox()
-	return cf.Position + Vector3.new(0, size.Y / 2 + 3, 0), model, cf.Position - Vector3.new(0, size.Y / 2, 0)
+	return cf.Position + Vector3.new(0, size.Y / 2, 0), model, cf.Position - Vector3.new(0, size.Y / 2, 0)
 end
 
 local function shopTarget(): (Vector3?, Instance?, Vector3?)
@@ -105,7 +105,7 @@ local function shopTarget(): (Vector3?, Instance?, Vector3?)
 	local shop = map and map:FindFirstChild("BoxingSackShop", true)
 	local approach = shop and shop:FindFirstChild("Approach")
 	if approach and approach:IsA("BasePart") then
-		return approach.Position + Vector3.new(0, 5, 0), shop, approach.Position
+		return approach.Position, shop, approach.Position
 	end
 	return nil, nil, nil
 end
@@ -154,12 +154,7 @@ local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vec
 		local map = workspace:FindFirstChild("Map")
 		local pad = map and map:FindFirstChild("KickPad")
 		local p = if pad and pad:IsA("BasePart") then pad.Position else nil
-		return if step == S.COLLECT then "Try another kick!" else "Head to the kicking line.",
-			nil,
-			p and p + Vector3.new(0, 5, 0),
-			pad,
-			p,
-			true
+		return if step == S.COLLECT then "Try another kick!" else "Head to the kicking line.", nil, p, pad, p, true
 	elseif step == S.WATCH_EGG then
 		return if workspace:GetServerTimeNow() < flightUntil
 			then "There goes your egg!"
