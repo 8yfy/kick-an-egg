@@ -1,9 +1,8 @@
 --!strict
--- Four non-interactive masks leave a real hole around the REAL button. No cloned controls or input capture.
+-- A red outline around the REAL control. No dark masks, cloned controls or input capture.
 -- Rectangles are remeasured every frame, including scrolling, UIScale and differing ScreenGui safe areas.
 local GuiService = game:GetService("GuiService")
-local Assets = require(script.Parent.Assets)
-local Motion = require(script.Parent.Parent.System.Motion)
+local Style = require(script.Parent.Style)
 local Spotlight = {}
 
 local function origin(gui: ScreenGui): Vector2
@@ -45,18 +44,6 @@ function Spotlight.new(gui: ScreenGui)
 	layer.Active = false
 	layer.Visible = false
 	layer.Parent = gui
-	local masks: { Frame } = {}
-	for _, name in { "Top", "Bottom", "Left", "Right" } do
-		local mask = Instance.new("Frame")
-		mask.Name = name
-		mask.BorderSizePixel = 0
-		mask.BackgroundColor3 = Color3.new(0, 0, 0)
-		mask.BackgroundTransparency = 0.62
-		mask.Active = false
-		mask.ZIndex = 10
-		mask.Parent = layer
-		table.insert(masks, mask)
-	end
 	local focus = Instance.new("Frame")
 	focus.Name = "Focus"
 	focus.BackgroundTransparency = 1
@@ -67,24 +54,16 @@ function Spotlight.new(gui: ScreenGui)
 	corner.CornerRadius = UDim.new(0, 14)
 	corner.Parent = focus
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(255, 216, 74)
+	stroke.Color = Style.RED
 	stroke.Thickness = 3
 	stroke.Parent = focus
-	local arrow = Instance.new("ImageLabel")
-	arrow.Name = "Pointer"
-	arrow.BackgroundTransparency = 1
-	arrow.Size = UDim2.fromOffset(64, 64)
-	arrow.AnchorPoint = Vector2.new(0.5, 0.5)
-	arrow.Image = Assets.Pointer
-	arrow.ZIndex = 13
-	arrow.Active = false
-	arrow.Parent = layer
+	local arrow = Style.arrow(layer, "Pointer", 13)
 	local target: GuiObject? = nil
 	local api = {}
 	function api:set(nextTarget: GuiObject?)
 		target = nextTarget
 	end
-	function api:update(t: number)
+	function api:update(_t: number)
 		local rect = target and Spotlight.rect(target, gui)
 		layer.Visible = rect ~= nil
 		if not rect then
@@ -94,20 +73,11 @@ function Spotlight.new(gui: ScreenGui)
 		local function put(frame: Frame, x: number, y: number, w: number, h: number)
 			frame.Position, frame.Size = UDim2.fromOffset(x, y), UDim2.fromOffset(math.max(0, w), math.max(0, h))
 		end
-		put(masks[1], 0, 0, size.X, a.Y)
-		put(masks[2], 0, b.Y, size.X, size.Y - b.Y)
-		put(masks[3], 0, a.Y, a.X, b.Y - a.Y)
-		put(masks[4], b.X, a.Y, size.X - b.X, b.Y - a.Y)
 		put(focus, a.X, a.Y, b.X - a.X, b.Y - a.Y)
-		local reduced = Motion.reduced()
 		local left = a.X > 80
-		local bob = if reduced then 0 else math.sin(t * 4) * 4
 		arrow.Rotation = if left then 0 else 180
-		arrow.Position = UDim2.fromOffset(
-			if left then a.X - 42 + bob else b.X + 42 - bob,
-			math.clamp((a.Y + b.Y) / 2, 36, size.Y - 36)
-		)
-		stroke.Thickness = if reduced then 3 else 3 + math.sin(t * 4) * 0.65
+		arrow.Position =
+			UDim2.fromOffset(if left then a.X - 36 else b.X + 36, math.clamp((a.Y + b.Y) / 2, 36, size.Y - 36))
 	end
 	function api:destroy()
 		layer:Destroy()

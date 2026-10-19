@@ -17,7 +17,7 @@ RunService:BindToRenderStep("TutorialRouteMotionQA", Enum.RenderPriority.Camera.
 	report.frames += 1
 	report.maxDt = math.max(report.maxDt, dt)
 	local moved = (currentRoot.Position - previousRoot).Magnitude
-	if marker.SurfaceGui.ImageLabel.Visible and moved > 0.02 then
+	if marker:GetAttribute("Active") and moved > 0.02 then
 		report.moving += 1
 		local distance = (marker.Position - previousMarker).Magnitude
 		report.maxStep = math.max(report.maxStep, distance)
@@ -29,7 +29,7 @@ RunService:BindToRenderStep("TutorialRouteMotionQA", Enum.RenderPriority.Camera.
 		local last = marker
 		for i = 2, 40 do
 			local other = folder:FindFirstChild("PathMarker" .. i) :: Part
-			if other.SurfaceGui.ImageLabel.Visible then
+			if other:GetAttribute("Active") then
 				last = other
 			end
 		end

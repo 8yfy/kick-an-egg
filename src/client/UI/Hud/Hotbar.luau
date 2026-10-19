@@ -200,6 +200,9 @@ function Hotbar.new(parent: Instance, kickPanel: GuiObject?): Hotbar
 		for i, t in tiles do
 			local item = if i <= maxItems and not kicking then items[i] else nil
 			t.holder.Visible = item ~= nil
+			-- Lets contextual guidance point at the actual live slot, even when its order changes.
+			t.tile:SetAttribute("ItemUid", if item then item.uid else nil)
+			t.tile:SetAttribute("ItemKind", if item then item.kind else nil)
 			if item then
 				local id = item.kind .. ":" .. item.key
 				if id ~= shown[i] then

@@ -17,6 +17,7 @@ local Spotlight = require(UI.Tutorial.Spotlight)
 local WorldGuide = require(UI.Tutorial.WorldGuide)
 local Objective = require(UI.Tutorial.Objective)
 local Welcome = require(UI.Tutorial.Welcome)
+local Focus = require(UI.Tutorial.Focus)
 local S = Rules.Steps
 local Controller = {}
 local player = Players.LocalPlayer
@@ -25,6 +26,7 @@ local started = false
 local gui: ScreenGui?
 local spot: any, world: any, objective: any
 local welcome: any
+local focus: any
 local connections: { RBXScriptConnection } = {}
 local replay, dismissed, completedHere = false, false, false
 local celebrateUntil, flightUntil = 0, 0
@@ -172,33 +174,19 @@ local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vec
 		local tool = held(if isEgg then "EggUid" else "PetUid")
 		local p, thing, floor, inside = penTarget()
 		if not tool then
-			local drawer = find(h, if isEgg then "EggsDrawer" else "PetsDrawer")
-			if drawer and drawer.Visible then
-				local uid: string? = nil
-				if isEgg then
-					for _, egg in Data.state.eggs or {} do
-						uid = egg.uid
+			local hotbar = h and h:FindFirstChild("Hotbar", true)
+			local tile: GuiObject? = nil
+			if hotbar then
+				for _, slot in hotbar:GetChildren() do
+					local button = find(slot, "Tile")
+					if button and button:GetAttribute("ItemKind") == (if isEgg then "Egg" else "Pet") then
+						tile = button
 						break
 					end
-				else
-					for key, pet in Data.state.pets or {} do
-						if not pet.placed then
-							uid = key
-							break
-						end
-					end
 				end
-				local row = uid and drawer:FindFirstChild(uid, true)
-				return if isEgg then "Hold your egg." else "Place your pet in your pen.",
-					find(row, if isEgg then "Hold" else "Place"),
-					nil,
-					nil,
-					nil,
-					false
 			end
-			local rail = h and h:FindFirstChild("RightRail", true)
-			return if isEgg then "Open your Eggs." else "Open your Pets.",
-				find(rail, if isEgg then "Eggs" else "Pets"),
+			return if isEgg then "Select your egg in the hotbar." else "Select your pet in the hotbar.",
+				tile,
 				nil,
 				nil,
 				nil,
@@ -230,6 +218,7 @@ local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vec
 end
 
 local function finish()
+	focus:restore()
 	welcome:show(false)
 	replay, dismissed, completedHere = false, false, true
 	replayPetAt = nil
@@ -334,11 +323,13 @@ function Controller:Start()
 			Remotes.get("SkipTutorial"):FireServer()
 		end
 		dismissed, completedHere, celebrateUntil = true, false, 0
+		focus:restore()
 		screen:SetAttribute("AwaitingContinue", false)
 		welcome:show(false)
 		clear()
 	end
 	objective = Objective.new(screen, skip)
+	focus = Focus.new()
 	welcome = Welcome.new(screen, function()
 		begun, welcomeVisible = true, false
 		welcome:show(false)
@@ -393,6 +384,17 @@ function Controller:Start()
 			or (trade and trade.Visible)
 			or (scrim and scrim:IsA("GuiObject") and scrim.Visible)
 		local paused = cinematic or menuOpen
+		local saved = Data.state.tutorial or {}
+		local onboarding = Data.loaded()
+			and not dismissed
+			and not completedHere
+			and (replay or (not saved.done and not saved.skipped))
+		focus:update(
+			h,
+			onboarding and not menuOpen,
+			player:GetAttribute("TutorialStep") == S.INCOME or screen:GetAttribute("ObjectiveId") == "income"
+		)
+		screen:SetAttribute("FocusActive", onboarding and not menuOpen)
 		screen.Enabled = not paused
 		if paused then
 			spot:set(nil)
@@ -474,6 +476,7 @@ function Controller:Start()
 				clear()
 			end
 		end
+		objective:update(t)
 		spot:update(t)
 		world:update(dt, t)
 	end)
@@ -496,6 +499,9 @@ function Controller:Destroy()
 	end
 	if welcome then
 		welcome:destroy()
+	end
+	if focus then
+		focus:destroy()
 	end
 	if gui then
 		gui:Destroy()

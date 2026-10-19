@@ -1,90 +1,83 @@
 --!strict
-local TweenService = game:GetService("TweenService")
-local Assets = require(script.Parent.Assets)
 local System = script.Parent.Parent.System
-local AssetIds = require(System.AssetIds)
 local Motion = require(System.Motion)
 local Theme = require(System.Theme)
 local Ui = require(System.Ui)
-local Audio = require(game:GetService("ReplicatedStorage").Shared.Audio)
+local Style = require(script.Parent.Style)
 local Objective = {}
-local C, L, M = Theme.Colors, Theme.Layout, Theme.Motion
-local STAGE_ICONS = {
-	AssetIds.get("01_burlap_sack"),
-	AssetIds.get("hud_eggs"),
-	AssetIds.get("hud_pets"),
-	AssetIds.get("premium_icons_currency_cash"),
-}
+local C, L = Theme.Colors, Theme.Layout
 
 function Objective.new(gui: ScreenGui, skip: () -> ())
 	local card = Ui.frame(gui, "Objective")
-	card.AnchorPoint = Vector2.new(0.5, 0)
-	card.ZIndex, card.Visible = 40, false
-	local shadow = Ui.frame(card, "Shadow", UDim2.fromScale(1, 1), UDim2.fromOffset(0, 6))
+	card.AnchorPoint, card.ZIndex, card.Visible = Vector2.new(0.5, 0), 40, false
+	-- Padding gives the original border and shadow room inside the fading group.
+	local reveal = Instance.new("CanvasGroup")
+	reveal.Name, reveal.BackgroundTransparency = "Reveal", 1
+	reveal.Position, reveal.Size = UDim2.fromOffset(-6, -6), UDim2.new(1, 12, 1, 24)
+	reveal.Parent = card
+	local content = Ui.frame(reveal, "Content", UDim2.new(1, -12, 1, -24), UDim2.fromOffset(6, 6))
+	local shadow = Ui.frame(content, "Shadow", UDim2.fromScale(1, 1), UDim2.fromOffset(0, 6))
 	shadow.BackgroundColor3, shadow.BackgroundTransparency = C.border, 0.35
 	Ui.corner(shadow, L.radius + 2)
-	local panel = Ui.surface(card, "Panel", C.body, Theme.Studs.body, L.border)
+	local panel = Style.surface(content, "Panel")
 	panel.Size, panel.ZIndex = UDim2.fromScale(1, 1), 1
-	local header = Ui.header(panel, Theme.Headers.confirm, "First pet", nil, 32, L.minText)
+	local header = Style.header(panel, "FIRST PET", 32, L.minText)
 	local heading = header.title
-	heading.Name = "Heading"
-	heading.AutomaticSize = Enum.AutomaticSize.None
-	heading.Size = UDim2.fromScale(1, 1)
-	heading:FindFirstChildOfClass("UIStroke").Thickness = 2
 	local divider = Ui.frame(panel, "HeaderEdge", UDim2.new(1, 0, 0, 3), UDim2.fromOffset(0, 30))
 	divider.BackgroundColor3, divider.BackgroundTransparency, divider.ZIndex = C.border, 0, 4
-	local icon = Instance.new("ImageLabel")
-	icon.Name, icon.BackgroundTransparency = "Icon", 1
-	icon.Image, icon.ScaleType = STAGE_ICONS[1] or Assets.WorldArrow, Enum.ScaleType.Fit
-	icon.Position, icon.Size = UDim2.fromOffset(14, 38), UDim2.fromOffset(42, 46)
-	icon.ZIndex, icon.Parent = 2, panel
 	local sentence = Ui.text(panel, "", 22, { name = "Sentence", stroke = 2 })
 	sentence.TextWrapped, sentence.TextTruncate, sentence.ZIndex = true, Enum.TextTruncate.None, 2
-	local skipButton = Ui.button(panel, {
+	local skipButton = Style.button(panel, {
 		name = "Skip",
 		text = "SKIP",
-		style = "grey",
+		style = "red",
 		size = UDim2.fromOffset(80, 48),
 		textSize = L.minText,
 		onClick = skip,
 	})
 	skipButton.gui.AnchorPoint, skipButton.gui.Position = Vector2.new(1, 0), UDim2.new(1, -12, 0, 37)
 	skipButton.gui.ZIndex = 3
-	local progress = Ui.progress(panel, Theme.Buttons.lime, 5, L.minText)
+	local progress = Ui.progress(panel, Theme.Buttons.red, 5, L.minText)
 	progress.gui.Name, progress.gui.Position = "StageProgress", UDim2.fromOffset(14, 88)
-	progress.gui.Size = UDim2.new(1, -28, 0, 5)
-	progress.gui.ZIndex = 2
+	progress.gui.Size, progress.gui.ZIndex = UDim2.new(1, -28, 0, 5), 2
 	progress.gui:FindFirstChildOfClass("UIStroke").Thickness = 1
 	progress.gui.Text.Visible = false
-	local last, lastStage = "", 0
-	local successUntil = 0
-	local optional = false
-	local scale = Motion.scaleOf(card)
+	local epoch, last, lastStage = 0, "", 0
+	local optional, complete = false, false
+	local hint = Style.button(card, {
+		name = "Hint",
+		text = "SHOW HINT",
+		style = "red",
+		size = UDim2.fromOffset(156, 48),
+		textSize = L.minText,
+		onClick = function()
+			epoch = os.clock()
+		end,
+	})
+	hint.gui.AnchorPoint, hint.gui.Position = Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0)
+	hint.gui.Visible = false
+	local scale = Motion.scaleOf(reveal)
 	local api = {}
-	function api:show(value: string?, stage: number?, complete: boolean?)
+	function api:show(value: string?, stage: number?, done: boolean?)
 		card.Visible = value ~= nil
 		if not value then
-			last = ""
+			last, epoch = "", 0
 			return
+		end
+		complete = done == true
+		if value ~= last then
+			last, epoch = value, os.clock()
 		end
 		sentence.Text = value
 		heading.Text = if complete
 			then "FIRST PET COMPLETE!"
 			elseif optional then "OPTIONAL NEXT STEP"
 			else "STEP " .. (stage or 1) .. "/4 • FIRST PET"
-		icon.Image = if complete or os.clock() < successUntil
-			then AssetIds.get("icon_check") or Assets.Checkmark
-			else STAGE_ICONS[stage or 1] or Assets.WorldArrow
 		skipButton.setText(if optional then "LATER" else "SKIP")
 		skipButton.gui.Visible = not complete
 		if stage ~= lastStage then
 			lastStage = stage or 1
 			progress.set(lastStage / 4)
-		end
-		if value ~= last then
-			scale.Scale = if Motion.reduced() then 1 else 0.97
-			Motion.tween(scale, M.reveal, { Scale = 1 })
-			last = value
 		end
 	end
 	function api:layout()
@@ -93,18 +86,27 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 		local narrow = width < 390
 		card.Size = UDim2.fromOffset(width, 96)
 		card.Position = UDim2.new(0.5, 0, 0, if vp.Y < 480 then 4 else 24)
-		icon.Visible = not narrow
-		local inset, reserve = if narrow then 14 else 68, if narrow then 108 else 172
-		sentence.Position, sentence.Size = UDim2.fromOffset(inset, 36), UDim2.new(1, -reserve, 0, 48)
+		sentence.Position, sentence.Size = UDim2.fromOffset(14, 36), UDim2.new(1, if narrow then -108 else -120, 0, 48)
 		sentence.TextSize = if width < 340 then L.minText elseif narrow then 18 else 22
 		skipButton.gui.Size = UDim2.fromOffset(if narrow then 68 else 80, 48)
 	end
-	function api:success()
-		successUntil = os.clock() + 0.7
-		Audio.play("UISuccess")
-		icon.Image = AssetIds.get("icon_check") or Assets.Checkmark
-		Motion.popIn(icon)
+	function api:update(t: number)
+		-- Keep the previous styled card, briefly tuck it away while the player acts,
+		-- then repeat the instruction if needed. SHOW HINT recalls it immediately.
+		local elapsed = (t - epoch) % 10
+		local alpha = if complete then 0 else math.clamp((elapsed - 4) / 0.2, 0, 1)
+		if elapsed < 0.18 and not complete then
+			alpha = 1 - elapsed / 0.18
+		end
+		if Motion.reduced() then
+			alpha = if alpha < 0.5 then 0 else 1
+		end
+		reveal.GroupTransparency, reveal.Visible = alpha, alpha < 1
+		scale.Scale = if Motion.reduced() or complete then 1 else 1 - alpha * 0.03
+		hint.gui.Visible = not complete and not reveal.Visible
+		gui:SetAttribute("PromptVisible", card.Visible and reveal.Visible)
 	end
+	function api:success() end -- The existing progress-bar tween supplies feedback without extra effects.
 	function api:optional(on: boolean)
 		optional = on
 	end
@@ -113,28 +115,6 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 	end
 	function api:complete()
 		self:show("You're ready!", 4, true)
-		self:success()
-		if Motion.reduced() then
-			return
-		end
-		for i = 1, 8 do
-			local spark = Instance.new("ImageLabel")
-			spark.Name, spark.Image = "CompletionSparkle", AssetIds.get("fx_sparkle") or Assets.Sparkle
-			spark.BackgroundTransparency = 1
-			spark.Size, spark.Position = UDim2.fromOffset(22, 22), UDim2.new(0.5, 0, 0.5, 0)
-			spark.AnchorPoint, spark.ZIndex, spark.Parent = Vector2.new(0.5, 0.5), 48, card
-			local angle = i * math.pi / 4
-			local tween =
-				TweenService:Create(spark, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Position = UDim2.new(0.5, math.cos(angle) * 120, 0.5, math.sin(angle) * 65),
-					ImageTransparency = 1,
-					Rotation = i * 25,
-				})
-			tween.Completed:Once(function()
-				spark:Destroy()
-			end)
-			tween:Play()
-		end
 	end
 	function api:destroy()
 		Motion.stop(scale)

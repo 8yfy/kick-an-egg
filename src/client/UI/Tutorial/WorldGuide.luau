@@ -1,15 +1,14 @@
 --!strict
 -- A continuous, bounded route from the player's CURRENT feet to the target.
--- Front-facing image planes avoid the Top SurfaceGui's sideways texture axes.
+-- Native red geometry keeps guidance visible without loading image assets.
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
-local Assets = require(script.Parent.Assets)
+local Style = require(script.Parent.Style)
 local Route = require(script.Parent.Route)
-local Motion = require(script.Parent.Parent.System.Motion)
 local WorldGuide = {}
-local GOLD = Color3.fromRGB(255, 216, 74)
+local RED = Style.RED
 local MAX_MARKERS, MAX_LINES = 40, 64
 
 local function part(parent: Instance, name: string, size: Vector3): Part
@@ -19,21 +18,6 @@ local function part(parent: Instance, name: string, size: Vector3): Part
 	p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery, p.CastShadow = true, false, false, false, false
 	p.Parent = parent
 	return p
-end
-
-local function surface(p: Part, image: string, face: Enum.NormalId): ImageLabel
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = face
-	gui.LightInfluence = 0
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 60
-	gui.Parent = p
-	local art = Instance.new("ImageLabel")
-	art.BackgroundTransparency = 1
-	art.Size = UDim2.fromScale(1, 1)
-	art.Image = image
-	art.Parent = gui
-	return art
 end
 
 function WorldGuide.new(gui: ScreenGui)
@@ -50,41 +34,45 @@ function WorldGuide.new(gui: ScreenGui)
 	billboard.MaxDistance = 300
 	billboard.Enabled = false
 	billboard.Parent = anchor
-	local arrow = Instance.new("ImageLabel")
-	arrow.BackgroundTransparency = 1
-	arrow.Size = UDim2.fromScale(1, 1)
-	arrow.Image = Assets.WorldArrow
-	arrow.Parent = billboard
+	local arrow = Style.arrow(billboard, "Arrow", 1)
+	arrow.Position, arrow.Rotation = UDim2.fromScale(0.5, 0.5), 90
 	local ring = part(folder, "TargetRing", Vector3.new(7, 0.05, 7))
-	local ringArt = surface(ring, Assets.TargetRing, Enum.NormalId.Top)
-	ringArt.Visible = false
+	local ringParts: { Part } = {}
+	for i = 1, 16 do
+		local segment = part(ring, "Segment" .. i, Vector3.new(0.18, 0.06, 1.36))
+		segment.Material, segment.Color = Enum.Material.Neon, RED
+		table.insert(ringParts, segment)
+	end
 	local markers: { Part } = {}
-	local markerArt: { ImageLabel } = {}
+	local markerBars: { { Part } } = {}
 	local heights: { number } = {}
 	local lines: { Part } = {}
 	for i = 1, MAX_MARKERS do
 		local marker = part(folder, "PathMarker" .. i, Vector3.new(2.6, 2.9, 0.03))
-		local art = surface(marker, Assets.PathMarker, Enum.NormalId.Front)
-		art.Visible = false
+		marker:SetAttribute("Active", false)
+		local bars = {}
+		for side = -1, 1, 2 do
+			local bar = part(marker, if side < 0 then "Left" else "Right", Vector3.new(0.24, 1.4, 0.06))
+			bar.Material, bar.Color = Enum.Material.Neon, RED
+			table.insert(bars, bar)
+		end
 		table.insert(markers, marker)
-		table.insert(markerArt, art)
+		table.insert(markerBars, bars)
 	end
 	for i = 1, MAX_LINES do
 		local line = part(folder, "RouteLine" .. i, Vector3.one)
-		line.Material, line.Color = Enum.Material.Neon, GOLD
+		line.Material, line.Color = Enum.Material.Neon, RED
 		table.insert(lines, line)
 	end
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "WorldFocus"
-	highlight.FillColor, highlight.OutlineColor = GOLD, GOLD
+	highlight.FillColor, highlight.OutlineColor = RED, RED
 	highlight.FillTransparency, highlight.OutlineTransparency = 0.9, 0.1
 	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
 	highlight.Enabled = false
 	highlight.Parent = folder
-	local edge = Instance.new("ImageLabel")
+	local edge = Style.arrow(gui, "OffscreenDirection", 35)
 	edge.Name = "OffscreenDirection"
-	edge.BackgroundTransparency = 1
-	edge.Image = Assets.Pointer
 	edge.Size = UDim2.fromOffset(52, 52)
 	edge.AnchorPoint = Vector2.new(0.5, 0.5)
 	edge.ZIndex = 35
@@ -119,8 +107,11 @@ function WorldGuide.new(gui: ScreenGui)
 	local function invalidate()
 		version += 1
 		path, heights = {}, {}
-		for _, art in markerArt do
-			art.Visible = false
+		for i, marker in markers do
+			marker:SetAttribute("Active", false)
+			for _, bar in markerBars[i] do
+				bar.Transparency = 1
+			end
 		end
 		nextRequest, checkAt, groundAt = 0, 0, 0
 		connectorOK = false
@@ -144,14 +135,17 @@ function WorldGuide.new(gui: ScreenGui)
 			invalidate()
 		end
 		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local reduced = Motion.reduced()
 		billboard.Enabled = target ~= nil
-		ringArt.Visible = target ~= nil and ground ~= nil
 		if target then
-			anchor.CFrame = CFrame.new(target + Vector3.new(0, if reduced then 0 else math.sin(t * 3.5) * 0.35, 0))
+			anchor.CFrame = CFrame.new(target)
 		end
 		if ground then
 			ring.CFrame = CFrame.new(project(ground) + Vector3.new(0, 0.08, 0))
+		end
+		for i, segment in ringParts do
+			local angle = i * math.pi / 8
+			segment.CFrame = ring.CFrame * CFrame.Angles(0, angle, 0) * CFrame.new(3.5, 0, 0)
+			segment.Transparency = if target and ground then 0.2 else 1
 		end
 		local camera = workspace.CurrentCamera
 		edge.Visible = false
@@ -221,8 +215,11 @@ function WorldGuide.new(gui: ScreenGui)
 							if alive and token == version then
 								path = points
 								heights = {}
-								for _, art in markerArt do
-									art.Visible = false
+								for i, marker in markers do
+									marker:SetAttribute("Active", false)
+									for _, bar in markerBars[i] do
+										bar.Transparency = 1
+									end
 								end
 								checkAt = 0
 							end
@@ -249,10 +246,10 @@ function WorldGuide.new(gui: ScreenGui)
 		end
 		local blend = 1 - math.exp(-22 * dt)
 		for i, marker in markers do
-			local art = markerArt[i]
-			local wasVisible = art.Visible
-			art.Visible = i <= count
-			if art.Visible then
+			local wasVisible = marker:GetAttribute("Active") == true
+			local visible = i <= count
+			marker:SetAttribute("Active", visible)
+			if visible then
 				local at, direction = Route.sample(tail, math.min(length, lead + (i - 1) * spacing))
 				local forward = Vector3.new(direction.X, 0, direction.Z)
 				if forward.Magnitude < 0.001 then
@@ -262,13 +259,16 @@ function WorldGuide.new(gui: ScreenGui)
 					heights[i] = project(at).Y
 				end
 				local floor = Vector3.new(at.X, heights[i] + 0.12, at.Z)
-				-- PNG up = part.UpVector. Its FRONT face looks upward; the arrow therefore points along the route.
+				-- The two bars form a chevron pointing along the marker's UpVector (the route).
 				local cf = Route.frame(floor, forward)
 				marker.CFrame = if wasVisible then marker.CFrame:Lerp(cf, blend) else cf
-				local alpha = 0.1 + 0.12 * (0.5 + math.sin(t * 4 - i * 0.65) * 0.5)
-				art.ImageTransparency = if reduced
-					then 0.12
-					else (if wasVisible then art.ImageTransparency else 1) * (1 - blend) + alpha * blend
+			end
+			for sideIndex, bar in markerBars[i] do
+				local side = if sideIndex == 1 then -1 else 1
+				bar.CFrame = marker.CFrame
+					* CFrame.new(side * 0.45, -0.025, 0)
+					* CFrame.Angles(0, 0, side * math.atan(0.9 / 1.05))
+				bar.Transparency = if visible then 0.1 else 1
 			end
 		end
 		for i, line in lines do

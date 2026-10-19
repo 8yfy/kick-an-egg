@@ -6,6 +6,7 @@ local System = script.Parent.Parent.System
 local Motion = require(System.Motion)
 local Theme = require(System.Theme)
 local Ui = require(System.Ui)
+local Style = require(script.Parent.Style)
 local Welcome = {}
 local C, L, M = Theme.Colors, Theme.Layout, Theme.Motion
 
@@ -18,10 +19,10 @@ function Welcome.new(gui: ScreenGui, begin: () -> (), skip: () -> ())
 	local shadow = Ui.frame(root, "Shadow", UDim2.fromScale(1, 1), UDim2.fromOffset(0, 6))
 	shadow.BackgroundColor3, shadow.BackgroundTransparency = C.border, 0.35
 	Ui.corner(shadow, L.radius + 2)
-	local panel = Ui.surface(root, "Panel", C.body, Theme.Studs.body, L.border)
+	local panel = Style.surface(root, "Panel")
 	panel.Size = UDim2.fromScale(1, 1)
 	panel.ZIndex = 1
-	local header = Ui.header(panel, Theme.Headers.confirm, "Tutorial", "hud_eggs", 64, 32)
+	local header = Style.header(panel, "TUTORIAL", 64, 32)
 	local divider = Ui.frame(panel, "HeaderEdge", UDim2.new(1, 0, 0, 4), UDim2.fromOffset(0, 62))
 	divider.BackgroundColor3, divider.BackgroundTransparency = C.border, 0
 	divider.ZIndex = 4
@@ -47,18 +48,18 @@ function Welcome.new(gui: ScreenGui, begin: () -> (), skip: () -> ())
 	message.ZIndex = 2
 	local actions = Ui.frame(panel, "Actions", UDim2.new(1, -40, 0, 52), UDim2.fromOffset(20, 208))
 	actions.ZIndex = 3
-	local continueButton = Ui.button(actions, {
+	local continueButton = Style.button(actions, {
 		name = "Continue",
 		text = "CONTINUE",
-		style = "lime",
+		style = "red",
 		size = UDim2.new(0.62, -6, 1, 0),
 		textSize = 24,
 		onClick = begin,
 	})
-	local skipButton = Ui.button(actions, {
+	local skipButton = Style.button(actions, {
 		name = "Skip",
 		text = "SKIP",
-		style = "grey",
+		style = "red",
 		size = UDim2.new(0.38, -6, 1, 0),
 		textSize = 20,
 		onClick = skip,
