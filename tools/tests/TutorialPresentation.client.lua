@@ -9,6 +9,8 @@ local Style = require(modules.Style)
 local Assets = require(modules.Assets)
 local Spotlight = require(modules.Spotlight)
 local WorldGuide = require(modules.WorldGuide)
+local Motion = require(player.PlayerScripts.Client.UI.System.Motion)
+local Theme = require(player.PlayerScripts.Client.UI.System.Theme)
 local previousReduced = player:GetAttribute("ReducedMotion")
 local count = 0
 local function check(name: string, pass: boolean)
@@ -69,6 +71,16 @@ local ok, problem = pcall(function()
 			local body = card.Reveal.Content.Panel
 			check("Objective text fits " .. phrase, body.Sentence.TextFits)
 			check("Objective tap target", body.Skip.AbsoluteSize.Y >= 48)
+			-- Include the visible border and real hover enlargement, not just the button rectangle.
+			local buttonScale = Motion.scaleOf(body.Skip)
+			buttonScale.Scale = Theme.Motion.hoverScale
+			task.wait()
+			local lowerEdge = body.Skip.AbsolutePosition.Y
+				+ body.Skip.AbsoluteSize.Y
+				+ body.Skip.UIStroke.Thickness * Theme.Motion.hoverScale
+			local progressTop = body.StageProgress.AbsolutePosition.Y - body.StageProgress.UIStroke.Thickness
+			check("Skip border clears progress while hovered", progressTop - lowerEdge >= 4)
+			buttonScale.Scale = 1
 			check("Visible cue", card.Reveal.Visible and not card.Hint.Visible)
 			objective:update(os.clock() + 5)
 			check("Quiet interval keeps hint available", not card.Reveal.Visible and card.Hint.Visible)

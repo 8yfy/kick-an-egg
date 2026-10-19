@@ -20,11 +20,9 @@ GOLD = "#ffd43a"
 def make(name):
     icon = icons.Icon()
     if name == "FocusArrow":
-        path = 'd="M35 88 H125 V40 L222 128 L125 216 V168 H35 Q25 168 25 158 V98 Q25 88 35 88Z"'
-        icon.raw(f'<path {path} transform="translate(0 5)" fill="#080a10" stroke="#080a10" stroke-width="22" stroke-linejoin="round"/>')
-        icon.raw(f'<path {path} fill="#fff2ed" stroke="#fff2ed" stroke-width="11" stroke-linejoin="round"/>')
-        icon.shape("path", path, "#ff493e", 4)
-        icon.gloss("path", 'd="M39 100 H137 V67 L192 117 H39 Q35 117 35 111 V104 Q35 100 39 100Z"', .45)
+        path = 'd="M43 96 H132 V55 L211 128 L132 201 V160 H43 Q35 160 35 152 V104 Q35 96 43 96Z"'
+        icon.raw('<defs><linearGradient id="focus-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6558"/><stop offset="1" stop-color="#ef4239"/></linearGradient></defs>')
+        icon.raw(f'<path {path} fill="url(#focus-red)" stroke="#080a10" stroke-width="8" stroke-linejoin="round"/>')
     elif name == "Pointer":
         icon.shape("path", 'd="M38 91 H132 V43 L220 128 L132 213 V165 H38 Z"', GOLD)
         icon.gloss("path", 'd="M50 102 H145 V72 L194 120 H50 Z"', .5)
@@ -49,7 +47,7 @@ def make(name):
     else:
         icon.shape("path", 'd="M38 121 L128 38 L218 121 L191 150 L128 94 L65 150 Z M38 184 L128 101 L218 184 L191 213 L128 157 L65 213Z"', GOLD, 11)
         icon.gloss("path", 'd="M57 119 L128 54 L200 119 L189 130 L128 78 L68 130Z"', .55)
-    return icon.svg(shadow=name not in {"TargetRing", "PathMarker"})
+    return icon.svg(shadow=name not in {"FocusArrow", "TargetRing", "PathMarker"})
 
 
 def main():

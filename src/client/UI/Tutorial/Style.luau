@@ -14,7 +14,7 @@ function Style.surface(parent: Instance, name: string): Frame
 	local panel = Ui.frame(parent, name)
 	panel.BackgroundColor3, panel.BackgroundTransparency = Theme.Colors.body, 0
 	Ui.corner(panel)
-	Ui.stroke(panel, Theme.Layout.border)
+	Ui.stroke(panel, 4)
 	return panel
 end
 
@@ -37,7 +37,7 @@ function Style.button(parent: Instance, options: Ui.ButtonOpts)
 	button.AutoButtonColor, button.BorderSizePixel, button.Size = false, 0, options.size
 	Ui.corner(button)
 	Ui.fill(button, Theme.Buttons.red)
-	Ui.stroke(button, 4)
+	Ui.stroke(button, 3)
 	local top = Ui.frame(button, "Highlight", UDim2.new(1, -8, 0.38, -4), UDim2.fromOffset(4, 4))
 	top.BackgroundColor3, top.BackgroundTransparency = Color3.new(1, 1, 1), 0.78
 	Ui.corner(top, 5)

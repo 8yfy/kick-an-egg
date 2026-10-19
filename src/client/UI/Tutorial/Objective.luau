@@ -23,7 +23,7 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 	panel.Size, panel.ZIndex = UDim2.fromScale(1, 1), 1
 	local header = Style.header(panel, "FIRST PET", 32, L.minText)
 	local heading = header.title
-	local divider = Ui.frame(panel, "HeaderEdge", UDim2.new(1, 0, 0, 3), UDim2.fromOffset(0, 30))
+	local divider = Ui.frame(panel, "HeaderEdge", UDim2.new(1, 0, 0, 2), UDim2.fromOffset(0, 30))
 	divider.BackgroundColor3, divider.BackgroundTransparency, divider.ZIndex = C.border, 0, 4
 	local sentence = Ui.text(panel, "", 22, { name = "Sentence", stroke = 2 })
 	sentence.TextWrapped, sentence.TextTruncate, sentence.ZIndex = true, Enum.TextTruncate.None, 2
@@ -35,10 +35,10 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 		textSize = L.minText,
 		onClick = skip,
 	})
-	skipButton.gui.AnchorPoint, skipButton.gui.Position = Vector2.new(1, 0), UDim2.new(1, -12, 0, 37)
+	skipButton.gui.AnchorPoint, skipButton.gui.Position = Vector2.new(1, 0), UDim2.new(1, -12, 0, 36)
 	skipButton.gui.ZIndex = 3
 	local progress = Ui.progress(panel, Theme.Buttons.red, 5, L.minText)
-	progress.gui.Name, progress.gui.Position = "StageProgress", UDim2.fromOffset(14, 88)
+	progress.gui.Name, progress.gui.Position = "StageProgress", UDim2.new(0, 14, 1, -9)
 	progress.gui.Size, progress.gui.ZIndex = UDim2.new(1, -28, 0, 5), 2
 	progress.gui:FindFirstChildOfClass("UIStroke").Thickness = 1
 	progress.gui.Text.Visible = false
@@ -86,7 +86,7 @@ function Objective.new(gui: ScreenGui, skip: () -> ())
 		local vp = gui.AbsoluteSize
 		local width = math.min(520, vp.X - 28)
 		local narrow = width < 390
-		card.Size = UDim2.fromOffset(width, 96)
+		card.Size = UDim2.fromOffset(width, 104)
 		card.Position = UDim2.new(0.5, 0, 0, if vp.Y < 480 then 4 else 24)
 		sentence.Position, sentence.Size = UDim2.fromOffset(14, 36), UDim2.new(1, if narrow then -108 else -120, 0, 48)
 		sentence.TextSize = if width < 340 then L.minText elseif narrow then 18 else 22
