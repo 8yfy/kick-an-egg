@@ -21,8 +21,11 @@ def make(name):
     icon = icons.Icon()
     if name == "FocusArrow":
         path = 'd="M43 96 H132 V55 L211 128 L132 201 V160 H43 Q35 160 35 152 V104 Q35 96 43 96Z"'
-        icon.raw('<defs><linearGradient id="focus-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6558"/><stop offset="1" stop-color="#ef4239"/></linearGradient></defs>')
+        # Match the red menu buttons without changing the silhouette/tip used by WorldGuide.
+        icon.raw('<defs><linearGradient id="focus-red" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0" stop-color="#ff4a3a"/><stop offset="1" stop-color="#d3121f"/></linearGradient></defs>')
         icon.raw(f'<path {path} fill="url(#focus-red)" stroke="#080a10" stroke-width="8" stroke-linejoin="round"/>')
+        icon.raw('<path d="M45 102 H134 Q138 102 138 98 V69 L197 124 H45 Q41 124 41 120 V106 Q41 102 45 102Z" fill="#ffffff" opacity=".22"/>')
+        icon.raw('<path d="M44 151 H137 V188 L202 128" fill="none" stroke="#790816" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".22"/>')
     elif name == "Pointer":
         icon.shape("path", 'd="M38 91 H132 V43 L220 128 L132 213 V165 H38 Z"', GOLD)
         icon.gloss("path", 'd="M50 102 H145 V72 L194 120 H50 Z"', .5)
