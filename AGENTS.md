@@ -3,7 +3,7 @@
 Read `docs/DEVELOPMENT_HANDOFF.md`, then inspect Git status and the relevant diff before working. Read `CLAUDE.md` for repository conventions, but verify older gameplay descriptions against current source. Follow the user's current instructions when they supersede older plans.
 
 ## Project and collaboration
-- GitHub `8yfy/kick-an-egg` is the source of truth. Check local worktrees for unsaved/uncommitted progress before choosing a checkpoint. Never assume `main` is the latest assembled game.
+- GitHub `8yfy/kick-an-egg` is the source of truth. Check local worktrees for unsaved/uncommitted progress before choosing a checkpoint. `main` holds the latest assembled game (since #50), but check open PRs and branches for newer work.
 - Work on a separate feature branch/worktree. Preserve other developers' changes; never force-push or automatically merge. Shared contracts (`Config/*`, `Remotes`, builder APIs) require a focused, coordinated change.
 - Keep generated builds, scratch files and credentials out of commits. Preserve Rojo mappings and imported assets.
 - The game targets a continuous 20-zone track and a catalog of 79 pets with corresponding eggs. Treat those as design targets; inspect current content before claiming completeness.

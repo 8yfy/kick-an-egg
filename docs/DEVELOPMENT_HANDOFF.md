@@ -1,6 +1,30 @@
 # Development handoff
 
 ## Current checkpoint
+- **`main` is the assembled game (2026-10-20, Partner B).**
+  - `codex/reactive-tutorial` @ `7930391` was merged into `main` in #50 (merge commit `dc07045`, no conflicts). `main` now contains:
+    - Partner A's `a/full-build` (#42–#49);
+    - all of Partner B's game code (#37–#41);
+    - the Codex tutorial, pen feedback, Shift Lock, shop label and podium work.
+  - Start new work on feature branches from `main`. The older entries below that say "continue from `codex/reactive-tutorial`" are history.
+  - **Verified on `7930391` by Partner B:**
+    - the fresh-clone Rojo build matches the accepted SHA-256 `c6b677aa…0cf6`;
+    - in single-player Studio Play the map builds in 0.90 s, with 18 services, 19 controllers and no game script errors;
+    - tutorial welcome → objective → dimming → hotbar arrow and the REPLAY row work;
+    - 6 podiums, Shift Lock, shop labels and pen feedback are present.
+  - **Unit tests:** 364 pass and 4 fail. The failures are outdated test rules, not game errors. Partner B will update them next:
+    - three pre-remodel map checks (shop lights ≤ 4, pen reserve margin, `SafeZone.Decor`);
+    - an audio check that only allows built-in Roblox sounds, while the pen-upgrade SFX is a verified Creator Store sound.
+  - **Asset permissions:** Partner B's account can't load premium SFX sheets `78931796757748` (UI) and `117199061714759` (Sacks) in Studio ("not authorized"). Share them with the experience or Partner B.
+  - **Not in `main`:**
+    - `b/spin-wheel`'s last commit (`e379c0b`), an older duplicate of this handoff file;
+    - closed `a/merchant-ids`;
+    - old experiments `b/launch`, `b/training`, `contract/player-launch`, `contract/streaming`.
+  - **Partner B workstation (Claude Code):**
+    - 44 user skills (same upstream repos as `docs/CODEX_SETUP.md`);
+    - Blender MCP `mcp-for-blender==2.2.2`, add-on protocol 14, telemetry off;
+    - Studio's built-in MCP server;
+    - Rojo 7.7.1 and `run-in-roblox` for `tools/run-tests.sh` and `tools/playtest/playtest.sh`.
 - Partner rebuild investigation (2026-10-20): GitHub branch `codex/reactive-tutorial` was verified at `1a250b2`; GitHub's default `main` remained `5dac080` and does not select this assembled checkpoint. A fresh single-branch clone rebuilt successfully with pinned Rojo 7.7.1. Added reproducible standalone build and saved-tutorial replay instructions to README. Partner supplied no error/log or branch, so their screenshot's specific cause remains unconfirmed. No gameplay/source changes or automatic merge.
 - Merchant animation rework canceled and discarded at the user's request on 2026-10-20. Restored the original merchant and MapLife sources; removed the experimental seated module, menu nod hook and its test suite. No merchant rework was committed or pushed, and no finished Blender animation was produced. Continue from `codex/reactive-tutorial`; the accepted tutorial and earlier completed features remain intact.
 - Task complete: polished the tutorial arrow to match the approved red menu buttons, using the same red gradient, a 22% inset highlight and subtle lower shading. Preserved the exact alpha silhouette, tip alignment, bounce, thinner panels and Skip spacing. Uploaded the replacement image, rebuilt `outputs/KickTheEgg-ReactiveTutorial.rbxl`, and restored the clean single-player welcome preview. See `docs/ReactiveTutorial.md`.

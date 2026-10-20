@@ -1,5 +1,9 @@
 # Kick the Egg! — rules for Claude Code (read this, then only the files your task needs)
 
+**Start here:** read `docs/DEVELOPMENT_HANDOFF.md` (current checkpoint, open issues, next steps), then `AGENTS.md`
+(the shared rules both partners' agents follow, Claude and Codex). `main` holds the latest assembled game; start
+every task on a feature branch from an up-to-date `main`.
+
 Roblox game, Luau, synced with Rojo (`default.project.json`). Two partners work in parallel:
 **Partner A = art/models/VFX/UI**, **Partner B = gameplay/server/data**. See `docs/TASKS.md` for who owns what.
 
