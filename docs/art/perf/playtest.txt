@@ -1,0 +1,37 @@
+PLAYTEST_START
+PLAYTEST [setup] test player kickPower = 12
+PLAYTEST [   4.6s] PASS HUD: SHOP / INDEX / REBIRTH on the left
+PLAYTEST [   4.6s] PASS HUD: no TRAINING button
+PLAYTEST [   4.6s] PASS HUD: no SACK / Tool slot
+PLAYTEST [   4.6s] PASS HUD: Roblox hotbar hidden
+PLAYTEST [   4.6s] PASS HUD: all 9 approved icons on screen
+PLAYTEST [   4.6s] PASS KICK hidden away from the pad (at spawn)
+PLAYTEST [   4.6s] PASS KICK + AUTO KICK appear on the pad
+PLAYTEST [   4.6s] PASS strength meter hidden until KICK is pressed
+PLAYTEST [   5.1s] PASS no zone bar while standing on the pad (base)
+PLAYTEST [   5.2s] PASS KICK hides after leaving the pad
+PLAYTEST [   9.2s] PASS server rejects a kick sent from off the pad
+PLAYTEST [  10.5s] PASS perfect kick from the pad is accepted (432 studs, lands in zone 5)
+PLAYTEST [  10.5s] PASS KICK hides during the flight
+PLAYTEST [  14.2s] PASS zone bar names every zone of the flight, in order (zone_label_01 > zone_label_02 > zone_label_03 > zone_label_04 > zone_label_05)
+PLAYTEST [  14.2s] PASS zone bar restarts near 0% at each new zone (5/5)
+PLAYTEST [  14.2s] PASS zone bar ends on the landing zone (zone_label_05)
+PLAYTEST [  14.2s] NOTE waiting for the chase to end (nobody steers, so the avalanche takes the egg)
+PLAYTEST [  18.6s] PASS chase ended
+PLAYTEST [  18.6s] PASS KICK returns on the pad after the chase
+PLAYTEST [  18.6s] PASS Boxing Sack Shop is in the world
+PLAYTEST [  18.6s] PASS shop counter has its prompt (Browse sacks / Boxing Sack Shop)
+PLAYTEST [  20.3s] PASS pressing the shop prompt opens the existing sack screen (Training)
+PLAYTEST [  21.8s] PASS closing it returns to the world
+PLAYTEST [  21.8s] PASS you own a base
+PLAYTEST [  21.8s] PASS your sack stand has the Train prompt
+PLAYTEST [  23.5s] PASS Train takes the Kick Sack out
+PLAYTEST [  24.6s] PASS Train again puts it away
+PLAYTEST [  28.7s] NOTE sack effects at the shop counter: Full 6, Reduced 3, Minimal 3, Disabled 2, off screen 0
+PLAYTEST [  28.7s] PASS sack vfx: the shop's sacks run at Full up close (Full 6, Reduced 3, Minimal 3, Disabled 2, off screen 0)
+PLAYTEST [  30.2s] NOTE sack effects far away: Full 0, Reduced 0, Minimal 0, Disabled 14, off screen 0
+PLAYTEST [  30.2s] PASS sack vfx: far away every sack effect is Disabled (Full 0, Reduced 0, Minimal 0, Disabled 14, off screen 0)
+PLAYTEST [  31.7s] NOTE sack effects back on the kick pad: Full 0, Reduced 3, Minimal 11, Disabled 0, off screen 14
+PLAYTEST [  31.7s] PASS sack vfx: the Settings override picks the profile
+PLAYTEST [  31.7s] NOTE sack vfx profile (AUTO): HIGH
+PLAYTEST_END

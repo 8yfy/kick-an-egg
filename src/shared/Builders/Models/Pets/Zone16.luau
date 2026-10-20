@@ -49,22 +49,8 @@ local Pets: { [string]: Builder.Spec } = {
 		armor = true,
 		ears = "pointy",
 	}),
-	ClockworkTitan = C.build({
-		kind = "Biped",
-		rarity = "Divine",
-		palette = {
-			main = rgb(200, 160, 80),
-			accent = rgb(90, 70, 50),
-			belly = rgb(240, 215, 160),
-			eye = rgb(255, 230, 120),
-			metal = rgb(150, 115, 60),
-			glow = rgb(255, 220, 100),
-		},
-		armor = true,
-		horns = "curl",
-		crystals = true,
-		spikes = true,
-	}),
+	-- Premium hero spec (Models/Premium/ClockworkTitan.luau, docs/EggPetPlan.md).
+	ClockworkTitan = require(script.Parent.Parent.Premium.ClockworkTitan).pet,
 }
 
 return Pets

@@ -1,6 +1,8 @@
 --!strict
 -- Partner A. Egg flight + landing effects (client). B moves the egg; these only decorate it.
---   KickImpact {power}                    target = egg/pad: star burst + thump
+--   KickImpact {power, cutscene?, own?, band?}  target = egg/pad/foot: star burst + thump; with `cutscene` (the
+--              kick line's kick, KickLineController) also a ground shockwave ring and spark spray. Its sound
+--              (by the server's timing band) is Audio's KickWeak / KickGood / KickPerfect.
 --   ZoneEnter  {zone}                     target = egg: ring of sparks in the zone's accent colour
 --   EggSpin    {zone, keys, finalKey?, seconds}  target = flying egg: slot-machine spin. The egg's own
 --              parts are hidden locally and a visual egg (built from Models.egg(key)) rides on a
@@ -17,21 +19,119 @@ local Config = Shared:WaitForChild("Config")
 local Rarities = require(Config:WaitForChild("Rarities"))
 local Zones = require(Config:WaitForChild("Zones"))
 local Rig = require(Shared:WaitForChild("Anim"):WaitForChild("Rig"))
+local Sculpt = require(Shared:WaitForChild("Builders"):WaitForChild("Models"):WaitForChild("Sculpt"))
 local Pool = require(script.Parent.Pool)
 local Burst = require(script.Parent.Burst)
 local Fx = require(script.Parent.Fx)
 local Shake = require(script.Parent.Shake)
 local Themes = require(script.Parent.Themes)
+local ZoneLanding = require(script.Parent.ZoneLanding)
+local Audio = require(Shared:WaitForChild("Audio"))
 
 local Egg = {}
 
 local SWAP_FAST, SWAP_SLOW = 0.07, 0.18
-local HIP = 1.15 -- body lift once the legs are out
+
 local LEG_COLOR, FOOT_COLOR = Color3.fromRGB(255, 165, 50), Color3.fromRGB(255, 130, 40)
+
+-- Ground shockwave: `n` neon pieces in a ring flying out from r0 to r1 and fading (one connection while alive).
+local function shockwave(center: Vector3, color: Color3, r0: number, r1: number, seconds: number, n: number)
+	local pieces = {}
+	for i = 1, n do
+		local p = Pool.get("Block")
+		p.Material = Enum.Material.Neon
+		p.Color = color
+		pieces[i] = p
+	end
+	local t0 = os.clock()
+	local conn: RBXScriptConnection
+	conn = RunService.RenderStepped:Connect(function()
+		local k = (os.clock() - t0) / seconds
+		if k >= 1 then
+			conn:Disconnect()
+			for _, p in pieces do
+				Pool.release(p)
+			end
+			return
+		end
+		local e = 1 - (1 - k) ^ 3
+		local r = r0 + (r1 - r0) * e
+		for i, p in pieces do
+			local a = (i / n) * math.pi * 2
+			p.Size = Vector3.new(0.3, 0.25, 2 * math.pi * r / n + 0.2)
+			p.CFrame = CFrame.new(center) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -r)
+			p.Transparency = k
+		end
+	end)
+end
+
+-- Directional speed streaks: thin neon bolts shooting off along the launch (+Z), more / longer for better kicks.
+local function streaks(pos: Vector3, count: number, length: number, color: Color3)
+	for _ = 1, count do
+		local p = Pool.get("Block")
+		p.Color = color
+		p.Material = Enum.Material.Neon
+		local off = Vector3.new((math.random() - 0.5) * 2.4, (math.random() - 0.3) * 1.8, 0)
+		local from = pos + off
+		p.CFrame = CFrame.new(from)
+		local t0, life = os.clock(), 0.22 + math.random() * 0.12
+		local conn: RBXScriptConnection
+		conn = RunService.RenderStepped:Connect(function()
+			local k = math.clamp((os.clock() - t0) / life, 0, 1)
+			local len = length * (1 - (1 - k) ^ 2)
+			p.Size = Vector3.new(0.12 * (1 - k * 0.6), 0.12 * (1 - k * 0.6), math.max(0.2, len))
+			p.CFrame = CFrame.new(from + Vector3.new(0, 0, len * 0.5 + k * length * 0.6))
+			p.Transparency = k
+			if k >= 1 then
+				conn:Disconnect()
+				Pool.release(p)
+			end
+		end)
+	end
+end
 
 function Egg.KickImpact(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target) or Vector3.new(0, 1, 0)
 	local power = math.clamp((params.power or 1) / 25, 0.3, 1)
+	if params.cutscene then
+		local me = game:GetService("Players").LocalPlayer
+		local reduced = me ~= nil and me:GetAttribute("ReducedMotion") == true
+		Burst.play(
+			pos,
+			14,
+			{ Color3.fromRGB(255, 200, 60), Color3.fromRGB(255, 120, 40), Color3.new(1, 1, 1) },
+			NumberRange.new(0.15, 0.35),
+			34 * (0.6 + power),
+			0.45,
+			false,
+			true
+		)
+		local band = params.band
+		if not reduced then
+			shockwave(pos - Vector3.new(0, 1.2, 0), Color3.fromRGB(255, 220, 90), 1, 9 + 5 * power, 0.45, 18)
+			streaks(
+				pos,
+				if band == "perfect" then 14 elseif band == "weak" then 4 else 8,
+				if band == "perfect" then 16 elseif band == "weak" then 6 else 10,
+				if band == "perfect" then Color3.fromRGB(110, 240, 255) else Color3.fromRGB(255, 235, 140)
+			)
+			if band == "perfect" then -- the exceptional one: a second, wider ring
+				task.delay(
+					0.06,
+					shockwave,
+					pos - Vector3.new(0, 1.2, 0),
+					Color3.fromRGB(110, 240, 255),
+					1,
+					18,
+					0.55,
+					24
+				)
+			end
+		end
+		if params.own ~= true then
+			return -- other players' kicks: sparks, ring and sound only (no flash / shake on your screen)
+		end
+	end
 	Burst.play(
 		pos + Vector3.new(0, 1, 0),
 		10,
@@ -42,8 +142,16 @@ function Egg.KickImpact(target: Instance?, params: { [string]: any })
 		false,
 		true
 	)
-	Fx.flash(pos, Color3.fromRGB(255, 240, 160), 6 + 4 * power, 0.3)
-	Shake.impulse("Kick", 0.25 + 0.35 * power, 0.25)
+	-- (the kick cutscene's camera sits a few studs from the foot: a smaller flash and a short, light shake, so the
+	-- hit punches without whiting out or shaking the framing apart; its field-of-view punch does the rest)
+	local cut = params.cutscene == true
+	Fx.flash(
+		pos,
+		Color3.fromRGB(255, 240, 160),
+		if cut then 3.5 + 2.5 * power else 6 + 4 * power,
+		if cut then 0.22 else 0.3
+	)
+	Shake.impulse("Kick", if cut then 0.14 + 0.2 * power else 0.25 + 0.35 * power, if cut then 0.2 else 0.25)
 end
 
 function Egg.ZoneEnter(target: Instance?, params: { [string]: any })
@@ -143,6 +251,7 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 			index = index % #keys + 1
 			current = show(state, egg, keys[index])
 			Fx.hideLocally(egg, true, current)
+			Audio.play("SpinTick", egg) -- each egg flicking past
 			nextSwap = (os.clock() - t0) + SWAP_FAST + (SWAP_SLOW - SWAP_FAST) * f * f
 		end
 		local motor = (current.PrimaryPart :: BasePart):FindFirstChild("SpinMotor") :: Motor6D
@@ -155,8 +264,9 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 		if not finalKey then
 			return
 		end
-		-- Final stop: land on finalKey, pop 1.2 -> 1 and flash in the rarity colour.
+		-- Final stop: land on finalKey, pop 1.2 -> 1 and flash in the rarity colour (+ a "clack-ding").
 		current = show(state, egg, finalKey)
+		Audio.play("SpinStop", egg)
 		Fx.hideLocally(egg, true, current)
 		local rarity = Rarities[Fx.rarityOfKey(finalKey)] or Rarities.Common
 		local pivot = egg:GetPivot().Position + Vector3.new(0, 2, 0)
@@ -185,7 +295,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 	if not pos then
 		return
 	end
-	local ground = Vector3.new(pos.X, 0.3, pos.Z)
+	-- the egg's pivot is on the ground (zones at y 0, the launch ramp higher), so follow it
+	local ground = Vector3.new(pos.X, pos.Y + 0.3, pos.Z)
 	local rarity = Rarities[params.rarity or "Common"] or Rarities.Common
 	local zone = Zones[params.zone or 1]
 	local dustColor = if zone then zone.ground:Lerp(Color3.new(1, 1, 1), 0.45) else Color3.new(1, 1, 1)
@@ -209,6 +320,8 @@ function Egg.Landing(target: Instance?, params: { [string]: any })
 
 	-- Rarity light pillar: 40 studs, fades over 1.5 s.
 	Fx.pillar(ground, rarity.color, 40, 1.5)
+	-- Map v3: the zone's own landing signature (shockwave, themed burst, debris, thump)
+	ZoneLanding.play(ground, params.zone)
 end
 
 local function limb(
@@ -249,38 +362,97 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 	local motors = Rig.motors(egg)
 	local body = motors.Body
 	local key = Fx.keyOfModel(egg)
-	local rare = (Rarities[Fx.rarityOfKey(key)] or Rarities.Common).order >= Rarities.Rare.order
+	local rarity = Rarities[Fx.rarityOfKey(key)] or Rarities.Common
+	local rare = rarity.order >= Rarities.Rare.order
+
+	-- Size everything from the egg's body (eggs range from small to huge), so the legs always read.
+	local _, size = Sculpt.shellBounds(egg) -- the shell, not decorations floating around it
+	local sz = math.clamp(size.Y / 3.4, 0.8, 2.6)
+	local legLen = 1.15 * sz
+	local footH = 0.55 * sz
+	local hipLift = legLen + footH * 0.75 -- the body rises until the sneakers rest on the ground
+	local legX = math.max(0.55, size.X * 0.22)
+	local armX, armY = math.max(1.2, size.X * 0.5), size.Y * 0.5
+
+	-- Chunky sneaker parts welded to a leg (no collisions, massless).
+	local function attach(leg: BasePart, name: string, partSize: Vector3, offset: CFrame, color: Color3)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = partSize
+		p.Color = color
+		p.Material = Enum.Material.SmoothPlastic
+		p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+		p.CanCollide, p.CanQuery, p.CanTouch, p.Massless = false, false, false, true
+		p.CFrame = leg.CFrame * offset
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0, weld.Part1 = leg, p
+		weld.Parent = p
+		p.Parent = egg
+	end
 
 	-- Legs start tucked under the ground and push the egg up.
 	local legs: { Motor6D } = {}
+	local shoe = rarity.color:Lerp(FOOT_COLOR, if rarity.order <= 1 then 0.6 else 0.15)
 	for _, side in { -1, 1 } do
 		local s = if side < 0 then "L" else "R"
-		local m, leg =
-			limb(egg, root, "Leg" .. s, Vector3.new(0.55, 0.9, 0.55), CFrame.new(side * 0.6, 0, 0), 0.45, LEG_COLOR)
-		local foot = Instance.new("Part")
-		foot.Name = "Foot" .. s
-		foot.Size = Vector3.new(0.8, 0.35, 1.1)
-		foot.Color = FOOT_COLOR
-		foot.Material = Enum.Material.SmoothPlastic
-		foot.CanCollide, foot.CanQuery, foot.CanTouch, foot.Massless = false, false, false, true
-		foot.CFrame = leg.CFrame * CFrame.new(0, -0.45 + 0.175 - 0.1, -0.15)
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0, weld.Part1 = leg, foot
-		weld.Parent = foot
-		foot.Parent = egg
+		local m, leg = limb(
+			egg,
+			root,
+			"Leg" .. s,
+			Vector3.new(0.6 * sz, legLen, 0.6 * sz),
+			CFrame.new(side * legX, 0, 0),
+			legLen / 2,
+			LEG_COLOR
+		)
+		local bottom = -legLen / 2
+		attach(
+			leg,
+			"Sock" .. s,
+			Vector3.new(0.68 * sz, 0.22 * sz, 0.68 * sz),
+			CFrame.new(0, bottom + 0.2 * sz, 0),
+			Color3.new(1, 1, 1)
+		)
+		attach(
+			leg,
+			"Foot" .. s,
+			Vector3.new(0.95 * sz, 0.4 * sz, 1.35 * sz),
+			CFrame.new(0, bottom - 0.12 * sz, -0.25 * sz),
+			shoe
+		)
+		attach(
+			leg,
+			"Sole" .. s,
+			Vector3.new(1.02 * sz, 0.18 * sz, 1.45 * sz),
+			CFrame.new(0, bottom - 0.4 * sz, -0.25 * sz),
+			Color3.new(1, 1, 1)
+		)
+		attach(
+			leg,
+			"Toe" .. s,
+			Vector3.new(0.9 * sz, 0.22 * sz, 0.32 * sz),
+			CFrame.new(0, bottom - 0.24 * sz, -0.86 * sz),
+			Color3.new(1, 1, 1)
+		)
 		table.insert(legs, m)
 	end
 	local arms: { Motor6D } = {}
 	if rare then
 		for _, side in { -1, 1 } do
 			local s = if side < 0 then "L" else "R"
-			local m =
-				limb(egg, root, "Arm" .. s, Vector3.new(0.4, 0.9, 0.4), CFrame.new(side * 1.55, 1.7, 0), 0.4, LEG_COLOR)
+			local m = limb(
+				egg,
+				root,
+				"Arm" .. s,
+				Vector3.new(0.42 * sz, 0.95 * sz, 0.42 * sz),
+				CFrame.new(side * armX, armY, 0),
+				0.42 * sz,
+				LEG_COLOR
+			)
 			table.insert(arms, m)
 		end
 	end
 
-	-- Squash (dip) -> stretch (Back overshoot up to HIP) -> settle -> shake off dust.
+	-- Squash (dip) -> stretch (Back overshoot up to hipLift) -> settle -> shake off dust.
 	local bodyBase = if body then Rig.base(body) else CFrame.identity
 	local pos = egg:GetPivot().Position
 	local t0 = os.clock()
@@ -298,14 +470,14 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 			local k = (t - 0.12) / 0.38
 			local s = 2.2
 			local back = 1 + (s + 1) * (k - 1) ^ 3 + s * (k - 1) ^ 2
-			lift, roll = -0.25 + (HIP + 0.25) * back, 0
+			lift, roll = -0.25 + (hipLift + 0.25) * back, 0
 		elseif t < 1.0 then
 			local k = (t - 0.5) / 0.5
-			lift, roll = HIP, math.sin(k * math.pi * 6) * math.rad(12) * (1 - k)
+			lift, roll = hipLift, math.sin(k * math.pi * 6) * math.rad(12) * (1 - k)
 		else
 			conn:Disconnect()
 			if body then
-				Rig.setBase(body, bodyBase * CFrame.new(0, HIP, 0))
+				Rig.setBase(body, bodyBase * CFrame.new(0, hipLift, 0))
 				Rig.reset(body)
 			end
 			for _, m in legs do
@@ -322,12 +494,12 @@ function Egg.LegsSprout(target: Instance?, _params: { [string]: any })
 		local hip = math.max(0, lift)
 		for i, m in legs do
 			local side = if i == 1 then -1 else 1
-			m.C0 = CFrame.new(side * 0.6, hip, 0)
+			m.C0 = CFrame.new(side * legX, hip, 0)
 		end
 		for i, m in arms do -- shoulders ride with the body, arms flick out as it lands
 			local side = if i == 1 then -1 else 1
-			m.C0 = CFrame.new(side * 1.55, hip + 1.7, 0)
-				* CFrame.Angles(0, 0, side * math.rad(25) * math.clamp(hip / HIP, 0, 1))
+			m.C0 = CFrame.new(side * armX, hip + armY, 0)
+				* CFrame.Angles(0, 0, side * math.rad(25) * math.clamp(hip / hipLift, 0, 1))
 		end
 	end)
 	task.delay(0.5, function()

@@ -1,0 +1,30 @@
+{
+  "PathMarker": {
+    "decalId": 114257736041586,
+    "image": "rbxassetid://112223451963266"
+  },
+  "WorldArrow": {
+    "decalId": 105459456639561,
+    "image": "rbxassetid://108115465195486"
+  },
+  "TargetRing": {
+    "decalId": 90336010193774,
+    "image": "rbxassetid://103591013704511"
+  },
+  "Checkmark": {
+    "decalId": 98982993720628,
+    "image": "rbxassetid://130540902496061"
+  },
+  "Pointer": {
+    "decalId": 133512681899396,
+    "image": "rbxassetid://84932252871029"
+  },
+  "Sparkle": {
+    "decalId": 117852495812495,
+    "image": "rbxassetid://97773437145960"
+  },
+  "FocusArrow": {
+    "decalId": 75841806699966,
+    "image": "rbxassetid://113118779959499"
+  }
+}
