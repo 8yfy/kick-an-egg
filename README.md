@@ -14,15 +14,15 @@ pets with size and weather mutations.
 
 ## Build the current assembled Studio file
 
-As of 2026-10-20, the completed tutorial, pen feedback, Shift Lock fixes, shop labels and podiums
-are on **`codex/reactive-tutorial`**. They have not been merged into `main`. See
+`main` holds the latest assembled game: Partner A's full build, Partner B's game code, and the tutorial, pen
+feedback, Shift Lock fixes, shop labels and podiums. All of this was merged in #50 on 2026-10-20. See
 [`docs/DEVELOPMENT_HANDOFF.md`](docs/DEVELOPMENT_HANDOFF.md) for the current checkpoint.
 
 To build in a fresh folder without changing an existing checkout:
 
 ```sh
-git clone --branch codex/reactive-tutorial --single-branch https://github.com/8yfy/kick-an-egg.git kick-an-egg-tutorial
-cd kick-an-egg-tutorial
+git clone https://github.com/8yfy/kick-an-egg.git kick-an-egg
+cd kick-an-egg
 rokit install
 rojo build default.project.json --output KickTheEgg.rbxl
 ```
@@ -34,7 +34,8 @@ require Blender, MCP or a running Rojo server.
 The tutorial remembers completion and skipping. On an existing account, use
 **Settings → Tutorial → REPLAY** to show its welcome panel again; replay preserves saved progress.
 The current version has a red welcome panel, contextual steps, dimming and a bouncing red arrow.
-If the Tutorial/REPLAY row is missing, verify the branch and that Studio opened the new output file.
+If the Tutorial/REPLAY row is missing, verify you are on an up-to-date `main` and that Studio opened the new
+output file.
 If Rojo live sync is connected, make sure it serves this same checkout; stop and restart Play
 after changing branches or syncing scripts.
 
