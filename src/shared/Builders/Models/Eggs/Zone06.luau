@@ -24,13 +24,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		glow = rgb(120, 220, 255),
 		metal = rgb(150, 190, 230),
 	}),
-	IceDragon = E.build({
-		rarity = "Legendary",
-		colors = { rgb(239, 248, 255), rgb(150, 210, 250), rgb(230, 250, 255) },
-		pattern = "crystal",
-		top = "horns",
-		glow = rgb(120, 240, 255),
-	}),
+	-- Premium hero spec (Models/Premium/IceDragon.luau, docs/EggPetPlan.md).
+	IceDragon = require(script.Parent.Parent.Premium.IceDragon).egg,
 }
 
 return Eggs

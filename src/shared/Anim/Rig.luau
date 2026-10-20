@@ -1,7 +1,10 @@
 --!strict
 -- Partner A. Motor6D helpers for procedural animation on BlockBuilder rigs.
 -- BlockBuilder puts one Motor6D per joint group (Body, Head, LegL, ...) under the model's Root.
--- Every pose is applied on top of the motor's original C0, which is remembered the first time.
+-- Every pose is applied on top of the motor's REST C0. BlockBuilder records it on the motor (attribute RestC0, at
+-- the model's RestScale); it is scaled to the model's current scale, so a pose is always right whatever ScaleTo
+-- did before (the old "remember C0 the first time" cached a shrunken C0 during the hatch reveal and pulled every
+-- animated part of a fresh pet out of place). Motors without the record fall back to the first C0 seen.
 local Rig = {}
 
 local baseC0: { [Motor6D]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
@@ -20,12 +23,20 @@ function Rig.motors(model: Model): { [string]: Motor6D }
 end
 
 function Rig.base(m: Motor6D): CFrame
-	local b = baseC0[m]
-	if not b then
-		b = m.C0
-		baseC0[m] = b
+	local b = baseC0[m] -- (an explicit override: Rig.setBase)
+	if b then
+		return b
 	end
-	return b
+	local rest = m:GetAttribute("RestC0")
+	local model = m:FindFirstAncestorOfClass("Model")
+	if typeof(rest) == "CFrame" and model then
+		local at = model:GetAttribute("RestScale")
+		local k = model:GetScale() / (if typeof(at) == "number" and at > 0 then at else 1)
+		return CFrame.new(rest.Position * k) * rest.Rotation
+	end
+	local first = m.C0
+	baseC0[m] = first
+	return first
 end
 
 -- Pose relative to the rest pose: C0 = base * offset.

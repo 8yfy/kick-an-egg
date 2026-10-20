@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Rarities = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Rarities"))
 local Burst = require(script.Parent.Burst)
+local Rig = require(script.Parent.Parent.Anim.Rig)
 local Pool = require(script.Parent.Pool)
 local Fx = require(script.Parent.Fx)
 local Popup = require(script.Parent.Popup)
@@ -106,7 +107,9 @@ function Hatch.HatchBurst(target: Instance?, params: { [string]: any })
 	local rarity = rarityOf(params.rarity)
 	local center = pos + Vector3.new(0, 2, 0)
 	local shell = Fx.colorsOf(target, { Color3.fromRGB(250, 240, 210) })
-	if target and target:IsA("Model") then
+	-- the burst hides an EGG it is played on (its shell breaks); never the pet that just hatched (PlotController
+	-- plays it on the new pet model: hiding that made fresh pets invisible until picked up and placed again)
+	if target and target:IsA("Model") and target:GetAttribute("Kind") ~= "Pet" then
 		Fx.hideLocally(target, true)
 	end
 	Burst.play(center, 26, shell, NumberRange.new(0.4, 1.2), 30, 1.2)
@@ -188,24 +191,27 @@ function Hatch.PetReveal(target: Instance?, params: { [string]: any })
 	end
 	local pet = target :: Model
 	local rarity = rarityOf(params.rarity)
-	local base = pet:GetScale()
 	local pos = pet:GetPivot().Position
-	-- Squash-bounce pop: 0.2 -> overshoot -> 1 (relative to any size-mutation scale).
-	pet:ScaleTo(base * 0.2)
+	-- Pop up out of the ground with a squash-bounce, through the pet's own Motor6Ds (Anim/Rig): the model is never
+	-- rescaled or moved part by part, so every eye, ear and wing stays exactly where the design puts it.
+	local motors = Rig.motors(pet)
+	local depth = 2.2 * pet:GetScale()
+	pet:SetAttribute("RevealUntil", os.clock() + 0.55) -- (PlotController starts the walk / idle after it)
 	local t0 = os.clock()
 	local conn: RBXScriptConnection
 	conn = RunService.RenderStepped:Connect(function()
-		if not pet.Parent then
-			conn:Disconnect()
-			return
-		end
 		local k = math.clamp((os.clock() - t0) / 0.5, 0, 1)
 		local s = 2.4
 		local back = if k >= 1 then 1 else 1 + (s + 1) * (k - 1) ^ 3 + s * (k - 1) ^ 2
-		pet:ScaleTo(base * (0.2 + 0.8 * back))
-		if k >= 1 then
+		for _, m in motors do
+			if k >= 1 or not pet.Parent then
+				Rig.reset(m)
+			else
+				Rig.pose(m, CFrame.new(0, -depth * (1 - back), 0))
+			end
+		end
+		if k >= 1 or not pet.Parent then
 			conn:Disconnect()
-			pet:ScaleTo(base)
 		end
 	end)
 	Burst.play(
@@ -224,6 +230,28 @@ function Hatch.PetReveal(target: Instance?, params: { [string]: any })
 	end
 end
 
+-- Training kick: yellow sparks off the bag and a "+1.2K Power" pop (whole numbers). params {gain}
+function Hatch.TrainHit(target: Instance?, params: { [string]: any })
+	local pos = Fx.posOf(target)
+	if not pos then
+		return
+	end
+	Burst.play(
+		pos,
+		6,
+		{ Color3.fromRGB(255, 230, 80), Color3.new(1, 1, 1) },
+		NumberRange.new(0.2, 0.45),
+		16,
+		0.5,
+		false,
+		true
+	)
+	Hatch.MoneyPop(
+		target,
+		{ text = `+{Fx.formatNumber(params.gain or 0)} Power`, color = Color3.fromRGB(255, 220, 70) }
+	)
+end
+
 function Hatch.MoneyPop(target: Instance?, params: { [string]: any })
 	local pos = Fx.posOf(target)
 	if not pos then
@@ -240,8 +268,8 @@ function Hatch.MoneyPop(target: Instance?, params: { [string]: any })
 	l.Size = UDim2.fromScale(1, 1)
 	l.Font = Enum.Font.FredokaOne
 	l.TextScaled = true
-	l.Text = "+$" .. Fx.formatNumber(params.amount or 0)
-	l.TextColor3 = Color3.fromRGB(120, 255, 110)
+	l.Text = params.text or ("+$" .. Fx.formatNumber(params.amount or 0))
+	l.TextColor3 = params.color or Color3.fromRGB(120, 255, 110)
 	local s = Instance.new("UIStroke")
 	s.Thickness = 3
 	s.Color = Color3.fromRGB(20, 60, 20)

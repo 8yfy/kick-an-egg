@@ -7,6 +7,8 @@
 --                  "AvalancheStop" {}, "EggPickup" {}, "EggSecured" {rarity}, "EggCaught" {theme}
 --   Base:          "HatchCrack" {progress}, "HatchBurst" {rarity}, "PetReveal" {rarity, name}, "MoneyPop" {amount},
 --                  "Announce" {text, rarity}
+--   Kick Sack:     "SackDrop" {tier, floor, own?}, "SackHit" {tier, at, dir, floor, own?, super?, gain?},
+--                  "SackUpgrade" {tier, floor?, own?} (target = the sack model; see VFX/Sack)
 --   plus every weather mutation's `vfx` name from Config/Mutations via VFX.attach (looping on a pet).
 -- "AvalancheStart" returns nothing; the effect drives itself from Config/Chase.frontZ() every frame
 -- and is removed by "AvalancheStop" (target = the same folder/model passed to AvalancheStart).
@@ -14,6 +16,8 @@
 -- effect assumes it belongs to the local player; with it, other players get the low-detail version
 -- (half the boulders, no camera shake, no banners).
 -- Implementations live in submodules (Egg, Hatch, Avalanche, ChaseFx, ...); unknown names are a no-op.
+-- Every effect is also forwarded to Audio.vfx, which plays its sound (Audio/SoundBank): the sound design lives
+-- in one place and stays in sync with the visual.
 local RunService = game:GetService("RunService")
 
 type Handler = (target: Instance?, params: { [string]: any }) -> ()
@@ -31,11 +35,16 @@ local function load(): { [string]: Handler }
 	local ChaseFx = require(script.ChaseFx)
 	local Egg = require(script.Egg)
 	local Hatch = require(script.Hatch)
+	local Sack = require(script.Sack)
 	local loaded: { [string]: Handler } = {
 		HatchCrack = Hatch.HatchCrack,
 		HatchBurst = Hatch.HatchBurst,
 		PetReveal = Hatch.PetReveal,
 		MoneyPop = Hatch.MoneyPop,
+		TrainHit = Hatch.TrainHit,
+		SackDrop = Sack.SackDrop,
+		SackHit = Sack.SackHit,
+		SackUpgrade = Sack.SackUpgrade,
 		Announce = Hatch.Announce,
 		KickImpact = Egg.KickImpact,
 		ZoneEnter = Egg.ZoneEnter,
@@ -63,6 +72,11 @@ function VFX.play(name: string, target: Instance?, params: { [string]: any }?): 
 		if not ok then
 			warn(`[VFX] {name} failed: {err}`)
 		end
+	end
+	local Audio = require(script.Parent.Audio) :: any
+	local ok, err = pcall(Audio.vfx, name, target, params or {})
+	if not ok then
+		warn(`[Audio] {name} failed: {err}`)
 	end
 end
 

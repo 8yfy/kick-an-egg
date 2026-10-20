@@ -31,19 +31,8 @@ local Pets: { [string]: Builder.Spec } = {
 		tail = "fluffy",
 		stripes = true,
 	}),
-	TideSpirit = C.build({
-		kind = "Floater",
-		rarity = "Epic",
-		palette = {
-			main = rgb(80, 190, 240),
-			accent = rgb(230, 250, 255),
-			belly = rgb(160, 230, 255),
-			eye = rgb(20, 80, 200),
-			glow = rgb(90, 230, 255),
-		},
-		ears = "fin",
-		crystals = true,
-	}),
+	-- Premium hero spec (Models/Premium/TideSpirit.luau, docs/EggPetPlan.md).
+	TideSpirit = require(script.Parent.Parent.Premium.TideSpirit).pet,
 }
 
 return Pets

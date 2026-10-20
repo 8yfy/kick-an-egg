@@ -1,6 +1,6 @@
 --!strict
 -- Partner A. Legged-egg loops (motors come from LegsSprout: LegL/LegR, ArmL/ArmR on Rare+).
---   EggRun     fast leg cycle, forward tilt, bob, flailing arms, sweat drops
+--   EggRun     leg cycle at the egg's real speed, forward tilt, bob, flailing arms, sweat drops; still when stopped
 --   EggCarried legs kicking in the air, arms waving, little wiggle
 --   EggWobble  hatching wobble on the pedestal (params.speed 1..3, faster near the end)
 local RunService = game:GetService("RunService")
@@ -50,22 +50,72 @@ local function sweat(model: Model): ParticleEmitter?
 	return e
 end
 
+-- The legged egg's run, driven by how fast it ACTUALLY moves (its Hitbox's planar velocity, or
+-- params.speedOf() if given), not by input: the stride rate follows the speed, and below a small threshold the
+-- legs ease back to a still, upright pose instead of running on the spot. A smoothed speed with separate start /
+-- stop thresholds keeps it from flickering near zero. The sweat drops only fall while it runs.
+local START_SPEED, STOP_SPEED = 1.2, 0.5 -- studs/s
+local REF_SPEED = 16 -- stride rate 1x at this speed
+
+local function planarSpeed(model: Model): number
+	local hitbox = model:FindFirstChild("Hitbox")
+	local part = if hitbox and hitbox:IsA("BasePart") then hitbox else model.PrimaryPart
+	if not part then
+		return 0
+	end
+	local v = part.AssemblyLinearVelocity
+	return Vector3.new(v.X, 0, v.Z).Magnitude
+end
+
 function Egg.EggRun(model: Model, params: { [string]: any }): () -> ()
-	local hz = (params.speed or 1) * 4.5 -- strides per second
+	local hz = (params.speed or 1) * 4.5 -- strides per second at REF_SPEED
+	local speedOf: (() -> number)? = params.speedOf
 	local drop = sweat(model)
-	local stop = loop(model, function(t, m)
-		local phase = t * hz * 2 * math.pi
-		local swing = math.sin(phase) * math.rad(40)
-		Rig.pose(m.LegL, CFrame.Angles(swing, 0, 0))
-		Rig.pose(m.LegR, CFrame.Angles(-swing, 0, 0))
-		Rig.pose(m.ArmL, CFrame.Angles(-swing * 1.2, 0, math.rad(-25)))
-		Rig.pose(m.ArmR, CFrame.Angles(swing * 1.2, 0, math.rad(25)))
-		-- Lean forward (-Z), bounce twice per stride, waddle roll.
-		local bob = math.abs(math.sin(phase)) * 0.3
-		Rig.pose(m.Body, CFrame.new(0, bob, 0) * CFrame.Angles(math.rad(-14), 0, math.sin(phase) * math.rad(8)))
+	local motors = Rig.motors(model)
+	local phase, smooth, running, blend = 0, 0, false, 0
+	local last = os.clock()
+	local conn = RunService.RenderStepped:Connect(function()
+		if not model.Parent then
+			return
+		end
+		local now = os.clock()
+		local dt = math.min(now - last, 0.1)
+		last = now
+		local speed = if speedOf then speedOf() else planarSpeed(model)
+		smooth += (speed - smooth) * math.min(1, dt * 10)
+		if running and smooth < STOP_SPEED then
+			running = false
+		elseif not running and smooth > START_SPEED then
+			running = true
+		end
+		blend = math.clamp(blend + (if running then dt * 6 else -dt * 4), 0, 1)
+		if drop then
+			drop.Enabled = running
+		end
+		if blend <= 0 then
+			for _, m in motors do
+				Rig.reset(m)
+			end
+			return
+		end
+		phase += dt * hz * math.clamp(smooth / REF_SPEED, 0.35, 2.2) * 2 * math.pi
+		local swing = math.sin(phase) * math.rad(40) * blend
+		Rig.pose(motors.LegL, CFrame.Angles(swing, 0, 0))
+		Rig.pose(motors.LegR, CFrame.Angles(-swing, 0, 0))
+		Rig.pose(motors.ArmL, CFrame.Angles(-swing * 1.2, 0, math.rad(-25) * blend))
+		Rig.pose(motors.ArmR, CFrame.Angles(swing * 1.2, 0, math.rad(25) * blend))
+		-- Lean forward (-Z), bounce twice per stride, waddle roll (all faded by `blend`).
+		local bob = math.abs(math.sin(phase)) * 0.3 * blend
+		Rig.pose(
+			motors.Body,
+			CFrame.new(0, bob, 0) * CFrame.Angles(math.rad(-14) * blend, 0, math.sin(phase) * math.rad(8) * blend)
+		)
 	end)
 	return function()
-		stop()
+		conn:Disconnect()
+		for _, m in motors do
+			Rig.reset(m)
+		end
 		if drop and drop.Parent then
 			(drop.Parent :: Instance):Destroy()
 		end

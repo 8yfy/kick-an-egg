@@ -20,11 +20,17 @@ local Flight = {
 
 local Avalanche = {
 	warnSeconds = 1.5, -- rumble + "RUN!" banner before it appears
-	spawnBehindLanding = 60, -- studs beyond the landing point (+Z) where the front appears
-	-- front speed (studs/s) = baseSpeed + perZone * (landZone - 1), capped at maxSpeed
-	baseSpeed = 13,
-	perZone = 1.1,
-	maxSpeed = 38,
+	-- Where the front appears (Chase.avalancheStartZ): spawnBehindLanding studs beyond the landing point (+Z),
+	-- kept inside the landing zone, never closer than spawnMinBehind to the egg and never within endMargin of
+	-- the track's end wall (an egg landing near the end of zone 20 used to put it past the map).
+	spawnBehindLanding = 60,
+	spawnMinBehind = 35,
+	endMargin = 6,
+	-- Front speed (studs/s) by landing zone, a smooth curve: first (zone 1) .. last (zone 20), shaped by
+	-- exponent (> 1 = gentle early zones, steeper late): 12 in zone 1, ~24 in zone 10, 44 in zone 20. Independent
+	-- of the player's Run Speed; every zone stays outrunnable at a reachable speed level
+	-- (tools/tests/Progression.server.lua lists the level each zone needs).
+	speedCurve = { first = 12, last = 44, exponent = 1.35 },
 	catchDistance = 4, -- caught when the front is within this many studs (Z axis) of you
 	height = 22,
 	despawnAtZ = -6, -- stops and crumbles at the safe line
@@ -54,28 +60,39 @@ local Themes: { { fromZone: number, theme: string } } = {
 	{ fromZone = 20, theme = "Rainbow" },
 }
 
+local Zones = require(script.Parent.Zones)
+local LAST = Zones[#Zones]
+local TRACK_END = LAST.start + LAST.length -- the end wall's inner face
+
 local Chase = {
 	RunwayWidth = 48,
 	SafeLineZ = -6,
 	Flight = Flight,
 	Avalanche = Avalanche,
 	Themes = Themes,
+	-- Where eggs may land (server, KickService): only on surfaces tagged LANDING_TAG by the MapBuilder (the
+	-- zone lanes and the launch ramp), never on walls, arches or other eggs; at most endMargin studs before the
+	-- end wall and edgeMargin studs inside the lane edges.
+	Landing = { tag = "LandingSurface", endMargin = 50, edgeMargin = 6 },
 
 	Egg = {
-		runDelay = 0.9, -- seconds after touchdown (legs sprout) before it starts running
-		runSpeed = 7, -- studs/s toward -Z, always slower than the avalanche
-		zigzag = 3, -- studs of side-to-side panic wobble
-		pickupDistance = 6, -- player must be this close to grab it
+		runDelay = 0.9, -- seconds after touchdown (legs sprout) before the player can steer it
+		-- The egg is steered by its owner at their Run Speed (bought in the shop).
+		-- Unused since the steering change (kept so old code doesn't break): runSpeed, zigzag,
+		-- pickupDistance, Carry, Caught.
+		runSpeed = 7,
+		zigzag = 3,
+		pickupDistance = 6,
 	},
 
 	Carry = {
-		speedMultiplier = 0.92, -- player walk speed while carrying
+		speedMultiplier = 0.92,
 		maxCarried = 1,
 	},
 
 	Caught = {
-		knockback = 60, -- studs/s fling toward the safe zone
-		respawnAtBase = true, -- player is teleported back to their base after 1.2 s
+		knockback = 60,
+		respawnAtBase = true,
 		eggLost = true,
 	},
 
@@ -84,7 +101,26 @@ local Chase = {
 	end,
 
 	avalancheSpeed = function(landZone: number): number
-		return math.min(Avalanche.baseSpeed + Avalanche.perZone * (landZone - 1), Avalanche.maxSpeed)
+		local c = Avalanche.speedCurve
+		local t = (math.clamp(landZone, 1, #Zones) - 1) / math.max(1, #Zones - 1)
+		return c.first + (c.last - c.first) * t ^ c.exponent
+	end,
+
+	trackEnd = function(): number
+		return TRACK_END
+	end,
+
+	-- The avalanche front's start Z for an egg that landed at `landZ` in zone `landZone` (see Avalanche).
+	avalancheStartZ = function(landZ: number, landZone: number): number
+		local zone = Zones[math.clamp(landZone, 1, #Zones)]
+		local mapEnd = TRACK_END - Avalanche.endMargin
+		local lo = landZ + Avalanche.spawnMinBehind
+		local hi = math.min(zone.start + zone.length, mapEnd)
+		if hi < lo then
+			-- landed at the zone's far end: a fair gap wins over the zone line, but never past the map
+			return math.min(lo, mapEnd)
+		end
+		return math.clamp(landZ + Avalanche.spawnBehindLanding, lo, hi)
 	end,
 
 	-- Front Z at server time `now` for an avalanche that appeared at `startTime` at `startZ`.
