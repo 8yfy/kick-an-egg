@@ -14,6 +14,7 @@
 --   (inventory). Trading has its own TRADE button on the left rail. Badge = pets hatched since you last looked.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Kit = require(script.Parent.Parent.Kit)
 local Rail = require(script.Parent.Rail)
@@ -129,7 +130,7 @@ local function equipFromBackpack(attribute: string, uid: string): boolean
 end
 
 function Drawers.new(parent: Instance): Drawers
-	local rail = Ui.frame(parent, "RightRail", UDim2.fromOffset(120, 2 * 120 + 14))
+	local rail = Ui.frame(parent, "RightRail", UDim2.fromOffset(120, 3 * 120 + 2 * 14))
 	Kit.autoScale(rail)
 	Ui.list(rail, 14)
 	local host = Ui.frame(parent, "DrawerHost", UDim2.fromOffset(W, MAX_H))
@@ -195,6 +196,25 @@ function Drawers.new(parent: Instance): Drawers
 			refreshEggs()
 		end
 	end
+
+	-- BAG (custom inventory, UI/Screens/Bag): above EGGS; B / gamepad DPad Up too
+	local bagButton = Rail.tile(rail, "Bag", Theme.Nav.Bag, "hud_bag", function(gui: TextButton)
+		show(nil)
+		Modal.toggle("Bag", gui)
+	end)
+	bagButton.gui.LayoutOrder = 0
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.B or input.KeyCode == Enum.KeyCode.DPadUp then
+			show(nil)
+			Modal.toggle("Bag", bagButton.gui)
+		end
+	end)
+	Modal.onChanged(function(name: string?)
+		bagButton.setActive(name == "Bag")
+	end)
 
 	eggButton = Rail.tile(rail, "Eggs", Theme.Nav.Eggs, "hud_eggs", function()
 		show(if open == "Eggs" then nil else "Eggs")
@@ -541,9 +561,10 @@ function Drawers.new(parent: Instance): Drawers
 	-- Layout + timers ------------------------------------------------------------------------------------------
 	Kit.onLayout(function(compact: boolean)
 		local tile = if compact then 96 else 120
-		rail.Size = UDim2.fromOffset(tile, 2 * tile + 14)
+		rail.Size = UDim2.fromOffset(tile, 3 * tile + 2 * 14)
 		rail.AnchorPoint = if compact then Vector2.new(1, 0) else Vector2.new(1, 0.5)
 		rail.Position = if compact then UDim2.new(1, -10, 0, 8) else UDim2.new(1, -24, 0.5, 0)
+		bagButton.setCompact(compact)
 		eggButton.setCompact(compact)
 		petButton.setCompact(compact)
 		host.AnchorPoint = Vector2.new(1, 0)
