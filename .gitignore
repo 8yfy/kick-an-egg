@@ -20,3 +20,9 @@ playtest.project.json
 assets/sacks/*.glb
 dist/
 tools/audio/previews/
+
+# World remodel tooling: generated meshes, Blender files and per-session Studio id dumps (tools/world/README.md)
+tools/world/out/
+tools/world/blend/
+tools/world/ids/*.studio.txt
+__pycache__/
