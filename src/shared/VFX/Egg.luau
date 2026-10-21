@@ -142,8 +142,16 @@ function Egg.KickImpact(target: Instance?, params: { [string]: any })
 		false,
 		true
 	)
-	Fx.flash(pos, Color3.fromRGB(255, 240, 160), 6 + 4 * power, 0.3)
-	Shake.impulse("Kick", 0.25 + 0.35 * power, 0.25)
+	-- (the kick cutscene's camera sits a few studs from the foot: a smaller flash and a short, light shake, so the
+	-- hit punches without whiting out or shaking the framing apart; its field-of-view punch does the rest)
+	local cut = params.cutscene == true
+	Fx.flash(
+		pos,
+		Color3.fromRGB(255, 240, 160),
+		if cut then 3.5 + 2.5 * power else 6 + 4 * power,
+		if cut then 0.22 else 0.3
+	)
+	Shake.impulse("Kick", if cut then 0.14 + 0.2 * power else 0.25 + 0.35 * power, if cut then 0.2 else 0.25)
 end
 
 function Egg.ZoneEnter(target: Instance?, params: { [string]: any })
@@ -243,6 +251,7 @@ function Egg.EggSpin(target: Instance?, params: { [string]: any })
 			index = index % #keys + 1
 			current = show(state, egg, keys[index])
 			Fx.hideLocally(egg, true, current)
+			Audio.play("SpinTick", egg) -- each egg flicking past
 			nextSwap = (os.clock() - t0) + SWAP_FAST + (SWAP_SLOW - SWAP_FAST) * f * f
 		end
 		local motor = (current.PrimaryPart :: BasePart):FindFirstChild("SpinMotor") :: Motor6D

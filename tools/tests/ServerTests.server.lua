@@ -461,7 +461,10 @@ section("SackService + pens + collecting", function()
 		check(`shop sacks are display props without effects; {lights} soft lights (<= 4)`, displayOnly and lights <= 4)
 		check("the shop's Coach stands behind its counter", coach)
 		local MerchantConfig = require(SSS.Server.Data.MerchantConfig) :: any
-		check("the shop's merchant wears the owner's avatar (Krono808)", MerchantConfig.BoxingSackMerchant.UserId == 3953001499)
+		check(
+			"the shop's merchant wears the owner's avatar (Krono808)",
+			MerchantConfig.BoxingSackMerchant.UserId == 3953001499
+		)
 		local trainPrompts, stands, rackSigns = 0, 0, 0
 		for _, d in map:GetDescendants() do
 			if d:IsA("ProximityPrompt") and d:GetAttribute("Action") == "EquipSack" then
@@ -1013,39 +1016,70 @@ section("Tutorial, sack sounds, mystery egg, merchants", function()
 	local _, size = egg:GetBoundingBox()
 	check("mystery egg builds with a ? on both faces", egg.PrimaryPart ~= nil and marks == 18)
 	check("mystery egg is full egg size (not a small prop)", size.Y >= 3.2 and size.X >= 2.4)
-	-- the egg kick: a full-body clip (legs, hips, torso, arms) with a contact frame, as a real KeyframeSequence
+	-- the egg kick: a full-body clip (legs, hips, torso, arms) with markers, sampled on smooth curves (Anim/Clip)
 	local EggKick = require(Shared.Anim.EggKick) :: any
-	local seq = EggKick.buildKeyframeSequence()
-	local frames, contact, jointsMoved = 0, false, {}
-	for _, kf in seq:GetChildren() do
-		if kf:IsA("Keyframe") then
-			frames += 1
-			contact = contact or kf:FindFirstChild("Contact") ~= nil
-			for _, p in kf:GetDescendants() do
-				if p:IsA("Pose") and p.CFrame ~= CFrame.identity then
-					jointsMoved[p.Name] = true
-				end
+	local Clip = require(Shared.Anim.Clip) :: any
+	local kick = EggKick.CLIPS.kick
+	local joints = 0
+	for _, name in Clip.JOINTS do
+		if kick.channels[name] then
+			joints += 1
+		end
+	end
+	local markers = {}
+	for _, m in kick.markers do
+		markers[m.name] = m.t
+	end
+	check(
+		"egg kick: a full-body clip (joints + both feet) with Release / Contact markers in order",
+		joints >= 10
+			and kick.channels.RFoot ~= nil
+			and kick.channels.LFoot ~= nil
+			and markers.Release ~= nil
+			and markers.Contact == EggKick.CONTACT
+			and markers.Release < markers.Contact
+	)
+	check("egg kick: contact comes inside the server's 1 s lead", EggKick.CONTACT < 1)
+	local contactPose = Clip.sample(kick, EggKick.CONTACT)
+	check(
+		"egg kick: at contact the kicking leg is straight out front",
+		contactPose.RHip[1] > 50 and contactPose.RKnee[1] > -15
+	)
+	local wind = Clip.sample(kick, EggKick.WINDUP)
+	check(
+		"egg kick: wind-up draws the leg back and twists the hips",
+		wind.RHip[1] < -40 and math.abs(wind.Root[2]) > 15
+	)
+	-- loops have no seam: the hold, the brace and the training stance end where they start
+	local seamless = true
+	for _, clip in { EggKick.CLIPS.hold, EggKick.CLIPS.brace, require(Shared.Anim.Sack).CLIPS.stance } do
+		local a0, a1 = Clip.sample(clip, 0), Clip.sample(clip, clip.length - 1e-4)
+		for name, v in a0 do
+			for c = 1, #v do
+				seamless = seamless and math.abs(v[c] - a1[name][c]) < 0.05
 			end
 		end
 	end
-	local moved = 0
-	for _ in jointsMoved do
-		moved += 1
+	check("hold / brace / stance loops are seamless", seamless)
+	-- the sack kicks keep the gear's timing and chain: they start and end on the stance, contact at KICK_IMPACT
+	local Sack = require(Shared.Anim.Sack) :: any
+	local PlayerAnim = require(Shared.Anim.Player) :: any
+	local chain = Sack.LENGTH == PlayerAnim.KICK_LENGTH and Sack.IMPACT == PlayerAnim.KICK_IMPACT
+	for _, name in { "push", "snap", "roundhouse" } do
+		local clip = Sack.CLIPS[name]
+		local first, last = Clip.sample(clip, 0), Clip.sample(clip, clip.length)
+		for _, j in { "Root", "RFoot", "LFoot", "RShoulder", "LShoulder" } do
+			for c = 1, #first[j] do
+				chain = chain and math.abs(first[j][c] - last[j][c]) < 1e-3
+			end
+		end
+		local contact = false
+		for _, m in clip.markers do
+			contact = contact or (m.name == "Contact" and m.t == PlayerAnim.KICK_IMPACT)
+		end
+		chain = chain and contact
 	end
-	check(
-		"egg kick: a keyframed rig animation (8 keys, 13 joints, a Contact marker)",
-		frames == 8 and contact and moved >= 13
-	)
-	local contactPose = EggKick.pose(EggKick.CONTACT)
-	check(
-		"egg kick: at contact the kicking leg is straight out front",
-		contactPose.RHip[1] > 80 and contactPose.RKnee[1] > -15
-	)
-	local wind = EggKick.pose(0.5)
-	check(
-		"egg kick: wind-up draws the leg back and twists the hips",
-		wind.RHip[1] < -50 and math.abs(wind.Root[2]) > 15
-	)
+	check("sack kicks: fixed 0.6 s / 0.26 s timing, start and end on the stance", chain)
 	egg:Destroy()
 	-- merchants: no invented UserIds
 	local MerchantConfig = require(SSS.Server.Data.MerchantConfig) :: any
@@ -1083,7 +1117,25 @@ section("Audio: no thunder on ordinary sounds, tiers, landings, contacts, the 10
 		sourcesOk = sourcesOk and BUILTIN[src.id] == true and src.gain > 0 and src.gain <= 12
 	end
 	check("audio: every source is a sound that ships with Roblox (no invented ids)", sourcesOk)
-	check("audio: no custom ids configured yet", next(B.CUSTOM) == nil)
+	-- custom ids come only from the Premium SFX upload (Audio/PremiumSfx) and each one replaces something real
+	local customOk = true
+	for event, c in B.CUSTOM do
+		local tier, moment = string.match(event, "^Sack(%d+)%.(%a+)$")
+		local surface = string.match(event, "^Egg%a+_(%a+)$")
+		local mutation = string.match(event, "^MutationAccent_(%a+)$")
+		local known = B.Events[event] ~= nil
+			or (tier ~= nil and tonumber(tier) <= #B.SackMaterial and moment ~= nil)
+			or (surface ~= nil and B.Surfaces[surface] ~= nil)
+			or (mutation ~= nil and B.MutationAccent[mutation] ~= nil)
+		for _, id in c.ids or { c.id } do
+			customOk = customOk and string.match(id, "^rbxassetid://%d+$") ~= nil
+		end
+		if not known then
+			customOk = false
+			warn("custom id for an unknown sound: " .. event)
+		end
+	end
+	check("audio: every custom id is an uploaded asset for a sound the game plays", customOk)
 
 	local function hasBoom(layers): boolean
 		for _, l in layers do
@@ -1469,7 +1521,10 @@ section("Leaderboards: formatting, ranking, boards, donations", function()
 	local LB = require(Shared.Config.Leaderboards) :: any
 	local DataService = require(Services.DataService) :: any
 	check("format: whole below 1000", LS.format(999) == "999" and LS.format(12.7) == "12")
-	check("format: 1.23K / 2.5T / 15M", LS.format(1234) == "1.23K" and LS.format(2.5e12) == "2.5T" and LS.format(15e6) == "15M")
+	check(
+		"format: 1.23K / 2.5T / 15M",
+		LS.format(1234) == "1.23K" and LS.format(2.5e12) == "2.5T" and LS.format(15e6) == "15M"
+	)
 	check("format: 100K, 1K", LS.format(100000) == "100K" and LS.format(1000) == "1K")
 	local top = LS.top({
 		{ userId = 3, value = 50 },
@@ -1478,8 +1533,14 @@ section("Leaderboards: formatting, ranking, boards, donations", function()
 		{ userId = 4, value = 0 },
 		{ userId = 5, value = 7 },
 	}, 3)
-	check("top: highest first, ties by id, zeros dropped, cut to rows", #top == 3 and top[1].userId == 1 and top[2].userId == 2 and top[3].userId == 3)
-	check("two boards: Kick Power and donations", LB.Boards.Power.stat == "kickPower" and LB.Boards.Donations.stat == "donated" and LB.Rows == 10)
+	check(
+		"top: highest first, ties by id, zeros dropped, cut to rows",
+		#top == 3 and top[1].userId == 1 and top[2].userId == 2 and top[3].userId == 3
+	)
+	check(
+		"two boards: Kick Power and donations",
+		LB.Boards.Power.stat == "kickPower" and LB.Boards.Donations.stat == "donated" and LB.Rows == 10
+	)
 	local ids = true
 	for _, d in LB.Donations do
 		if d.id ~= 0 or d.robux <= 0 then
@@ -1504,7 +1565,10 @@ section("Leaderboards: formatting, ranking, boards, donations", function()
 	end
 	check("board: 10 rows with rank, avatar, name and value", n == 10)
 	local prompt = don:FindFirstChild("Podium") and don.Podium:FindFirstChildOfClass("ProximityPrompt")
-	check("donations board: Donate podium prompt", prompt ~= nil and prompt:GetAttribute("Action") == "OpenMenu:Donate" and power:FindFirstChild("Podium") == nil)
+	check(
+		"donations board: Donate podium prompt",
+		prompt ~= nil and prompt:GetAttribute("Action") == "OpenMenu:Donate" and power:FindFirstChild("Podium") == nil
+	)
 	local inWall = false
 	for _, p in power:GetDescendants() do
 		if p:IsA("BasePart") and p.Position.X < -170 then
@@ -1525,7 +1589,10 @@ section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
 	for _, b in zone.Bases:GetChildren() do
 		seen[b:GetAttribute("BaseIndex")] = b
 	end
-	check("pens: exactly Base1..Base5 (no Base6)", MapBuilder.PenCount == 5 and seen[5] ~= nil and seen[6] == nil and #zone.Bases:GetChildren() == 5)
+	check(
+		"pens: exactly Base1..Base5 (no Base6)",
+		MapBuilder.PenCount == 5 and seen[5] ~= nil and seen[6] == nil and #zone.Bases:GetChildren() == 5
+	)
 	local start, max = MapBuilder.penSize(1), MapBuilder.penSize(MapBuilder.PenMaxLevel)
 	check(
 		`pens: start {start.X}x{start.Y} is bigger than the old 52x44, max {max.X}x{max.Y} = the reserve`,
@@ -1596,9 +1663,15 @@ section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
 			end
 		end
 	end
-	check(`pens: egg placement aim hits the floor tiles everywhere usable, every pen and level {coverWhy or ""}`, covered)
+	check(
+		`pens: egg placement aim hits the floor tiles everywhere usable, every pen and level {coverWhy or ""}`,
+		covered
+	)
 	check("pens: every level resizes the floor frame around the same centre", okGrow)
-	check(`pens: fences and dressing stay inside the reserve at every level (worst {math.floor(worst * 10) / 10})`, okInside)
+	check(
+		`pens: fences and dressing stay inside the reserve at every level (worst {math.floor(worst * 10) / 10})`,
+		okInside
+	)
 	base:SetAttribute("PenLevel", 1)
 	task.wait()
 	check("pens: back to level 1 shrinks it again", math.abs(area.Size.X - start.X) < 0.01)
@@ -1658,7 +1731,10 @@ section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
 				z0, z1 = math.min(z0, d.Position.Z - d.Size.Z / 2), math.max(z1, d.Position.Z + d.Size.Z / 2)
 			end
 		end
-		table.insert(obstacles, { name = name, box = { x = (x0 + x1) / 2, z = (z0 + z1) / 2, hx = (x1 - x0) / 2, hz = (z1 - z0) / 2 } })
+		table.insert(
+			obstacles,
+			{ name = name, box = { x = (x0 + x1) / 2, z = (z0 + z1) / 2, hx = (x1 - x0) / 2, hz = (z1 - z0) / 2 } }
+		)
 	end
 	local function blocked(from: Vector3, to: Vector3, skip: string?): string?
 		for k = 1, 99 do
@@ -1704,35 +1780,84 @@ section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
 			sellPrompt = d
 		end
 	end
-	check("pet selling stand opens the Sell Pets screen", sellPrompt ~= nil and sellPrompt:GetAttribute("Action") == "OpenMenu:Inventory")
-	check("both shops have an approach spot (tutorial)", stand and stand:FindFirstChild("Approach") and zone.BoxingSackShop:FindFirstChild("Approach"))
+	check(
+		"pet selling stand opens the Sell Pets screen",
+		sellPrompt ~= nil and sellPrompt:GetAttribute("Action") == "OpenMenu:Inventory"
+	)
+	check(
+		"both shops have an approach spot (tutorial)",
+		stand and stand:FindFirstChild("Approach") and zone.BoxingSackShop:FindFirstChild("Approach")
+	)
 	local gone = true
 	for _, d in map:GetDescendants() do
-		if d.Name == "IndexStall" or d.Name == "ArchBeam" or d.Name == "ArchPillar" or string.sub(d.Name, 1, 6) == "Banner" and d.Parent and d.Parent.Name == "Hub" then
+		if
+			d.Name == "IndexStall"
+			or d.Name == "ArchBeam"
+			or d.Name == "ArchPillar"
+			or string.sub(d.Name, 1, 6) == "Banner" and d.Parent and d.Parent.Name == "Hub"
+		then
 			gone = false
 		end
-		if d:IsA("ProximityPrompt") and (d:GetAttribute("Action") == "OpenMenu:Index" or d:GetAttribute("Action") == "OpenMenu:Rebirth") then
+		if
+			d:IsA("ProximityPrompt")
+			and (d:GetAttribute("Action") == "OpenMenu:Index" or d:GetAttribute("Action") == "OpenMenu:Rebirth")
+		then
 			gone = false
 		end
 	end
 	check("no Index / Rebirth stands and no launch arch", gone)
-	check("the egg fountain is off the central path", zone.Decor.Fountain ~= nil and math.abs(zone.Decor.Fountain.Water.Position.X) > 20)
+	check(
+		"the egg fountain is off the central path",
+		zone.Decor.Fountain ~= nil and math.abs(zone.Decor.Fountain.Water.Position.X) > 20
+	)
 	-- 20 zones, canonical order, straight +Z, each with its scenery
-	local NAMES = { "Meadow", "Sandy Beach", "Autumn Forest", "Mushroom Grove", "Desert Dunes", "Snowy Peaks", "Candy Land", "Coral Reef", "Volcano", "Crystal Caves", "Jungle Ruins", "Neon City", "Haunted Graveyard", "Sky Islands", "Toxic Swamp", "Clockwork Factory", "Frozen Aurora", "Lava Core", "Galaxy Void", "Rainbow Heaven" }
+	local NAMES = {
+		"Meadow",
+		"Sandy Beach",
+		"Autumn Forest",
+		"Mushroom Grove",
+		"Desert Dunes",
+		"Snowy Peaks",
+		"Candy Land",
+		"Coral Reef",
+		"Volcano",
+		"Crystal Caves",
+		"Jungle Ruins",
+		"Neon City",
+		"Haunted Graveyard",
+		"Sky Islands",
+		"Toxic Swamp",
+		"Clockwork Factory",
+		"Frozen Aurora",
+		"Lava Core",
+		"Galaxy Void",
+		"Rainbow Heaven",
+	}
 	local order, dressed, contiguous = #Zones == 20, true, true
 	for i, z in Zones do
 		if z.name ~= NAMES[i] then
 			order = false
 		end
 		local f = map.Runway:FindFirstChild("Zone" .. i)
-		if not (f and f:FindFirstChild("Ledges") and f:FindFirstChild("Backdrop") and f:FindFirstChild("Landmark") and f:FindFirstChild("Blend")) then
+		if
+			not (
+				f
+				and f:FindFirstChild("Ledges")
+				and f:FindFirstChild("Backdrop")
+				and f:FindFirstChild("Landmark")
+				and f:FindFirstChild("Blend")
+			)
+		then
 			dressed = false
 		end
 		if i > 1 and z.start ~= Zones[i - 1].start + Zones[i - 1].length then
 			contiguous = false
 		end
 	end
-	check("20 zones in the canonical order, contiguous along +Z", order and contiguous and map.Runway:FindFirstChild("Zone21") == nil)
+	check(
+		"20 zones in the canonical order, contiguous along +Z",
+		order and contiguous and map.Runway:FindFirstChild("Zone21") == nil
+	)
 	check("every zone has its landmark, ledges, backdrop and blend", dressed)
 	-- nothing stands in the running lane (|x| <= half the runway width) above the floor
 	local half = require(Shared.Config.Chase).RunwayWidth / 2
@@ -1740,8 +1865,12 @@ section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
 	for _, d in map.Runway:GetDescendants() do
 		if d:IsA("BasePart") and d.Transparency < 1 and d.Name ~= "Lane" then
 			local cf, size = d.CFrame, d.Size
-			local ex = math.abs(cf.RightVector.X) * size.X + math.abs(cf.UpVector.X) * size.Y + math.abs(cf.LookVector.X) * size.Z
-			local ey = math.abs(cf.RightVector.Y) * size.X + math.abs(cf.UpVector.Y) * size.Y + math.abs(cf.LookVector.Y) * size.Z
+			local ex = math.abs(cf.RightVector.X) * size.X
+				+ math.abs(cf.UpVector.X) * size.Y
+				+ math.abs(cf.LookVector.X) * size.Z
+			local ey = math.abs(cf.RightVector.Y) * size.X
+				+ math.abs(cf.UpVector.Y) * size.Y
+				+ math.abs(cf.LookVector.Y) * size.Z
 			local lo, hi = cf.Position.Y - ey / 2, cf.Position.Y + ey / 2
 			if math.abs(cf.Position.X) - ex / 2 < half and hi > 0.5 and lo < 60 then
 				table.insert(blockers, d:GetFullName())
@@ -1756,11 +1885,14 @@ section("Map overhaul: five-pen hub, shops, 20 zones, clear lane", function()
 	end
 	for k, n in kinds do
 		print(`[Lane] {k} x{n}`)
-		end
-		for _, name in blockers do
-			print("[LaneItem] " .. name)
 	end
-	check(`no scenery in the running lane ({#blockers} found{if #blockers > 0 then ": " .. blockers[1] else ""})`, #blockers == 0)
+	for _, name in blockers do
+		print("[LaneItem] " .. name)
+	end
+	check(
+		`no scenery in the running lane ({#blockers} found{if #blockers > 0 then ": " .. blockers[1] else ""})`,
+		#blockers == 0
+	)
 	local parts = 0
 	for _, d in map:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -1775,7 +1907,10 @@ section("Weather: /weather Studio command", function()
 	local WS = require(Services.WeatherService) :: any
 	local Mutations = require(Shared.Config.Mutations) :: any
 	local p = WS.parseCommand
-	check("/weather alone shows the status", p("/weather").action == "status" and p("  /weather   help").action == "status")
+	check(
+		"/weather alone shows the status",
+		p("/weather").action == "status" and p("  /weather   help").action == "status"
+	)
 	local ok = true
 	for name in Mutations.Weather do -- every Config weather, any letter case
 		local c = p("/weather " .. string.upper(name))
@@ -1785,10 +1920,19 @@ section("Weather: /weather Studio command", function()
 	end
 	check("/weather <name> starts every Config weather (any case, normal length)", ok)
 	local timed = p("/WEATHER stormy 30")
-	check("/weather Stormy 30 starts Stormy for 30 s", timed.action == "start" and timed.weather == "Stormy" and timed.seconds == 30)
-	check("lengths are clamped to 5 s .. 1 h", p("/weather rainy 1").seconds == 5 and p("/weather rainy 99999").seconds == 3600)
+	check(
+		"/weather Stormy 30 starts Stormy for 30 s",
+		timed.action == "start" and timed.weather == "Stormy" and timed.seconds == 30
+	)
+	check(
+		"lengths are clamped to 5 s .. 1 h",
+		p("/weather rainy 1").seconds == 5 and p("/weather rainy 99999").seconds == 3600
+	)
 	local r = p("/weather random 12")
-	check("/weather random picks like the schedule", r.action == "start" and r.random == true and r.weather == nil and r.seconds == 12)
+	check(
+		"/weather random picks like the schedule",
+		r.action == "start" and r.random == true and r.weather == nil and r.seconds == 12
+	)
 	check("/weather off ends it", p("/weather off").action == "stop" and p("/weather stop").action == "stop")
 	check("an unknown name is reported, not started", p("/weather heatwave").action == "unknown")
 	-- start / stop on the real service (its remotes made by Init)

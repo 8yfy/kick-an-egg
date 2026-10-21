@@ -1,436 +1,682 @@
 --!strict
--- The kick-line EGG KICK: an original, full-body rig animation (R15 joints: hips, both legs, torso twist, arms,
--- head) for kicking the mystery egg, plus the two-handed HOLD pose for carrying it on the kick line.
---   0.00 hold        the egg in both hands, knees soft
---   0.14 toss        arms fling the egg up, up on the toes
---   0.34 wind-up     hips and torso twist away, kicking leg drawn far back, arms spread for balance
---   0.50 coil        a beat of anticipation: lower, tighter
---   CONTACT 0.62     the strike: hips whip round, the leg snaps straight through the egg, arms counter-swing
---   0.70             hit-stop at full extension
---   0.94 follow      the leg carries on up and across, body leans back off the ground
---   1.18 recover     back to a neutral stance (the default Animate takes over)
--- Pose = joint -> { pitch, yaw, roll (degrees), lift (studs) }, the same convention as Anim/Player.
+-- The kick-line EGG KICK (a drop punt) and the HOLD / BRACE poses around it: Anim/Clip data played by Anim/Mixer
+-- on top of the Animator, with the hands fitted onto the real egg and the feet planted by leg IK on every avatar.
 --
--- PLAYBACK (EggKick.play): with a published AnimationId (EggKick.PUBLISHED, set after publishing) it plays as a
--- real AnimationTrack on the character's Animator. In Studio without one it registers the clip
--- (KeyframeSequenceProvider) and still plays it through the Animator. On live servers before publishing, the
--- same keyframes are written to the rig's joints every frame (identical motion). To publish: run
--- require(game.ReplicatedStorage.Shared.Anim.EggKick).buildKeyframeSequence().Parent = workspace in Studio's
--- command bar, right-click it > Save to Roblox, and put the id in EggKick.PUBLISHED.kick (same for .hold with
--- buildHoldSequence). See docs/KickCinematic.md.
-local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
-local RunService = game:GetService("RunService")
-
-local PlayerAnim = require(script.Parent.Player)
+--   0.00 ready      the egg hugged at the belly, knees soft
+--   0.11 gather     anticipation: sink, chest over the egg, egg pulled in
+--   0.21 RELEASE    legs drive up, the arms toss the egg up and forward; it leaves the hands here
+--   0.33 step       the support (left) foot lifts as the weight rolls onto the right
+--   0.44 PLANT      the left foot plants beside the falling egg, the weight comes onto it, hips coil away
+--   0.65 WINDUP     the kicking leg at the top of its draw-back (accelerating into it, no held pose); the
+--                   opposite arm out wide, shoulders counter-turned against the hips
+--   0.745           the hips whip round first, the thigh leads and the shin lags behind
+--   0.80 CONTACT    the shin snaps straight, laces through the egg (the egg's launch, = KickAt)
+--   0.98            follow-through: the leg carries on up, the body lifts onto the support toes and leans back
+--   1.27 LAND       the kicking foot comes down onto its own spot
+--   1.50 RECOVER    the support foot steps back under the body; 1.80 settled, blended back into the Animator
+-- Pre-contact is 0.80 s, inside the server's 1.0 s lead (KickService LAUNCH_DELAY). A late start (the answer
+-- arrived late) plays the run-up faster, up to 1.4x, so the foot still meets the egg exactly at KickAt; it never
+-- jumps frames unless it is later than that.
+local Body = require(script.Parent.Body)
+local Clip = require(script.Parent.Clip)
+local Mixer = require(script.Parent.Mixer)
 
 local EggKick = {}
 
-EggKick.PUBLISHED = { kick = "", hold = "" } -- "rbxassetid://<id>" once published (never invented)
-EggKick.CONTACT = 0.62
-EggKick.LENGTH = 1.18
-
-type Pose = { [string]: { number } }
-type Key = { t: number, ease: string, pose: Pose }
-
-local HOLD: Pose = {
-	Root = { 0, 0, 0, -0.08 },
-	Waist = { 4, 0, 0 },
-	Neck = { -4, 0, 0 },
-	RShoulder = { 72, 0, -12 },
-	RElbow = { 28, 0, 0 },
-	LShoulder = { 72, 0, 12 },
-	LElbow = { 28, 0, 0 },
-	RHip = { 8, 0, 0 },
-	RKnee = { -14, 0, 0 },
-	RAnkle = { 6, 0, 0 },
-	LHip = { 8, 0, 0 },
-	LKnee = { -14, 0, 0 },
-	LAnkle = { 6, 0, 0 },
-}
-EggKick.HOLD = HOLD
--- the hold, braced (lower, knees bent) while your timing meter runs
-local BRACED: Pose = table.clone(HOLD)
-BRACED.Root = { 6, 0, 0, -0.22 }
-BRACED.RHip, BRACED.LHip = { 22, 0, 0 }, { 22, 0, 0 }
-BRACED.RKnee, BRACED.LKnee = { -34, 0, 0 }, { -34, 0, 0 }
-EggKick.BRACED = BRACED
+EggKick.RELEASE = 0.21
+EggKick.PLANT = 0.44
+EggKick.WINDUP = 0.65
+EggKick.CONTACT = 0.8
+EggKick.LAND = 1.27
+EggKick.RECOVER = 1.5
+EggKick.LENGTH = 1.8
+EggKick.MAX_CATCH_UP = 1.4 -- fastest run-up speed when the kick starts late
 -- FlightController leaves the camera alone until this server time (your kick cinematic owns it until then)
 EggKick.cameraBusyUntil = 0
 
-local KEYS: { Key } = {
-	{ t = 0, ease = "linear", pose = HOLD },
-	{
-		t = 0.14,
-		ease = "out",
-		pose = { -- toss: arms up, on the toes
-			Root = { -4, 0, 0, 0.12 },
-			Waist = { -8, 0, 0 },
-			Neck = { -18, 0, 0 },
-			RShoulder = { 160, 0, -20 },
-			RElbow = { 10, 0, 0 },
-			LShoulder = { 160, 0, 20 },
-			LElbow = { 10, 0, 0 },
-			RHip = { 0, 0, 0 },
-			RKnee = { -4, 0, 0 },
-			RAnkle = { -18, 0, 0 },
-			LHip = { 0, 0, 0 },
-			LKnee = { -4, 0, 0 },
-			LAnkle = { -18, 0, 0 },
-		},
-	},
-	{
-		t = 0.34,
-		ease = "out",
-		pose = { -- wind-up: twist away, kicking leg far back, arms spread
-			Root = { 10, -22, 0, -0.06 },
-			Waist = { 6, 28, 0 },
-			Neck = { 12, -10, 0 },
-			RShoulder = { 70, 0, -70 },
-			RElbow = { 20, 0, 0 },
-			LShoulder = { -35, 0, 55 },
-			LElbow = { 30, 0, 0 },
-			RHip = { -55, 0, 0 },
-			RKnee = { -95, 0, 0 },
-			RAnkle = { 22, 0, 0 },
-			LHip = { 28, 0, 0 },
-			LKnee = { -38, 0, 0 },
-			LAnkle = { 14, 0, 0 },
-		},
-	},
-	{
-		t = 0.5,
-		ease = "inout",
-		pose = { -- coil: lower, tighter (anticipation)
-			Root = { 12, -26, 0, -0.16 },
-			Waist = { 8, 32, 0 },
-			Neck = { 14, -12, 0 },
-			RShoulder = { 78, 0, -78 },
-			RElbow = { 24, 0, 0 },
-			LShoulder = { -42, 0, 60 },
-			LElbow = { 34, 0, 0 },
-			RHip = { -66, 0, 0 },
-			RKnee = { -108, 0, 0 },
-			RAnkle = { 24, 0, 0 },
-			LHip = { 34, 0, 0 },
-			LKnee = { -46, 0, 0 },
-			LAnkle = { 16, 0, 0 },
-		},
-	},
-	{
-		t = EggKick.CONTACT,
-		ease = "in",
-		pose = { -- contact: hips whip round, leg straight through the egg, arms counter-swing
-			Root = { 18, 16, 0, 0.02 },
-			Waist = { 10, -22, 0 },
-			Neck = { -8, 6, 0 },
-			RShoulder = { -50, 0, -35 },
-			RElbow = { 40, 0, 0 },
-			LShoulder = { 85, 0, 30 },
-			LElbow = { 20, 0, 0 },
-			RHip = { 98, 0, 0 },
-			RKnee = { -4, 0, 0 },
-			RAnkle = { -14, 0, 0 },
-			LHip = { -12, 0, 0 },
-			LKnee = { -10, 0, 0 },
-			LAnkle = { 8, 0, 0 },
-		},
-	},
-	{
-		t = 0.7,
-		ease = "linear",
-		pose = { -- hit-stop: held at full extension
-			Root = { 20, 18, 0, 0.04 },
-			Waist = { 10, -24, 0 },
-			Neck = { -10, 6, 0 },
-			RShoulder = { -55, 0, -38 },
-			RElbow = { 40, 0, 0 },
-			LShoulder = { 88, 0, 32 },
-			LElbow = { 20, 0, 0 },
-			RHip = { 108, 0, 0 },
-			RKnee = { -2, 0, 0 },
-			RAnkle = { -16, 0, 0 },
-			LHip = { -14, 0, 0 },
-			LKnee = { -8, 0, 0 },
-			LAnkle = { 10, 0, 0 },
-		},
-	},
-	{
-		t = 0.94,
-		ease = "out",
-		pose = { -- follow-through: up and across, off the ground
-			Root = { 24, 26, 0, 0.18 },
-			Waist = { 8, -18, 0 },
-			Neck = { -14, 10, 0 },
-			RShoulder = { -30, 0, -55 },
-			RElbow = { 50, 0, 0 },
-			LShoulder = { 60, 0, 50 },
-			LElbow = { 35, 0, 0 },
-			RHip = { 128, 18, 0 },
-			RKnee = { -22, 0, 0 },
-			RAnkle = { -10, 0, 0 },
-			LHip = { -18, 0, 0 },
-			LKnee = { -6, 0, 0 },
-			LAnkle = { -12, 0, 0 },
-		},
-	},
-	{
-		t = EggKick.LENGTH,
-		ease = "inout",
-		pose = { -- recover
-			Root = { 0, 0, 0, 0 },
-			Waist = { 0, 0, 0 },
-			Neck = { 0, 0, 0 },
-			RShoulder = { 10, 0, -6 },
-			RElbow = { 20, 0, 0 },
-			LShoulder = { 10, 0, 6 },
-			LElbow = { 20, 0, 0 },
-			RHip = { 4, 0, 0 },
-			RKnee = { -8, 0, 0 },
-			RAnkle = { 4, 0, 0 },
-			LHip = { 4, 0, 0 },
-			LKnee = { -8, 0, 0 },
-			LAnkle = { 4, 0, 0 },
-		},
-	},
-}
-EggKick.KEYS = KEYS
+local PLANTED = { 1, 0, 0, 0, 0, 0 }
 
-local function ease(kind: string, a: number): number
-	if kind == "in" then
-		return a * a * a
-	elseif kind == "out" then
-		return 1 - (1 - a) ^ 2
-	elseif kind == "inout" then
-		return a * a * (3 - 2 * a)
-	end
-	return a
-end
+-- Hold: a living loop (breathing every 2 s, the weight drifting side to side over 4 s, feet planted).
+local HOLD = Clip.compile({
+	name = "EggHold",
+	length = 4,
+	loop = true,
+	overlap = { Neck = 0.18, Egg = 0.08 },
+	keys = {
+		{
+			t = 0,
+			pose = {
+				Root = { 3, 0, 0, 0, -0.1, 0 },
+				Waist = { 2, 0, 0 },
+				Neck = { -7, 0, 0 },
+				RShoulder = { 48, 0, 22 },
+				RElbow = { 62 },
+				LShoulder = { 48, 0, -22 },
+				LElbow = { 62 },
+				RFoot = PLANTED,
+				LFoot = PLANTED,
+				RHand = { 1 },
+				LHand = { 1 },
+				Egg = { 0, 0, 0, 0, 0, 0 },
+			},
+		},
+		{
+			t = 1,
+			pose = {
+				Root = { 3.6, 0, 0.4, -0.012, -0.075, 0 },
+				Waist = { 0.6, 0, 0 },
+				Neck = { -6, 1, 0 },
+				Egg = { 0, 0, 0, 0, 0.035, 0 },
+			},
+		},
+		{
+			t = 2,
+			pose = {
+				Root = { 3, 1, 1.4, -0.045, -0.11, 0 },
+				Waist = { 2.4, -1, -1 },
+				Neck = { -7.5, 3, 1 },
+				Egg = { 0, 0, 0, 0, -0.01, 0 },
+			},
+		},
+		{
+			t = 3,
+			pose = {
+				Root = { 3.6, 0, 0.4, -0.012, -0.075, 0 },
+				Waist = { 0.6, 0, 0 },
+				Neck = { -6, -1, 0 },
+				Egg = { 0, 0, 0, 0, 0.035, 0 },
+			},
+		},
+	},
+})
 
--- The pose `t` seconds into the kick (clamped).
-function EggKick.pose(t: number): Pose
-	local prev, nxt = KEYS[1], KEYS[#KEYS]
-	for i = 2, #KEYS do
-		if t <= KEYS[i].t then
-			prev, nxt = KEYS[i - 1], KEYS[i]
-			break
+-- Brace (the timing meter is running): lower, knees loaded, egg pulled in, a quick shallow bounce.
+local BRACE = Clip.compile({
+	name = "EggBrace",
+	length = 1.2,
+	loop = true,
+	keys = {
+		{
+			t = 0,
+			pose = {
+				Root = { -3, 0, 0, 0, -0.32, 0.03 },
+				Waist = { -5, 0, 0 },
+				Neck = { 5, 0, 0 },
+				RFoot = PLANTED,
+				LFoot = PLANTED,
+				RHand = { 1 },
+				LHand = { 1 },
+				Egg = { -5, 0, 0, 0, -0.05, 0 },
+			},
+		},
+		{
+			t = 0.6,
+			pose = {
+				Root = { -4, 0, 0, 0, -0.37, 0.03 },
+				Waist = { -6, 0, 0 },
+				Neck = { 6, 0, 0 },
+				Egg = { -6, 0, 0, 0, -0.07, 0 },
+			},
+		},
+	},
+})
+
+local KICK = Clip.compile({
+	name = "EggKick",
+	length = EggKick.LENGTH,
+	-- secondary action trails the hips: arms and head follow through after the body
+	overlap = { Waist = 0.015, Neck = 0.04, RShoulder = 0.03, LShoulder = 0.03, RElbow = 0.05, LElbow = 0.05 },
+	markers = {
+		Release = EggKick.RELEASE,
+		Plant = EggKick.PLANT,
+		WindUp = EggKick.WINDUP,
+		Contact = EggKick.CONTACT,
+		Land = EggKick.LAND,
+		Recover = EggKick.RECOVER,
+	},
+	keys = {
+		{ -- ready (= the hold)
+			t = 0,
+			pose = {
+				Root = { 3, 0, 0, 0, -0.1, 0 },
+				Waist = { 2, 0, 0 },
+				Neck = { -7, 0, 0 },
+				RShoulder = { 48, 0, 22 },
+				RElbow = { 62 },
+				LShoulder = { 48, 0, -22 },
+				LElbow = { 62 },
+				RHip = { 0 },
+				RKnee = { 0 },
+				RAnkle = { 0 },
+				RFoot = PLANTED,
+				LFoot = PLANTED,
+				RHand = { 1 },
+				LHand = { 1 },
+				Egg = { 0, 0, 0, 0, 0, 0 },
+			},
+		},
+		{ -- gather: sink and load, chest over the egg
+			t = 0.11,
+			pose = {
+				Root = { -5, 3, 0, 0, -0.34, 0.03 },
+				Waist = { -7, -3, 0 },
+				Neck = { 6, 0, 0 },
+				Egg = { -10, 0, 0, 0, -0.2, 0 },
+			},
+		},
+		{ -- the push: legs extend, the toss
+			t = EggKick.RELEASE,
+			pose = {
+				Root = { 6, 0, 0, 0, 0.02, -0.03 },
+				Waist = { 8, 0, 0 },
+				Neck = { 16, 0, 0 },
+				RShoulder = { 118, 0, 16 },
+				RElbow = { 24 },
+				LShoulder = { 118, 0, -16 },
+				LElbow = { 24 },
+				RHand = { 1 },
+				LHand = { 1 },
+				Egg = { 22, 0, 0, 0, 0.85, -0.5 },
+			},
+		},
+		{ -- hands open off the egg; arms keep rising, then open for balance; the left foot still bears weight
+			t = 0.26,
+			pose = {
+				LFoot = PLANTED,
+				RHand = { 0 },
+				LHand = { 0 },
+				RShoulder = { 118, 0, 20 },
+				LShoulder = { 118, 0, -20 },
+				RElbow = { 18 },
+				LElbow = { 18 },
+			},
+		},
+		{ -- step: weight rolls onto the right, the left foot lifts
+			t = 0.33,
+			pose = {
+				Root = { 4, -6, -3, 0.05, -0.05, -0.08 },
+				Waist = { 4, 6, 0 },
+				Neck = { 18, 0, 0 },
+				RShoulder = { 54, 0, 36 },
+				RElbow = { 30 },
+				LShoulder = { 66, 0, -32 },
+				LElbow = { 28 },
+				LFoot = { 1, -0.05, 0.22, -0.32, -4, -6 },
+			},
+		},
+		{ -- right foot still bearing weight, about to push off
+			t = 0.4,
+			pose = { RFoot = PLANTED, RHip = { -6 }, RKnee = { -24 }, RAnkle = { -6 } },
+		},
+		{ -- PLANT: the left foot lands beside the falling egg, the weight comes onto it, hips coil
+			t = EggKick.PLANT,
+			pose = {
+				Root = { -2, -14, 4, -0.08, -0.17, -0.3 },
+				Waist = { -4, 18, 0 },
+				Neck = { 10, -4, 0 },
+				LFoot = { 1, -0.08, 0, -0.6, -8, 0 },
+				RShoulder = { 8, 0, 38 },
+				RElbow = { 36 },
+				LShoulder = { 58, 0, -44 },
+				LElbow = { 28 },
+			},
+		},
+		{ -- the right foot peels off the ground into the draw-back
+			t = 0.49,
+			pose = { RFoot = { 0, 0, 0, 0, 0, 0 }, RHip = { -20, 0, 4 }, RKnee = { -62 }, RAnkle = { -16 } },
+		},
+		{ -- WINDUP: top of the draw-back, the body coiled against it
+			t = EggKick.WINDUP,
+			pose = {
+				Root = { -6, -22, 6, -0.1, -0.2, -0.3 },
+				Waist = { -6, 26, -2 },
+				Neck = { 6, -4, -2 },
+				RHip = { -46, 0, 6 },
+				RKnee = { -106 },
+				RAnkle = { -28 },
+				RShoulder = { -26, 0, 34 },
+				RElbow = { 42 },
+				LShoulder = { 56, 0, -58 },
+				LElbow = { 26 },
+			},
+		},
+		{ -- the hips fire first: the thigh swings through, the shin still trailing
+			t = 0.745,
+			pose = {
+				Root = { 2, -2, 7, -0.08, -0.12, -0.3 },
+				Waist = { 0, 8, -2 },
+				RHip = { 20, 0, 3 },
+				RKnee = { -114 },
+				RAnkle = { -32 },
+				RShoulder = { 8, 0, 30 },
+				LShoulder = { 40, 0, -68 },
+			},
+		},
+		{ -- CONTACT: the shin snaps straight through the egg, laces on it, arms counter-swing
+			t = EggKick.CONTACT,
+			ease = "impact",
+			pose = {
+				Root = { 10, 14, 8, -0.06, -0.06, -0.3 },
+				Waist = { 4, -16, 0 },
+				Neck = { -22, 4, 0 },
+				RHip = { 60, 0, -2 },
+				RKnee = { -8 },
+				RAnkle = { -38 },
+				RShoulder = { 44, 0, 18 },
+				RElbow = { 46 },
+				LShoulder = { 4, 0, -74 },
+				LElbow = { 20 },
+			},
+		},
+		{ -- follow-through: the leg carries on up, onto the support toes, leaning back
+			t = 0.98,
+			pose = {
+				Root = { 16, 22, 6, -0.04, 0.06, -0.3 },
+				Waist = { 6, -14, 0 },
+				Neck = { -14, 8, 0 },
+				RHip = { 112, 0, -6 },
+				RKnee = { -20 },
+				RAnkle = { -22 },
+				LFoot = { 1, -0.08, 0.13, -0.6, -8, -24 },
+				RShoulder = { 68, 0, -6 },
+				RElbow = { 50 },
+				LShoulder = { -10, 0, -58 },
+				LElbow = { 26 },
+			},
+		},
+		{ -- coming down, heel back on the ground
+			t = 1.14,
+			pose = {
+				Root = { 6, 10, 3, -0.04, -0.06, -0.24 },
+				Waist = { 2, -6, 0 },
+				Neck = { -4, 4, 0 },
+				RHip = { 52, 0, 0 },
+				RKnee = { -52 },
+				RAnkle = { -4 },
+				LFoot = { 1, -0.08, 0, -0.6, -8, 0 },
+				RShoulder = { 30, 0, 10 },
+				RElbow = { 34 },
+				LShoulder = { 6, 0, -34 },
+				LElbow = { 24 },
+			},
+		},
+		{ -- the kicking foot reaches for its spot
+			t = 1.21,
+			pose = { RFoot = { 0, 0, 0, 0, 0, 0 }, RHip = { 16, 0, 0 }, RKnee = { -30 }, RAnkle = { 6 } },
+		},
+		{ -- LAND: weight caught on both feet
+			t = EggKick.LAND,
+			pose = {
+				RFoot = PLANTED,
+				Root = { 0, 2, 0, -0.02, -0.2, -0.12 },
+				Waist = { 0, -2, 0 },
+				Neck = { -2, 2, 0 },
+				RShoulder = { 15, 0, 12 },
+				LShoulder = { 10, 0, -22 },
+			},
+		},
+		{ -- the support foot steps back under the body
+			t = 1.38,
+			pose = { LFoot = { 1, -0.04, 0.16, -0.3, -4, 0 }, Root = { 0, 0, -2, 0.04, -0.12, -0.04 } },
+		},
+		{ -- RECOVER
+			t = EggKick.RECOVER,
+			pose = {
+				LFoot = PLANTED,
+				Root = { 0, 0, 0, 0, -0.1, 0 },
+				RShoulder = { 8, 0, 8 },
+				RElbow = { 16 },
+				LShoulder = { 8, 0, -8 },
+				LElbow = { 16 },
+				Neck = { 0, 0, 0 },
+			},
+		},
+		{ -- settled
+			t = EggKick.LENGTH,
+			pose = {
+				Root = { 0, 0, 0, 0, -0.02, 0 },
+				Waist = { 0, 0, 0 },
+				Neck = { 0, 0, 0 },
+				RShoulder = { 4, 0, 6 },
+				RElbow = { 10 },
+				LShoulder = { 4, 0, -6 },
+				LElbow = { 10 },
+				RFoot = PLANTED,
+				LFoot = PLANTED,
+			},
+		},
+	},
+})
+EggKick.CLIPS = { hold = HOLD, brace = BRACE, kick = KICK }
+
+-- Fitting the egg to this body --------------------------------------------------------------------------------
+type Fit = { center: CFrame, toRoot: CFrame, grip: { [string]: Vector3 }, weld: Weld? }
+local fits: { [Model]: Fit } = setmetatable({}, { __mode = "k" }) :: any
+
+-- Half-width of the egg's blocks at a point (egg-root space), along X.
+local function halfWidth(egg: Model, root: BasePart, at: Vector3): number
+	local best = 0
+	for _, d in egg:GetDescendants() do
+		if d:IsA("BasePart") and d ~= root and d.Transparency < 1 then
+			local rel = root.CFrame:ToObjectSpace(d.CFrame)
+			local s = d.Size / 2
+			local function ext(axis: Vector3): number
+				return math.abs(rel.RightVector:Dot(axis)) * s.X
+					+ math.abs(rel.UpVector:Dot(axis)) * s.Y
+					+ math.abs(rel.LookVector:Dot(axis)) * s.Z
+			end
+			local p = rel.Position
+			if math.abs(at.Y - p.Y) <= ext(Vector3.yAxis) and math.abs(at.Z - p.Z) <= ext(Vector3.zAxis) then
+				best = math.max(best, math.abs(p.X) + ext(Vector3.xAxis))
+			end
 		end
 	end
-	local span = nxt.t - prev.t
-	local a = if span > 0 then ease(nxt.ease, math.clamp((t - prev.t) / span, 0, 1)) else 1
-	local out: Pose = {}
-	for name, from in prev.pose do
-		local to = nxt.pose[name] or from
-		out[name] = {
-			from[1] + (to[1] - from[1]) * a,
-			from[2] + (to[2] - from[2]) * a,
-			from[3] + (to[3] - from[3]) * a,
-			(from[4] or 0) + ((to[4] or 0) - (from[4] or 0)) * a,
-		}
+	return best
+end
+
+-- The egg's solid blocks in egg-root space (its root part and anything invisible left out): centre and size.
+local function shell(egg: Model, root: BasePart): (Vector3, Vector3)
+	local lo, hi = Vector3.one * math.huge, -Vector3.one * math.huge
+	for _, d in egg:GetDescendants() do
+		if d:IsA("BasePart") and d ~= root and d.Transparency < 1 then
+			local rel = root.CFrame:ToObjectSpace(d.CFrame)
+			local s = d.Size / 2
+			local ext = Vector3.new(
+				math.abs(rel.XVector.X) * s.X + math.abs(rel.YVector.X) * s.Y + math.abs(rel.ZVector.X) * s.Z,
+				math.abs(rel.XVector.Y) * s.X + math.abs(rel.YVector.Y) * s.Y + math.abs(rel.ZVector.Y) * s.Z,
+				math.abs(rel.XVector.Z) * s.X + math.abs(rel.YVector.Z) * s.Y + math.abs(rel.ZVector.Z) * s.Z
+			)
+			lo = lo:Min(rel.Position - ext)
+			hi = hi:Max(rel.Position + ext)
+		end
+	end
+	if lo.X > hi.X then
+		return Vector3.zero, Vector3.one
+	end
+	return (lo + hi) / 2, hi - lo
+end
+
+-- Where the egg sits against this body (UpperTorso space) and where the wrists grip it (egg-centre space).
+-- A big egg is hugged: its back against the chest, the hands on its sides close to the body, and the egg as low
+-- as these arms can still hold it that way (so as much of the face as possible stays above it).
+local function fit(character: Model, egg: Model): Fit?
+	local body = Mixer.body(character)
+	local ut = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	local root = egg.PrimaryPart
+	if not body or not ut or not ut:IsA("BasePart") or not root then
+		return nil
+	end
+	local mid, size = shell(egg, root)
+	local cz = -(ut.Size.Z / 2 + size.Z / 2 + 0.03)
+	local cy = -ut.Size.Y * 0.35
+	local grip = {}
+	local arm = body.limbs.RHand
+	local shoulder = body.joints.RShoulder
+	if arm and shoulder then
+		local reach = (arm.l1 + arm.l2) * 0.97
+		local hand = character:FindFirstChild("RightHand")
+		local palm = if hand and hand:IsA("BasePart") then hand.Size.X / 2 + 0.02 else 0.3
+		local gy = size.Y * 0.04 -- the grip band, just above the egg's middle
+		local gz = size.Z / 2 - 0.35 -- near its back corners, beside the body
+		local gx = halfWidth(egg, root, mid + Vector3.new(0, gy, gz)) + palm
+		local s = shoulder.c0.Position
+		local dx, dz = gx - math.abs(s.X), (cz + gz) - s.Z
+		local dy = math.sqrt(math.max(reach * reach - dx * dx - dz * dz, 0.04))
+		cy = s.Y - dy - gy -- as low as the hug still reaches
+		grip.RHand = Vector3.new(gx, gy, gz)
+		grip.LHand = Vector3.new(-gx, gy, gz)
+	end
+	local toRoot = CFrame.new(mid):Inverse()
+	return { center = CFrame.new(0, cy, cz), toRoot = toRoot, grip = grip, weld = nil }
+end
+
+local function eggOffset(values: { [string]: Clip.Value }): CFrame
+	local e = values.Egg
+	return if e then Clip.cframe(e, 1) else CFrame.identity
+end
+
+local function hands(f: Fit): { [string]: Mixer.HandFn }
+	local out: { [string]: Mixer.HandFn } = {}
+	for limb, point in f.grip do
+		local side = if limb == "RHand" then 1 else -1
+		out[limb] = function(ut: CFrame, values)
+			local egg = ut * f.center * eggOffset(values)
+			return (egg * point), egg.Rotation * Vector3.new(0.9 * side, -0.55, 0.35), nil
+		end
 	end
 	return out
 end
 
--- KeyframeSequence (R15 pose hierarchy) for the Animator / publishing --------------------------------------------
-local PARENT = { -- pose part -> its parent pose part
-	LowerTorso = "HumanoidRootPart",
-	UpperTorso = "LowerTorso",
-	Head = "UpperTorso",
-	RightUpperArm = "UpperTorso",
-	RightLowerArm = "RightUpperArm",
-	LeftUpperArm = "UpperTorso",
-	LeftLowerArm = "LeftUpperArm",
-	RightUpperLeg = "LowerTorso",
-	RightLowerLeg = "RightUpperLeg",
-	RightFoot = "RightLowerLeg",
-	LeftUpperLeg = "LowerTorso",
-	LeftLowerLeg = "LeftUpperLeg",
-	LeftFoot = "LeftLowerLeg",
-}
-local PART_OF = {
-	Root = "LowerTorso",
-	Waist = "UpperTorso",
-	Neck = "Head",
-	RShoulder = "RightUpperArm",
-	RElbow = "RightLowerArm",
-	LShoulder = "LeftUpperArm",
-	LElbow = "LeftLowerArm",
-	RHip = "RightUpperLeg",
-	RKnee = "RightLowerLeg",
-	RAnkle = "RightFoot",
-	LHip = "LeftUpperLeg",
-	LKnee = "LeftLowerLeg",
-	LAnkle = "LeftFoot",
-}
-local EASING = {
-	linear = Enum.PoseEasingStyle.Linear,
-	["in"] = Enum.PoseEasingStyle.Cubic,
-	out = Enum.PoseEasingStyle.Cubic,
-	inout = Enum.PoseEasingStyle.Cubic,
-}
-local DIRECTION = {
-	linear = Enum.PoseEasingDirection.In,
-	["in"] = Enum.PoseEasingDirection.In,
-	out = Enum.PoseEasingDirection.Out,
-	inout = Enum.PoseEasingDirection.InOut,
-}
-
-local function keyframe(time: number, pose: Pose, easeName: string): Keyframe
-	local kf = Instance.new("Keyframe")
-	kf.Time = time
-	local poses: { [string]: Pose } = {}
-	local function poseFor(part: string): any
-		if poses[part] then
-			return poses[part]
-		end
-		local p = Instance.new("Pose")
-		p.Name = part
-		p.Weight = if part == "HumanoidRootPart" then 0 else 1
-		p.EasingStyle = EASING[easeName] or Enum.PoseEasingStyle.Linear
-		p.EasingDirection = DIRECTION[easeName] or Enum.PoseEasingDirection.In
-		local parent = PARENT[part]
-		p.Parent = if parent then poseFor(parent) else kf
-		poses[part] = p :: any
-		return p
+-- Welds `egg` (a BlockBuilder model, its parts unanchored) to the character's chest at its fitted spot; the clips
+-- then move it with the hands. Returns false if the character has no torso yet.
+function EggKick.attach(character: Model, egg: Model): boolean
+	local f = fit(character, egg)
+	local ut = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	local root = egg.PrimaryPart
+	if not f or not ut or not ut:IsA("BasePart") or not root then
+		return false
 	end
-	for joint, v in pose do
-		local part = PART_OF[joint]
-		if part then
-			local p = poseFor(part)
-			p.CFrame = CFrame.new(0, v[4] or 0, 0) * CFrame.Angles(math.rad(v[1]), math.rad(v[2]), math.rad(v[3]))
-		end
-	end
-	return kf
+	local weld = Instance.new("Weld")
+	weld.Name = "HoldWeld"
+	weld.Part0, weld.Part1 = ut, root
+	weld.C0 = f.center * f.toRoot
+	weld.Parent = root
+	f.weld = weld
+	fits[character] = f
+	egg:PivotTo(ut.CFrame * weld.C0)
+	return true
 end
 
-function EggKick.buildKeyframeSequence(): KeyframeSequence
-	local seq = Instance.new("KeyframeSequence")
-	seq.Name = "EggKick"
-	seq.Loop = false
-	seq.Priority = Enum.AnimationPriority.Action4
-	for _, k in KEYS do
-		local kf = keyframe(k.t, k.pose, k.ease)
-		if k.t == EggKick.CONTACT then
-			local marker = Instance.new("KeyframeMarker")
-			marker.Name = "Contact"
-			marker.Parent = kf
-		end
-		kf.Parent = seq
-	end
-	return seq
-end
-
-function EggKick.buildHoldSequence(): KeyframeSequence
-	local seq = Instance.new("KeyframeSequence")
-	seq.Name = "EggHold"
-	seq.Loop = true
-	seq.Priority = Enum.AnimationPriority.Action
-	keyframe(0, HOLD, "linear").Parent = seq
-	keyframe(1, HOLD, "linear").Parent = seq
-	return seq
-end
-
--- Playback ---------------------------------------------------------------------------------------------------
-local registered: { [string]: string } = {}
-local function animationId(which: "kick" | "hold"): string?
-	local published = EggKick.PUBLISHED[which]
-	if published ~= "" then
-		return published
-	end
-	if not RunService:IsStudio() then
-		return nil -- (unpublished on a live server: the joint fallback below)
-	end
-	if not registered[which] then
-		local ok, id = pcall(function()
-			return KeyframeSequenceProvider:RegisterKeyframeSequence(
-				if which == "kick" then EggKick.buildKeyframeSequence() else EggKick.buildHoldSequence()
-			)
-		end)
-		registered[which] = if ok then id else ""
-	end
-	return if registered[which] ~= "" then registered[which] else nil
-end
-
-local function animatorOf(character: Model): Animator?
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	return humanoid and humanoid:FindFirstChildOfClass("Animator")
-end
-
-export type Playing = { stop: () -> (), track: AnimationTrack? }
-
--- Plays the kick on `character` so its CONTACT frame lands at server time `contactAt`. Returns a stop handle.
--- A late start (the server's answer arrived after the clip should have begun) catches up instead of lagging.
-function EggKick.play(character: Model, contactAt: number): Playing
-	local startAt = contactAt - EggKick.CONTACT
-	local animator = animatorOf(character)
-	local id = animationId("kick")
-	if animator and id then
-		local anim = Instance.new("Animation")
-		anim.AnimationId = id
-		local ok, track = pcall(function()
-			return animator:LoadAnimation(anim)
-		end)
-		if ok and track then
-			track.Priority = Enum.AnimationPriority.Action4
-			track:Play(0.05)
-			local late = math.max(0, workspace:GetServerTimeNow() - startAt)
-			if late > 0 then
-				track.TimePosition = math.min(late, EggKick.LENGTH)
-			end
-			return {
-				stop = function()
-					track:Stop(0.15)
-				end,
-				track = track,
-			}
-		end
-	end
-	-- joints (live servers before the clip is published): the same keyframes every frame, after the Animator
-	local rig = PlayerAnim.rig(character)
-	local conn: RBXScriptConnection
-	conn = RunService.Stepped:Connect(function()
-		local t = workspace:GetServerTimeNow() - startAt
-		if t > EggKick.LENGTH or not character.Parent then
-			conn:Disconnect()
+-- Moves the welded egg with a layer's Egg channel (until `untilT`, clip time).
+local function carry(character: Model, handle: Mixer.Handle, untilT: number?)
+	handle.stepped(function(t, values, weight)
+		local f = fits[character]
+		local weld = f and f.weld
+		if not f or not weld or not weld.Parent or (untilT and t >= untilT) or weight <= 0.001 then
 			return
 		end
-		PlayerAnim.apply(rig, EggKick.pose(math.max(0, t)))
+		weld.C0 = f.center * CFrame.identity:Lerp(eggOffset(values), weight) * f.toRoot
 	end)
+end
+
+-- Per-character layers. The hold and the brace are split in two: the upper body (arms on the egg, torso, head)
+-- always, the pelvis and legs (crouch, planted feet) only while standing still, so walking across the pad keeps the
+-- normal walk under the hold instead of gliding on glued feet.
+type Split = { upper: Mixer.Handle, lower: Mixer.Handle }
+local holds: { [Model]: Split } = setmetatable({}, { __mode = "k" }) :: any
+local braces: { [Model]: Split } = setmetatable({}, { __mode = "k" }) :: any
+
+local function split(character: Model, clip: Clip.Compiled, priority: number, fadeIn: number): Split
+	local f = fits[character]
+	local start = if clip.loop then math.random() * clip.length else 0
+	local upper = Mixer.play(character, clip, {
+		fadeIn = fadeIn,
+		priority = priority,
+		hands = if f then hands(f) else nil,
+		start = start,
+		mask = Mixer.UPPER,
+	})
+	local lower = Mixer.play(character, clip, {
+		fadeIn = fadeIn,
+		priority = priority,
+		start = start,
+		mask = Mixer.LOWER,
+		keep = true,
+	})
+	carry(character, upper)
+	local still = true
+	upper.stepped(function()
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if not hrp or not hrp:IsA("BasePart") or not upper.playing() then
+			return
+		end
+		local v = hrp.AssemblyLinearVelocity
+		local flat = Vector3.new(v.X, 0, v.Z).Magnitude
+		local now = if still then flat < 3 else flat < 1.5 -- (hysteresis: no flicker at walking pace)
+		if now ~= still then
+			still = now
+			lower.setWeight(if now then 1 else 0, if now then 0.3 else 0.18)
+		end
+	end)
+	return { upper = upper, lower = lower }
+end
+
+local function stopSplit(sp: Split?, fade: number?)
+	if sp then
+		sp.upper.stop(fade)
+		sp.lower.stop(fade)
+	end
+end
+
+-- The hold (a looping layer, hands on the egg if one is attached). Returns stop(fade?).
+function EggKick.hold(character: Model): (fade: number?) -> ()
+	local old = holds[character]
+	if not (old and old.upper.playing()) then
+		old = split(character, HOLD, Mixer.PRIORITY.Action, 0.3)
+		holds[character] = old
+	end
+	local sp = old
+	return function(fade: number?)
+		stopSplit(sp, fade)
+		if holds[character] == sp then
+			holds[character] = nil
+		end
+	end
+end
+
+-- The brace on top of the hold while the timing meter runs (crossfaded in and out).
+function EggKick.brace(character: Model, on: boolean)
+	local b = braces[character]
+	if on then
+		if not (b and b.upper.playing()) then
+			braces[character] = split(character, BRACE, Mixer.PRIORITY.Action2, 0.25)
+		end
+	elseif b then
+		stopSplit(b, 0.3)
+		braces[character] = nil
+	end
+end
+
+export type Playing = { stop: () -> (), releaseAt: number, contact: Vector3?, handle: Mixer.Handle }
+
+-- Where the kicking foot's laces meet the egg at CONTACT, in the character's root space (this avatar's legs).
+function EggKick.contactPoint(character: Model): Vector3?
+	local body = Mixer.body(character)
+	if not body or body.r6 then
+		local root = character:FindFirstChild("HumanoidRootPart")
+		return if root then Vector3.new(0.5, -1.6, -2) else nil
+	end
+	local chain = Body.fk(body, Mixer.evaluate(body, KICK, EggKick.CONTACT))
+	local ankle = chain.RAnkle
+	local foot = character:FindFirstChild("RightFoot")
+	if not ankle or not foot or not foot:IsA("BasePart") then
+		return nil
+	end
+	local part = ankle * body.joints.RAnkle.c1:Inverse()
+	return (part * Vector3.new(0, foot.Size.Y / 2, -foot.Size.Z * 0.15))
+end
+
+-- Lets go of the held egg at server time `now` and returns a stepper that flies it on a ballistic arc (one gravity,
+-- up `rise` studs and down) so that at `contactAt` its lower back sits on the laces at `contact` (world). The egg
+-- turns over slowly on the way.
+function EggKick.toss(
+	egg: Model,
+	root: BasePart,
+	contact: Vector3,
+	contactAt: number,
+	now: number,
+	rise: number
+): (now: number) -> ()
+	local eggRoot = egg.PrimaryPart :: BasePart
+	local bbCF, size = egg:GetBoundingBox()
+	local weld = eggRoot:FindFirstChild("HoldWeld")
+	if weld then
+		weld:Destroy()
+	end
+	eggRoot.Anchored = true
+	local from = bbCF.Position
+	local to = contact + root.CFrame:VectorToWorldSpace(Vector3.new(0, size.Y * 0.36, -size.Z * 0.3))
+	local span = math.max(contactAt - now, 0.05)
+	local dy = to.Y - from.Y
+	local s = (math.sqrt(2 * rise) + math.sqrt(2 * math.max(rise - dy, 0.01))) / span
+	local g = s * s
+	local v = (to - from) * Vector3.new(1, 0, 1) / span + Vector3.new(0, s * math.sqrt(2 * rise), 0)
+	local spin = 1.9 / span
+	local start = bbCF.Rotation
+	return function(t: number)
+		local dt = t - now
+		local center = from + v * dt - Vector3.new(0, 0.5 * g * dt * dt, 0)
+		local turn = start * CFrame.Angles(-spin * dt, 0, spin * dt * 0.18)
+		egg:PivotTo(CFrame.new(center) * turn * CFrame.new(0, -size.Y / 2, 0))
+	end
+end
+
+-- Plays the kick so its CONTACT lands at server time `contactAt`; the hold and brace blend out under it.
+function EggKick.play(character: Model, contactAt: number): Playing
+	local untilContact = contactAt - workspace:GetServerTimeNow()
+	local start, speed = 0, 1
+	if untilContact >= EggKick.CONTACT then
+		start = EggKick.CONTACT - untilContact -- early: hold the first frame (negative clip time) until it is due
+	elseif untilContact > 0 then
+		speed = math.min(EggKick.CONTACT / untilContact, EggKick.MAX_CATCH_UP)
+		start = math.max(0, EggKick.CONTACT - untilContact * speed)
+	else
+		start = EggKick.CONTACT - untilContact
+	end
+	local f = fits[character]
+	local h = Mixer.play(character, KICK, {
+		fadeIn = 0.14,
+		fadeOut = 0.4,
+		priority = Mixer.PRIORITY.Action4,
+		start = start,
+		speed = speed,
+		hands = if f then hands(f) else nil,
+	})
+	carry(character, h, EggKick.RELEASE)
+	h.on("Contact", function()
+		h.setSpeed(1)
+	end)
+	stopSplit(holds[character], 0.18)
+	stopSplit(braces[character], 0.18)
+	holds[character], braces[character] = nil, nil
+	local now = workspace:GetServerTimeNow()
+	local releaseIn = (EggKick.RELEASE - start) / speed
 	return {
 		stop = function()
-			conn:Disconnect()
+			h.stop(0.25)
 		end,
-		track = nil,
+		releaseAt = now + releaseIn,
+		contact = EggKick.contactPoint(character),
+		handle = h,
 	}
 end
 
--- The hold: a looping track (published / Studio) or, else, the HOLD pose written each frame. Returns stop.
-function EggKick.hold(character: Model): () -> ()
-	local animator = animatorOf(character)
-	local id = animationId("hold")
-	if animator and id then
-		local anim = Instance.new("Animation")
-		anim.AnimationId = id
-		local ok, track = pcall(function()
-			return animator:LoadAnimation(anim)
-		end)
-		if ok and track then
-			track.Priority = Enum.AnimationPriority.Action
-			track.Looped = true
-			track:Play(0.2)
-			return function()
-				track:Stop(0.2)
-			end
-		end
+-- Dev / showcase: holds `which` clip ("kick" | "hold" | "brace") frozen at clip time t on `character` (hands on
+-- its attached egg). Returns the layer handle (setSpeed(1) to play on from there, stop() to release).
+function EggKick.preview(character: Model, which: string, t: number): Mixer.Handle
+	local clip = (EggKick.CLIPS :: any)[which] :: Clip.Compiled
+	local f = fits[character]
+	local h = Mixer.play(character, clip, {
+		fadeIn = 0,
+		fadeOut = 0,
+		priority = Mixer.PRIORITY.Action4,
+		start = t,
+		speed = 0,
+		hands = if f then hands(f) else nil,
+	})
+	carry(character, h, if which == "kick" then EggKick.RELEASE else nil)
+	return h
+end
+
+-- The KeyframeSequence of a clip as this character's rig plays it (IK baked in), for the Animation Editor or
+-- publishing: require(Shared.Anim.EggKick).bake(workspace.SomeRig, "kick").Parent = workspace
+function EggKick.bake(character: Model, which: string, fps: number?): KeyframeSequence?
+	local body = Mixer.body(character)
+	local clip = (EggKick.CLIPS :: any)[which] :: Clip.Compiled?
+	if not body or not clip then
+		return nil
 	end
-	local rig = PlayerAnim.rig(character)
-	local conn = RunService.Stepped:Connect(function()
-		if character.Parent and character:GetAttribute("KickBrace") ~= true then
-			PlayerAnim.apply(rig, HOLD)
-		end
-	end)
-	return function()
-		conn:Disconnect()
-	end
+	return require(script.Parent.Bake)(body, clip, fps or 60)
 end
 
 return EggKick

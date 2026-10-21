@@ -297,6 +297,8 @@ function Modal.open(name: string, from: GuiObject?)
 	if not entry then
 		return
 	end
+	Audio.quietClick() -- the menu's own pop-whoosh instead of the button click
+	Audio.play("InventoryOpen")
 	if current then
 		local old = entries[current]
 		if old then
@@ -355,6 +357,8 @@ function Modal.close()
 	if not name then
 		return
 	end
+	Audio.quietClick()
+	Audio.play("InventoryClose")
 	local entry = entries[name]
 	current = nil
 	gen += 1
@@ -435,6 +439,15 @@ end
 -- Toasts ---------------------------------------------------------------------------------------------------
 
 -- Toasts sit in their own lane at least 20 px below this HUD element (the "Eggs secured" bar).
+-- Plays a SoundBank event for a UI action (screens don't need their own Audio require). replacesClick = this
+-- sound stands in for the button click of the same press.
+function Modal.sfx(event: string, replacesClick: boolean?)
+	if replacesClick then
+		Audio.quietClick()
+	end
+	Audio.play(event)
+end
+
 function Modal.setToastAnchor(gui: GuiObject?)
 	toastAnchor = gui
 end
@@ -449,6 +462,13 @@ local function placeToasts()
 		y = math.max(y, anchorTop + insetFix + anchor.AbsoluteSize.Y + 20)
 	end
 	toastLayer.Position = UDim2.new(0.5, 0, 0, y)
+end
+
+-- The toast lane itself (a vertical list under the quest / zone bar), for HUD pieces that post their own toast
+-- frames (the weather toast) so every toast shares one lane and nothing overlaps. Re-places the lane first.
+function Modal.toastLane(): Frame
+	placeToasts()
+	return toastLayer
 end
 
 -- Slide +12 -> 0 and fade in (180 ms), dwell 2.2 s, exit 140 ms; at most 3 at once.
@@ -481,6 +501,8 @@ function Modal.toast(text: string, kind: ("info" | "good" | "error")?)
 		Audio.play("UISuccess") -- (masked right after a bigger fanfare)
 	elseif kind == "error" then
 		Audio.play("UIError")
+	else
+		Audio.play("Toast") -- (masked too)
 	end
 	t.Parent = toastLayer
 	table.insert(toasts, t)
