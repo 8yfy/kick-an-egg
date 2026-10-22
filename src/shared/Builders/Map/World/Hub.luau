@@ -25,6 +25,7 @@ export type Ctx = {
 	halfWidth: number, -- W: the hub's inner half width (the wall's inner face at x = +-W)
 	depth: number, -- the hub runs from z = 0 to z = -depth
 	sea: number, -- the ocean surface, relative to the lawn (the wall starts there)
+	launchDepth: number, -- MapBuilder's launch deck runs from z = 0 back to z = -launchDepth
 	inner: number, -- canyon half width at the mouth (x = +-inner)
 	pens: { Vector3 }, -- pen centres (y = 0)
 	reserve: Vector2, -- largest pen size (+ margin), for keep-outs
@@ -252,7 +253,7 @@ function Hub.build(zone: Instance, ctx: Ctx)
 	table.insert(keep, { cx = ctx.plaza.X, cz = ctx.plaza.Z, hx = 42, hz = 42 })
 	table.insert(keep, { cx = W - 20, cz = -155, hx = 22, hz = 30 }) -- Prize Wheel front
 	table.insert(keep, { cx = -W + 20, cz = -155, hx = 22, hz = 26 }) -- boards front
-	table.insert(keep, { cx = 0, cz = -14, hx = ctx.inner + 4, hz = 16 }) -- launch plaza
+	table.insert(keep, { cx = 0, cz = -ctx.launchDepth / 2, hx = ctx.inner + 4, hz = ctx.launchDepth / 2 + 2 }) -- launch deck
 	for _, s in { -1, 1 } do -- terraces and the back row of houses
 		table.insert(keep, { cx = s * 150, cz = -32, hx = 24, hz = 16 })
 		table.insert(keep, { cx = s * 150, cz = -322, hx = 26, hz = 18 })
@@ -279,21 +280,8 @@ function Hub.build(zone: Instance, ctx: Ctx)
 		end
 	end
 
-	-- paths: launch plaza, spine, round plaza, side walks
-	Parts.block(paths, "LaunchPlaza", Vector3.new(2 * ctx.inner, 0.3, 18), CFrame.new(0, 0.15, -15), PATH)
-	for _, s in { -1, 1 } do
-		Parts.block(
-			paths,
-			"LaunchPlazaEdge",
-			Vector3.new(1, 0.4, 18),
-			CFrame.new(s * (ctx.inner + 0.5), 0.2, -15),
-			PATH_EDGE,
-			{
-				collide = false,
-			}
-		)
-	end
-	path(paths, Vector3.new(0, 0, -24), Vector3.new(0, 0, ctx.plaza.Z + 38), 20)
+	-- paths: the spine from the launch deck, round plaza, side walks
+	path(paths, Vector3.new(0, 0, -ctx.launchDepth), Vector3.new(0, 0, ctx.plaza.Z + 38), 20)
 	path(paths, Vector3.new(0, 0, ctx.plaza.Z - 38), Vector3.new(0, 0, -D + 118), 20)
 	octPad(paths, "PlazaRing", 82, 0.3, ctx.plaza, PLAZA_B)
 	octPad(paths, "PlazaInner", 76, 0.42, ctx.plaza, PLAZA_A)
@@ -373,11 +361,6 @@ function Hub.build(zone: Instance, ctx: Ctx)
 				{ shadow = false }
 			)
 		end
-	end
-
-	-- launch plaza dressing: banners on poles at the corners (clear of the pad and the drop)
-	for _, s in { -1, 1 } do
-		Kit.place(props, "FlagPole", Kit.at(s * (ctx.inner - 3), 0.3, -22, if s < 0 then 0 else 180), 1, PAL)
 	end
 
 	-- village: terraces in the corners with houses, a gazebo and a well; a row of houses along the back
