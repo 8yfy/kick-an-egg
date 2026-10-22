@@ -3,16 +3,17 @@
 --   require(game.ReplicatedStorage.Shared.Builders.Map.MapBuilder).build()
 -- Layout (Config/Chase axes; map overhaul 2026-10-14): a grass hub (the safe zone, Z < SafeLineZ) on a cliff above
 -- the ocean, walled on three sides by stepped, planted dirt walls; the runway canyon leaves the hub's wall at the
--- kick pad (origin) and runs straight +Z through the 20 zones. The hub: an open launch pad (no arch) with a side
--- "KICK THE EGG!" sign and two egg monuments, a clear central path (spine) from the pad to pen 5, the Boxing
+-- kick pad (origin) and runs straight +Z through the 20 zones. The hub: a launch station at the pad (no arch; see
+-- buildLaunch), a clear central path (spine) from the launch deck to pen 5, the Boxing
 -- Sack Shop and the Pet Selling Stand either side of it near the pad, an egg fountain off the spine, and FIVE large
 -- pens (two each side, one at the end) that grow with their PenLevel inside a fixed reserve. The Prize Wheel and
 -- the two global boards sit on the side walls between the pens.
 -- No zone signs: the HUD's zone bar names zones. Every part butts against its neighbours (no coplanar
 -- overlaps), so nothing z-fights.
--- Map v3 (Partner B, at A's request): the hub sits PLAZA_Y = 11 above the zones; a launch ramp (Map.Drop.Ramp,
--- z 10..76) is the climb home for steered eggs; Map.Drop.PlayerBarrier (collision group "PlayerBarrier") stops
--- characters ("Players") but not eggs ("Eggs"). World remodel (2026-10-16, classic studded bricks): every zone is an
+-- Flat start (2026-10-22, replaces map v3's raised plaza and launch ramp): the hub, the launch station and every
+-- lane sit at track level (y = 0), so a steered egg runs home on flat ground and zone 1 keeps its whole lane;
+-- Map.Drop.PlayerBarrier (collision group "PlayerBarrier") across the lane mouth stops characters ("Players") but
+-- not eggs ("Eggs"). World remodel (2026-10-16, classic studded bricks): every zone is an
 -- open valley around the unchanged lane / shoulders, with invisible collision walls on the old canyon wall planes
 -- (x = +-INNER) and the scenery from World/Zones (landmarks, banks, vegetation, props, far silhouettes, ambience);
 -- the hub's look comes from World/Hub and World/Shops, the models from World/Recipes via World/Kit. Lighting gets
@@ -20,6 +21,7 @@
 --
 -- Stable names for Partner B:
 --   workspace.Map.KickPad                         Part; players stand on it (top at y = MapBuilder.KickPadTop)
+--   workspace.Map.Launch                          the launch station around it (deck, kick spot, pylons, boards)
 --   workspace.Map.SafeZone.Bases.Base<i>          Model, attribute BaseIndex = i (1..MapBuilder.PenCount = 5). The
 --                                                 server sets OwnerUserId / RackLevel / PenLevel (Config/Upgrades).
 --     .PenArea                                    invisible floor frame (origin = pen centre, -Z toward the gate);
@@ -36,7 +38,6 @@ local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local PhysicsService = game:GetService("PhysicsService")
 local MapFx = require(script.Parent.MapFx)
-local Bricks = require(script.Parent.Bricks)
 local Merchants = require(script.Parent.Merchants)
 local WheelBuilder = require(script.Parent.Wheel)
 local Boards = require(script.Parent.Boards)
@@ -62,22 +63,19 @@ local INNER = 40 -- canyon floor half-width
 local W = 195 -- hub half-width
 local DEPTH = 390 -- the hub runs from z = 0 to z = -DEPTH (open cliff edge)
 local WALL_T, WALL_H = 24, 50
-local CLIFF = 40 -- plaza height above the ocean
--- Map v3: the plaza and launch hub sit PLAZA_Y above the zones, so every kick dives into the
--- valley. The launch ramp (RAMP_START -> RAMP_END along +Z) is the climb home for steered eggs;
--- a player-only barrier across the canyon mouth keeps characters up top (eggs pass through).
-local PLAZA_Y = 11 -- about two characters tall: a gentle climb home, not a cliff
-local RAMP_START, RAMP_END = 10, 76
-MapBuilder.PlazaY = PLAZA_Y
-MapBuilder.RampStart, MapBuilder.RampEnd = RAMP_START, RAMP_END
-MapBuilder.KickPadTop = PLAZA_Y + 0.5
+local CLIFF = 40 -- ground height above the ocean
+-- Flat start: no raised plaza, no ramp (the avalanche reads PlazaY = 0 and RampStart = RampEnd as flat ground).
+local LAUNCH_DEPTH = 30 -- the launch deck runs from the lane mouth (z = 0) back to z = -LAUNCH_DEPTH
+local BARRIER_Z = 9 -- the player-only barrier across the lane mouth, just past the kick spot
+MapBuilder.PlazaY = 0
+MapBuilder.RampStart, MapBuilder.RampEnd = 0, 0
+MapBuilder.KickPadTop = 0.5
 -- Collision groups: the barrier only stops characters (the server puts them in "Players").
 MapBuilder.Groups = { players = "Players", eggs = "Eggs", barrier = "PlayerBarrier" }
 
 local rgb = Color3.fromRGB
-local DIRT = rgb(205, 130, 80)
 local YELLOW = rgb(255, 220, 80)
-local HUB_CLIFF = rgb(190, 128, 84) -- clay under the plaza (World.Hub cliffs use the same family)
+local HUB_CLIFF = rgb(190, 128, 84) -- clay under the hub
 local LAWN = rgb(108, 198, 70)
 local SHIELD_ICON = "rbxassetid://77216163319959"
 local SIGN = rgb(32, 38, 52)
@@ -151,22 +149,6 @@ local function block(parent: Instance, name: string, size: Vector3, cf: CFrame, 
 	end
 	p.Parent = parent
 	return p
-end
-
-local UP = CFrame.Angles(0, 0, math.rad(90)) -- cylinders are X-axis; stand them up
-
-local function cylinder(
-	parent: Instance,
-	name: string,
-	height: number,
-	diameter: number,
-	pos: Vector3,
-	color: Color3,
-	o: BlockOpts?
-): Part
-	local opts: BlockOpts = o or {}
-	opts.shape = Enum.PartType.Cylinder
-	return block(parent, name, Vector3.new(height, diameter, diameter), CFrame.new(pos) * UP, color, opts)
 end
 
 -- Invisible, non-colliding anchor for emitters/lights.
@@ -245,183 +227,163 @@ end
 
 ------------------------------------------------------------------ plaza pieces
 
--- Egg monument (World kit) beside the launch: a stone plinth with a banded giant egg and a sparkle.
-local function eggStatue(parent: Instance, x: number, z: number, color: Color3, band: Color3)
-	Kit.place(
-		parent,
-		"EggMonument",
-		Kit.at(x, 0, z, 30),
-		1.15,
+local function pulse(part: Instance, speed: number, phase: number, depth: number)
+	CollectionService:AddTag(part, "WorldPulse") -- VFX/Ambient: a sine wave, `phase` (0..1) late, `depth` deep
+	part:SetAttribute("Speed", speed)
+	part:SetAttribute("Phase", phase)
+	part:SetAttribute("Depth", depth)
+end
+
+-- The launch station (flat start, 2026-10-22): the kick pad on a stepped brick kick spot at the front of a studded
+-- launch deck (x = +-INNER, z = -LAUNCH_DEPTH..0, flush with the lawn and the lane), framed by two red and white
+-- launch pylons with blinking beacons: the KICK THE EGG! board on the +X one (left as seen from the pad), the 3-2-1
+-- countdown board on the -X one. Hazard stripes run along the deck sides and chevron runway lights on the lane run
+-- toward the zones. workspace.Map.KickPad keeps its name and contract (Top attribute).
+local function buildLaunch(map: Instance)
+	local launch = folder(map, "Launch")
+	local steel, dark = rgb(70, 74, 92), rgb(44, 46, 60)
+	block(
+		launch,
+		"LaunchDeck",
+		Vector3.new(2 * INNER, 1, LAUNCH_DEPTH),
+		CFrame.new(0, -0.5, -LAUNCH_DEPTH / 2),
+		rgb(176, 182, 196),
+		{ sideStuds = true }
+	)
+	-- hazard stripes along both deck sides (flat, walked over)
+	local n = 10
+	local seg = (LAUNCH_DEPTH - 2) / n
+	for _, sx in { -1, 1 } do
+		for k = 0, n - 1 do
+			local h = block(
+				launch,
+				"Hazard",
+				Vector3.new(2, 0.12, seg),
+				CFrame.new(sx * (INNER - 1.6), 0.06, -1 - (k + 0.5) * seg),
+				if k % 2 == 0 then YELLOW else dark,
+				{ collide = false }
+			)
+			h.CanQuery = false
+		end
+	end
+
+	-- the kick spot (World kit) and the pad itself
+	local spot = Kit.place(
+		launch,
+		"KickSpot",
+		Kit.at(0, 0, 0),
+		1,
 		Palettes.merge(Palettes.hub, {
-			Accent = { color = color, reflect = 0.15 },
-			Accent2 = band,
-			Stone = rgb(226, 222, 232),
-			StoneDark = rgb(170, 166, 184),
-			Trim = rgb(255, 214, 80),
+			StoneDark = steel,
+			Dark = dark,
+			Glow = { color = rgb(255, 214, 60), material = Enum.Material.Neon },
+			Glow2 = { color = rgb(255, 120, 40), material = Enum.Material.Neon },
+			Arrow = rgb(255, 120, 40),
 		})
 	)
-	WorldParts.proxy(parent, "StatueProxy", Vector3.new(5.6, 4, 5.6), CFrame.new(x, 2, z))
-	MapFx.emit(anchor(parent, "StatueFx", Vector3.new(6, 1, 6), Vector3.new(x, 9, z)), "StallSparkle")
-end
-
-local function brazier(parent: Instance, x: number, z: number)
-	Bricks.cyl(parent, "BrazierStand", 3, 1.6, CFrame.new(x, 1.5, z), rgb(60, 60, 72))
-	Bricks.cyl(parent, "BrazierBowl", 1.2, 3.6, CFrame.new(x, 3.6, z), rgb(80, 80, 95))
-	local coal = Bricks.glow(parent, "BrazierCoal", Vector3.new(2.4, 1, 2.4), CFrame.new(x, 4.1, z), rgb(255, 120, 30))
-	Bricks.fire(coal, rgb(255, 120, 30), 6)
-	Bricks.light(coal, rgb(255, 150, 60), 22, 2)
-end
-
--- Launch hub on the plaza lip (built at plaza level 0, lifted with the plaza): tiered platform,
--- gold kick pad with a ring of lights, the launch arch with a banner per zone, egg statues,
--- braziers and a rail at the drop. workspace.Map.KickPad keeps its name and contract.
-local function buildKickPad(map: Instance)
-	local hub = folder(map, "Hub")
-	local stone, stoneDark = rgb(205, 205, 218), rgb(150, 150, 168)
-	block(hub, "Deck", Vector3.new(2 * INNER, 1, RAMP_START), CFrame.new(0, -0.5, RAMP_START / 2), stoneDark)
-	cylinder(hub, "Tier1", 0.2, 20, Vector3.new(0, 0.1, 0), stoneDark) -- stays on the deck (z <= RAMP_START)
-	cylinder(hub, "Tier2", 0.35, 16, Vector3.new(0, 0.175, 0), stone)
-	cylinder(map, "KickPadRim", 0.45, 13, Vector3.new(0, 0.225, 0), rgb(45, 45, 60))
-	local pad = cylinder(map, "KickPad", 0.5, 11, Vector3.new(0, 0.25, 0), rgb(255, 215, 60))
-	pad:SetAttribute("Top", MapBuilder.KickPadTop)
-	local glow = { material = Enum.Material.Neon, collide = false }
-	for i = 0, 15 do
-		local a = i / 16 * math.pi * 2
-		block(
-			hub,
-			"PadLight",
-			Vector3.new(1.4, 0.12, 0.7),
-			CFrame.new(math.cos(a) * 8.6, 0.4, math.sin(a) * 8.6) * CFrame.Angles(0, -a, 0),
-			if i % 2 == 0 then rgb(255, 215, 60) else rgb(255, 120, 40),
-			glow
-		)
-	end
-	block(map, "ArrowShaft", Vector3.new(1.4, 0.1, 4), CFrame.new(0, 0.55, -0.8), rgb(255, 120, 40), glow)
-	block(
-		map,
-		"ArrowHead",
-		Vector3.new(2.8, 0.1, 2.8),
-		CFrame.new(0, 0.55, 1.6) * CFrame.Angles(0, math.rad(45), 0),
-		rgb(255, 120, 40),
-		glow
-	)
-	MapFx.emit(anchor(map, "PadFx", Vector3.new(9, 0.2, 9), Vector3.new(0, 0.6, 0)), "PadRise")
-
-	-- No arch over the launch (map overhaul): a side-mounted sign angled toward the arrival point instead
-	local signAt = Vector3.new(30, 0, 3) -- on the deck, clear of the pad (radius 12) and the shops
-	local signCF = CFrame.lookAt(signAt, Vector3.new(0, 0, -72))
-	for _, sx in { -7, 7 } do
-		block(
-			hub,
-			"SignPost",
-			Vector3.new(1.6, 9, 1.6),
-			signCF * CFrame.new(sx, 4.5, 0),
-			stoneDark,
-			{ sideStuds = true }
-		)
-	end
-	local kickSign =
-		block(hub, "KickSign", Vector3.new(17, 5.4, 1.2), signCF * CFrame.new(0, 10.2, 0), rgb(255, 120, 40))
-	block(hub, "KickSignTrim", Vector3.new(18, 6.4, 0.8), signCF * CFrame.new(0, 10.2, 0.8), YELLOW)
-	surface(kickSign, Enum.NormalId.Front, { { "Title", "KICK THE EGG!", 0.1, 0.8 } }, 20)
-	Bricks.light(kickSign, rgb(255, 170, 80), 16, 1)
-
-	eggStatue(hub, -24, -9, rgb(255, 196, 46), rgb(255, 120, 60))
-	eggStatue(hub, 24, -9, rgb(170, 110, 255), rgb(110, 220, 255))
-	brazier(hub, -15, 7)
-	brazier(hub, 15, 7)
-
-	-- Rail along the drop: decorative only (the player barrier does the blocking; eggs drive through)
-	local railZ = RAMP_START - 0.6
-	for x = -INNER + 2, INNER - 2, 6 do
-		block(
-			hub,
-			"RailPost",
-			Vector3.new(0.8, 3, 0.8),
-			CFrame.new(x, 1.5, railZ),
-			rgb(160, 105, 60),
-			{ collide = false }
-		)
-	end
-	block(hub, "Rail", Vector3.new(2 * INNER - 2, 0.6, 0.6), CFrame.new(0, 3.1, railZ), rgb(255, 215, 60), glow)
-end
-
--- Moves every part under `root` up by `dy` (the plaza is built at 0, then raised to PLAZA_Y).
-local function lift(root: Instance, dy: number)
-	local offset = Vector3.new(0, dy, 0)
-	for _, d in root:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.CFrame += offset
+	if spot then
+		for _, p in spot:GetChildren() do
+			if p:IsA("BasePart") then
+				if p.Name == "Glow" or p.Name == "Glow2" then
+					pulse(p, 0.6, if p.Name == "Glow" then 0 else 0.5, 0.6)
+				elseif p.Name ~= "Arrow" then
+					p.CanCollide, p.CanQuery = true, true -- the tiers are walked on and driven over
+				end
+			end
 		end
 	end
-	if root:IsA("BasePart") then
-		root.CFrame += offset
+	local pad = block(map, "KickPad", Vector3.new(7, 0.5, 7), CFrame.new(0, 0.25, 0), rgb(255, 215, 60))
+	pad:SetAttribute("Top", MapBuilder.KickPadTop)
+	MapFx.emit(anchor(map, "PadFx", Vector3.new(7, 0.2, 7), Vector3.new(0, 0.6, 0)), "PadRise")
+
+	-- launch pylons with the boards on their fronts (facing the pad and the hub)
+	local pylonPal = Palettes.merge(Palettes.hub, {
+		StoneDark = steel,
+		Stone = rgb(176, 182, 196),
+		Red = rgb(226, 54, 54),
+		White = rgb(248, 248, 248),
+		Frame = rgb(60, 62, 78),
+		Glow = { color = rgb(255, 70, 60), material = Enum.Material.Neon },
+		Glow2 = { color = rgb(255, 214, 60), material = Enum.Material.Neon },
+	})
+	for _, sx in { -1, 1 } do
+		local x, z = sx * 34, -3
+		local pylon = Kit.place(launch, "LaunchPylon", Kit.at(x, 0, z), 1, pylonPal)
+		WorldParts.proxy(launch, "PylonProxy", Vector3.new(5.4, 28, 5.4), CFrame.new(x, 14, z))
+		local beacon: BasePart? = nil
+		for _, p in (if pylon then pylon:GetChildren() else {}) do
+			if p:IsA("BasePart") and p.Name == "Glow" then
+				beacon = p
+				pulse(p, 0.7, if sx > 0 then 0 else 0.5, 0.75)
+			elseif p:IsA("BasePart") and p.Name == "Glow2" then
+				pulse(p, 0.5, (p.Position.Y / 24 + (if sx > 0 then 0 else 0.5)) % 1, 0.5)
+			end
+		end
+		if beacon then
+			pulse(WorldParts.light(beacon, rgb(255, 90, 70), 18, 1.2), 0.7, if sx > 0 then 0 else 0.5, 1)
+		end
+	end
+	local sign = Kit.place(
+		launch,
+		"KickBoard",
+		Kit.at(34, 12, -5.9),
+		1,
+		Palettes.merge(Palettes.hub, { Board = rgb(255, 120, 40), Sign = rgb(255, 120, 40), Trim = YELLOW })
+	)
+	local face = sign and sign:FindFirstChild("Sign")
+	if face and face:IsA("BasePart") then
+		WorldParts.text(face, Enum.NormalId.Front, { { "Title", "KICK THE EGG!", 0.1, 0.8 } }, 20)
+		WorldParts.light(face, rgb(255, 170, 80), 16, 1)
+	end
+	local board = Kit.place(
+		launch,
+		"CountdownBoard",
+		Kit.at(-34, 12, -5.6),
+		1,
+		Palettes.merge(Palettes.hub, {
+			Sign = rgb(34, 36, 48),
+			Frame = rgb(60, 62, 78),
+			Glow = { color = rgb(255, 60, 50), material = Enum.Material.Neon },
+			Glow2 = { color = rgb(255, 190, 40), material = Enum.Material.Neon },
+			Glow3 = { color = rgb(70, 230, 90), material = Enum.Material.Neon },
+		})
+	)
+	local LAMPS: { [string]: number } = { Glow = 0, Glow2 = 1, Glow3 = 2 }
+	for _, p in (if board then board:GetChildren() else {}) do
+		local k = LAMPS[p.Name]
+		if k and p:IsA("BasePart") then
+			pulse(p, 0.45, k / 3, 0.85)
+		elseif p.Name == "Sign" and p:IsA("BasePart") then
+			WorldParts.text(p, Enum.NormalId.Front, { { "Count", "3  -  2  -  1  -  KICK!", 0.62, 0.3 } }, 20)
+		end
+	end
+
+	-- chevron runway lights on the lane, running toward the zones
+	for i = 0, 4 do
+		local z = 13 + i * 6
+		for _, side in { -1, 1 } do
+			local bar = block(
+				launch,
+				"Chevron",
+				Vector3.new(6, 0.2, 1.4),
+				CFrame.new(side * 2.3, 0.1, z) * CFrame.Angles(0, math.rad(side * 35), 0),
+				YELLOW,
+				{ material = Enum.Material.Neon, collide = false }
+			)
+			bar.CanQuery = false
+			pulse(bar, 0.8, i / 5, 0.85)
+		end
 	end
 end
 
--- The climb home: a wedge from the hub (PLAZA_Y) down to the zone floor, chevrons pointing home,
--- solid fill under the hub deck, and the player-only barrier across the canyon mouth.
+-- The lane mouth: the player-only barrier (characters stay on the launch deck; eggs pass through).
 local function buildDrop(map: Instance)
 	local drop = folder(map, "Drop")
-	local len = RAMP_END - RAMP_START
-	local ramp = Bricks.part(
-		drop,
-		"Ramp",
-		Vector3.new(2 * INNER, PLAZA_Y, len),
-		CFrame.new(0, PLAZA_Y / 2, (RAMP_START + RAMP_END) / 2) * CFrame.Angles(0, math.pi, 0), -- high end at RAMP_START
-		Zones[1].ground,
-		{ shape = "Wedge" }
-	)
-	ramp.Name = "Ramp"
-	CollectionService:AddTag(ramp, Chase.Landing.tag)
-	-- top at PLAZA_Y - 1: the hub deck (1 thick, lifted with the plaza) sits on it without z-fighting
-	block(
-		drop,
-		"HubFill",
-		Vector3.new(2 * INNER, PLAZA_Y - 1, RAMP_START),
-		CFrame.new(0, (PLAZA_Y - 1) / 2, RAMP_START / 2),
-		DIRT,
-		{
-			sideStuds = true,
-		}
-	)
-	-- Chevrons and lane edges lying on the slope
-	local slope = math.atan2(PLAZA_Y, len)
-	local function onSlope(t: number, x: number, lift_: number): CFrame
-		local z = RAMP_START + t * len
-		local y = PLAZA_Y * (1 - t) + lift_
-		return CFrame.new(x, y, z) * CFrame.Angles(-slope, 0, 0)
-	end
-	local glow = { material = Enum.Material.Neon, collide = false }
-	for i = 1, 5 do
-		local t = i / 6
-		for _, side in { -1, 1 } do
-			block(
-				drop,
-				"Chevron",
-				Vector3.new(7, 0.2, 1.4),
-				onSlope(t, side * 2.6, 0.12) * CFrame.Angles(0, math.rad(side * 35), 0),
-				YELLOW,
-				glow
-			)
-		end
-	end
-	for _, side in { -1, 1 } do
-		block(
-			drop,
-			"RampEdge",
-			Vector3.new(1.2, 0.3, len / math.cos(slope)),
-			onSlope(0.5, side * (HALF + 0.6), 0.15),
-			Zones[1].accent,
-			glow
-		)
-	end
-
 	local barrier = block(
 		drop,
 		"PlayerBarrier",
 		Vector3.new(2 * INNER, 70, 2),
-		CFrame.new(0, PLAZA_Y + 35, RAMP_START - 1),
+		CFrame.new(0, 35, BARRIER_Z),
 		Color3.new(1, 1, 1),
 		{ transparency = 1, studs = false }
 	)
@@ -555,6 +517,7 @@ end
 local FIXED_NAMES = {
 	Lane = true,
 	Field = true,
+	KickPad = true,
 	Floor = true,
 	PenArea = true,
 	Reserve = true,
@@ -574,7 +537,7 @@ local FIXED_NAMES = {
 	EdgeBarrier = true,
 	PlayerBarrier = true,
 }
-local FIXED_AREAS = { Hub = true, Drop = true, SafeLine = true }
+local FIXED_AREAS = { Launch = true, Drop = true, SafeLine = true }
 -- gameplay models whose parts other code moves (the wheel's rotor pivots from its rest pose)
 local FIXED_MODELS = { SpinWheel = true }
 
@@ -807,7 +770,7 @@ end
 
 local function buildSafeZone(map: Instance)
 	local zone = folder(map, "SafeZone")
-	-- Ground: the clay cliff under the plaza and a smooth lawn (World.Hub adds paths, patches and gardens)
+	-- Ground: the clay cliff under the hub and a lawn cut around the launch deck (World.Hub adds paths and gardens)
 	block(
 		zone,
 		"Cliff",
@@ -816,7 +779,24 @@ local function buildSafeZone(map: Instance)
 		HUB_CLIFF,
 		{ sideStuds = true }
 	)
-	block(zone, "GrassLayer", Vector3.new(2 * W, 1, DEPTH), CFrame.new(0, -0.5, -DEPTH / 2), LAWN, { sideStuds = true })
+	for _, sx in { -1, 1 } do
+		block(
+			zone,
+			"GrassLayer",
+			Vector3.new(W - INNER, 1, DEPTH),
+			CFrame.new(sx * (INNER + W) / 2, -0.5, -DEPTH / 2),
+			LAWN,
+			{ sideStuds = true }
+		)
+	end
+	block(
+		zone,
+		"GrassLayer",
+		Vector3.new(2 * INNER, 1, DEPTH - LAUNCH_DEPTH),
+		CFrame.new(0, -0.5, -(DEPTH + LAUNCH_DEPTH) / 2),
+		LAWN,
+		{ sideStuds = true }
+	)
 	-- Keep players from walking off the cliff (the back edge is an open lookout over the ocean)
 	block(zone, "EdgeBarrier", Vector3.new(2 * W, 14, 2), CFrame.new(0, 7, -DEPTH - 1), Color3.new(1, 1, 1), {
 		transparency = 1,
@@ -851,7 +831,8 @@ local function buildSafeZone(map: Instance)
 	Hub.build(zone, {
 		halfWidth = W,
 		depth = DEPTH,
-		sea = -(CLIFF + PLAZA_Y), -- the hub is built at 0, then lifted PLAZA_Y; the ocean sits CLIFF below the plaza
+		sea = -CLIFF, -- the ocean surface, CLIFF below the ground
+		launchDepth = LAUNCH_DEPTH,
 		inner = INNER,
 		pens = pens,
 		penDirs = dirs,
@@ -893,7 +874,7 @@ local function buildWorldZone(parent: Instance, zone: Zones.Zone, art: (any, Ins
 	local f = folder(parent, "Zone" .. zone.id)
 	local z0, len = zone.start, zone.length
 	local field = zone.ground:Lerp(Color3.new(0, 0, 0), 0.08)
-	local fz0 = if zone.id == 1 then RAMP_END else z0
+	local fz0 = z0
 	local flen = z0 + len - fz0
 	local fmid = fz0 + flen / 2
 	local lane = block(f, "Lane", Vector3.new(Chase.RunwayWidth, 2, flen), CFrame.new(0, -1, fmid), zone.ground, {
@@ -949,32 +930,18 @@ function MapBuilder.build(): Model
 	end
 	local map = Instance.new("Model")
 	map.Name = "Map"
-	-- read by client effects (the avalanche follows the ground up the ramp)
-	map:SetAttribute("PlazaY", PLAZA_Y)
-	map:SetAttribute("RampStart", RAMP_START)
-	map:SetAttribute("RampEnd", RAMP_END)
+	-- read by client effects (VFX/Avalanche follows the ground; flat start: PlazaY 0, no ramp)
+	map:SetAttribute("PlazaY", MapBuilder.PlazaY)
+	map:SetAttribute("RampStart", MapBuilder.RampStart)
+	map:SetAttribute("RampEnd", MapBuilder.RampEnd)
 	map:SetAttribute("CanyonWidth", 2 * INNER)
 	setupCollisionGroups()
 	applyLighting()
 
-	-- The plaza (hub, safe line, pens, market) is built at 0, then raised above the valley.
-	buildKickPad(map)
+	-- The hub (launch station, safe line, pens, market) and the lanes all sit at track level.
+	buildLaunch(map)
 	buildSafeLine(map)
 	buildSafeZone(map)
-	for _, child in map:GetChildren() do
-		if child.Name ~= "Ocean" then
-			lift(child, PLAZA_Y)
-		end
-	end
-	local safeZone = map:FindFirstChild("SafeZone") :: Instance
-	block(
-		safeZone,
-		"CliffBase",
-		Vector3.new(2 * W, PLAZA_Y, DEPTH),
-		CFrame.new(0, -CLIFF + PLAZA_Y / 2, -DEPTH / 2), -- ocean surface up to the plaza's cliff
-		HUB_CLIFF,
-		{ sideStuds = true }
-	)
 	buildDrop(map)
 
 	local runway = folder(map, "Runway")
