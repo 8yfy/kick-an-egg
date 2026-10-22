@@ -32,7 +32,7 @@ Everything is data in `src/shared/Anim`, played by one small runtime layered on 
 | `EggKick` | The hold, the brace and the kick, with the egg fitted to the body, the egg toss arc, and the contact point. |
 | `KickCamera` | One continuous, eased cutscene shot. |
 | `Sack` | The training stance and three chainable kicks. |
-| `Merchant` | Shopkeepers fitted to their real counters (the Coach leans on his; the Pet Merchant lounges in a chair built to fit him). |
+| `Merchant` | Shopkeepers fitted to their real counters. |
 | `Bake` | Exports any clip as a KeyframeSequence with markers, for the Animation Editor or publishing. |
 
 Roblox's default Animate (your avatar's idle, walk and jump) keeps running underneath. Every layer crossfades in and out of it, so cutscenes always win while they play and hand movement back afterwards.
@@ -74,22 +74,12 @@ The timing is unchanged: 0.6 s per kick with contact at 0.26 s (`Anim/Player.KIC
 
 - **Fitting.** Rays find each counter's real top and back edge. A small search over torso lean and standing distance puts the forearms flat on the top with the upper arms hanging naturally. The NPC is slid only along its own facing, on this client, so it stands right behind its counter and its torso never enters the counter.
 - **Coach.** Its counter is hip high, so it gets a real lean of about 42°.
-- **Pet Merchant (lazy style, `Merchant.STYLE`).** He lounges in a tall reclining chair behind the stand, leaning back about 38°, hands clasped behind his head with the elbows out, both feet up on the counter.
-  - **Feet.** Both shoes stand on their heels on the counter's back edge, toes up and turned out (leg IK, knees bending up). They stay 0.015 studs above the top through the whole loop.
-  - **Hips.** They sit back along the legs; the model only slides back and up into the chair, never into the counter.
-  - **Chair (`Builders/Models/LazyChair`, classic studded bricks in the stand's wood, teal and gold).** It is built around his pose, not the other way round. The seat tilts up under his thighs and the back lies along his spine. He sinks a little into both cushions, so he never floats on them. A headrest sits right behind his clasped hands, and they rest on it. The chair has armrests, splayed legs with an X brace on each side, brass feet and a gold foot rest. It is a client-side prop with no collision, queries or touches, and it goes away with the NPC.
-  - **Arms.** The hands follow the head part of the way, so the head turns and nods inside them. The arm IK runs in Body's new `exact` mode: on this avatar the shoulder pivot sits 0.35 studs inside the arm part, which otherwise left the wrist 0.36 studs off target.
+- **Pet Merchant.** His counter was lowered from 3.8 to 3.0 studs over the deck, and he now stands on a 0.8-stud step behind it (`Builders/Map/World/Shops`). For him the top is about hip high, so he leans on it like the Coach: about 42°, forearms on the top, hands together. For players it stays at a shop counter's height.
 - **Life.**
   - It breathes every 4.3 s and its weight drifts from leg to leg (feet planted).
   - It takes unhurried glances, and a hand sometimes slides along the counter.
   - Its head turns toward a nearby player (eased, ±70°) while its body stays on the counter.
-- **Pet Merchant life.**
-  - He breathes every 4.8 s.
-  - He takes bored glances and the odd head tilt.
-  - He settles in the chair every 9–15 s (a small yaw and roll).
-  - One foot rocks on its heel every 6–12 s.
-  - His head turns toward a nearby player.
-- **Greeting.** On the existing speech-bubble proximity, the Coach looks up, straightens about 35% and gives a small wave, then goes back to leaning. The Pet Merchant lifts his head toward the player and gives a tiny nod, staying seated with his feet up.
+- **Greeting.** On the existing speech-bubble proximity, it looks up, straightens about 35% and gives a small wave, then goes back to leaning.
 - **Blinks.** Not possible: these avatars have no FaceControls.
 - **Runtime.** It runs as its own Mixer layer from the rest pose, and pauses when far away or off screen. MapLifeController no longer bobs or turns the avatar NPCs; a placeholder merchant without a rig still does.
 
@@ -131,7 +121,7 @@ All of this was played in Studio (`build/KTE-anim-after.rbxl`, built from this b
 | Sack, 7-kick chain with all 3 variations (clone) | 0 snaps. The hip and knee peak at about 2,300–2,400°/s at the strike. |
 | Shift-lock (CameraRelative steering) | 0 snaps, and the server counted 5 kicks. |
 | Shopkeepers | The forearms rest on the counter top (0.00–0.04 studs). Only forearm-to-top surface contact; no torso overlap. The greeting plays (`after/shopkeeper_coach_greet.mp4`). |
-| Pet Merchant, lazy (20 s loop plus 16 s with a customer at 4 spots) | **Shoes:** on the counter top, 0.013–0.015 studs above it. **Seat and back:** he sinks 0.06–0.10 studs into the cushions (always touching, never floating). **Hands on the headrest:** −0.02 to +0.09 studs. **Clipping:** only shins resting 0.01 on the top's back edge; the chair touches nothing in the stand. **Motion:** largest joint step 0.4° per frame, no snaps. **Nod:** plays on the greeting. **Selling:** the Counter prompt still fires and opens the inventory. **Views:** `after/pet_merchant_lazy_*.jpg` (front, side, back-side, three-quarter, player distance). |
+| Pet Merchant on the lowered counter (20 s with a customer) | **Feet:** on the step (0.02 studs). **Forearms:** on the top, 0.08–0.11 studs at their lowest corner. **Clipping:** no torso or leg overlap with the counter, the carrier or the lantern. **Greeting:** the wave plays (the hand rises to 2.2 studs over the top). **Selling:** the Counter prompt still fires and opens the inventory. **Stills:** `after/shopkeeper_pet_lean*.jpg`; before: `before/pet_merchant_folded_arms.jpg`. |
 | Respawn mid-cutscene | The normal camera comes back with its subject on the new character. One error was found (`Body.luau`: a dying rig losing joints) and fixed. |
 | R6 rig | The kick, hold and stance play on R6 joints (no IK on R6), with no errors (`after/r6_kick_and_stance.mp4`). |
 | Server tests (Studio edit context, as run-in-roblox would) | 365 passed, 3 failed. The same 3 map/shop tests also fail on the untouched a/full-build (362 passed, 3 failed). All the new animation checks pass. |
@@ -141,8 +131,7 @@ Evidence is in `docs/anim`, which has three folders: `before/`, `after/` and `re
 
 ## Known limits and follow-ups
 
-- **Pet Merchant.** The folded-arms pose (`before/pet_merchant_folded_arms.jpg`) was replaced by the lazy chair pose. The counter and stand are unchanged.
-- **Arm IK on offset shoulders (`Body.solve`).** On avatars whose shoulder pivot sits inside the arm part, the default solve leaves the wrist up to about 0.36 studs off target. The new `exact` mode fixes that, but only the Pet Merchant uses it, so the egg hold and the Coach keep the poses they were tuned with. Turning it on everywhere means re-checking those hand contacts.
+- **Pet Merchant counter (changed).** It used to sit above the merchant's shoulders, so his arms rested folded on top. It is now 0.8 studs lower and he stands on a 0.8-stud step behind it, so he leans on it.
 - **Flying egg start (FlightController, Partner B).** The flying egg starts at the pad centre, not at the kicker's foot, so a big egg can pop up beside the kicker at contact. It is cosmetic, but it's B's launch code, so it wasn't touched here.
 - **Shift-lock (SackController, Partner B).** With shift-lock, the body turns back toward the camera right after the kick squares you up to the bag, so the kick goes where the camera looks. The animation blends correctly either way.
 - **Not tested:** a two-player session (watching someone else's kick or training), a real mobile device, and a live server.

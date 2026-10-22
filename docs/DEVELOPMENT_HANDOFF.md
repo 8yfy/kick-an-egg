@@ -1,14 +1,12 @@
 # Development handoff
 
 ## Current checkpoint
-- **Lazy Pet Merchant (2026-10-22, Partner A, branch `a/lazy-pet-merchant` from `main` @ `0814c21`).**
-  - **Pose.** The Pet Merchant now lounges in a tall reclining chair behind the Pet Selling Stand: leaning back, hands clasped behind his head, both feet up on the counter, with a subtle life loop and a nod on the greeting.
-  - **Files.** Client-side only:
-    - `Anim/Merchant` (the lazy style);
-    - `Builders/Models/LazyChair` (the chair, built to fit him);
-    - `Anim/Body` and `Anim/Mixer` (an opt-in `exact` arm IK mode).
-  - **Unchanged.** The stand, counter, prompt, prices, inventory, currency, other NPCs and map animations.
-  - **Details.** QA and evidence are in `docs/CharacterAnimation.md`.
+- **Pet Merchant leans on his counter (2026-10-22, Partner A, branch `a/lazy-pet-merchant` from `main` @ `0814c21`).**
+  - **Stand.** In `Builders/Map/World/Shops.petStand`, the counter top went from 3.8 to 3.0 studs over the deck. The carrier, lantern and sparkle came down with it, and the merchant now stands on a new 0.8-stud `MerchantStep` behind the counter.
+  - **Pose.** `Anim/Merchant` (unchanged from `main`) now gives him a real lean, like the Coach.
+  - **Unchanged.** The prompt, prices, inventory, currency, other NPCs and map animations.
+  - **History.** An earlier lazy chair pose on this branch was dropped at the user's request.
+  - **Details.** QA is in `docs/CharacterAnimation.md`.
 - **`main` is the assembled game (2026-10-20, Partner B).**
   - `codex/reactive-tutorial` @ `7930391` was merged into `main` in #50 (merge commit `dc07045`, no conflicts). `main` now contains:
     - Partner A's `a/full-build` (#42–#49);
@@ -87,7 +85,7 @@
 - Git fetch and public API PR reads succeeded (#47 is the combined build PR). GitHub CLI has no authenticated account; push/PR creation capability is unverified.
 
 ## Known issues inherited from prior work
-See `docs/CharacterAnimation.md`: flying egg starts at pad center instead of kicker's foot; shift-lock can turn the body toward the camera after sack alignment. The Pet Merchant folded-arms pose was replaced by the lazy chair pose on `a/lazy-pet-merchant`.
+See `docs/CharacterAnimation.md`: flying egg starts at pad center instead of kicker's foot; shift-lock can turn the body toward the camera after sack alignment. The Pet Merchant's counter was lowered (with a step behind it) so he leans on it instead of folding his arms.
 That document reports 365 passing and 3 existing failing server tests; these are historical results, not rerun here. Multiplayer, real mobile and live-server checks are still listed as untested.
 
 ## Pending / next steps

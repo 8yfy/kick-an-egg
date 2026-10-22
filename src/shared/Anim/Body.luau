@@ -188,9 +188,7 @@ end
 -- Two-bone IK in root space: puts limb's end pivot on `target` (clamped to its reach), the middle joint bending
 -- toward `hint`, the end part turned to `endRot` (root-space rotation; nil keeps it in line with the forearm /
 -- shin). `chain` = Body.fk of the final pose (it places the limb's base: LowerTorso / UpperTorso). Writes the
--- three joint Transforms into `into`. `exact`: some avatars' upper pivot sits sideways inside its part (shoulders on
--- many bundles), which leaves the end that far off target; exact solves from the pivot shifted along the hinge axis
--- by that offset so the end lands on the target (opt-in: older poses were tuned without it).
+-- three joint Transforms into `into`.
 function Body.solve(
 	body: Body,
 	limbName: string,
@@ -198,8 +196,7 @@ function Body.solve(
 	target: Vector3,
 	hint: Vector3,
 	endRot: CFrame?,
-	into: { [string]: CFrame },
-	exact: boolean?
+	into: { [string]: CFrame }
 )
 	local limb = body.limbs[limbName]
 	if not limb then
@@ -216,33 +213,18 @@ function Body.solve(
 	local base = parentPivot * parentJoint.c1:Inverse()
 	local origin = (base * ja.c0).Position
 	local l1, l2 = limb.l1, limb.l2
-	local sideways = 0
-	if exact then
-		local off = jb.c0.Position - ja.c1.Position -- upper pivot -> middle pivot, in the upper part
-		sideways, l1 = off.X, math.sqrt(off.Y * off.Y + off.Z * off.Z)
-	end
-	local function plane(o: Vector3)
-		local v = target - o
-		local d = math.clamp(v.Magnitude, math.abs(l1 - l2) + 1e-3, (l1 + l2) * 0.9995)
-		local vhat = if v.Magnitude > 1e-4 then v.Unit else -Vector3.yAxis
-		local k = hint - vhat * hint:Dot(vhat)
-		local khat = if k.Magnitude > 1e-4 then k.Unit else base.LookVector
-		-- hinge axis: knees bend backward, elbows forward (R15's +X stays +X at rest)
-		local x = if limb.arm then khat:Cross(vhat).Unit else vhat:Cross(khat).Unit
-		return d, vhat, khat, x
-	end
-	local d, vhat, khat, x = plane(origin)
-	if sideways ~= 0 then
-		for _ = 1, 3 do -- (the shift moves the plane a little: settles in a few passes)
-			d, vhat, khat, x = plane(origin + x * sideways)
-		end
-		origin += x * sideways
-	end
+	local v = target - origin
+	local d = math.clamp(v.Magnitude, math.abs(l1 - l2) + 1e-3, (l1 + l2) * 0.9995)
+	local vhat = if v.Magnitude > 1e-4 then v.Unit else -Vector3.yAxis
+	local k = hint - vhat * hint:Dot(vhat)
+	local khat = if k.Magnitude > 1e-4 then k.Unit else base.LookVector
 	local cosA = math.clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1)
 	local sinA = math.sqrt(1 - cosA * cosA)
 	local u = vhat * cosA + khat * sinA -- upper segment direction
 	local mid = origin + u * l1
 	local s = ((origin + vhat * d) - mid).Unit -- lower segment direction
+	-- hinge axis: knees bend backward, elbows forward (R15's +X stays +X at rest)
+	local x = if limb.arm then khat:Cross(vhat).Unit else vhat:Cross(khat).Unit
 	local function frame(dir: Vector3): CFrame
 		local y = -dir
 		return CFrame.fromMatrix(Vector3.zero, x, y, x:Cross(y))
