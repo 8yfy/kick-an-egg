@@ -35,12 +35,15 @@ export type Options = {
 	start: number?, -- start this many seconds into the clip
 	rest: boolean?, -- this character has no Animator pose of its own: layers start from the rest pose
 	hands: { [string]: HandFn }?, -- RHand / LHand targets (the clip's RHand / LHand channel is the reach)
+	exactHands: boolean?, -- hands land exactly on their targets on every avatar (Body.solve's `exact`)
 	-- a procedural layer: instead of sampling the clip, `source(t, values)` fills the channel values each frame
 	-- (head tracking toward a target, fitted poses); `clip.order` lists the channels it writes
 	source: ((t: number, values: { [string]: Clip.Value }) -> ())?,
 	-- only these channels (joints / limbs) are applied; nil = all (e.g. an upper-body layer over a walk)
 	mask: { [string]: boolean }?,
 	keep: boolean?, -- stays alive at weight 0 (a dormant layer setWeight brings back) until stop()
+	-- where planted knees point (root space) instead of forward: e.g. up, for legs resting on something
+	kneeHints: { [string]: Vector3 }?,
 }
 export type Handle = {
 	stop: (fade: number?) -> (),
@@ -71,9 +74,11 @@ type Layer = {
 	onEnded: { () -> () },
 	onStep: { (number, { [string]: Clip.Value }, number) -> () },
 	hands: { [string]: HandFn }?,
+	exactHands: boolean?,
 	source: ((number, { [string]: Clip.Value }) -> ())?,
 	mask: { [string]: boolean }?,
 	keep: boolean,
+	kneeHints: { [string]: Vector3 }?,
 	values: { [string]: Clip.Value },
 }
 type State = {
@@ -215,6 +220,7 @@ local function blend(
 )
 	local limbs: { [string]: { number } } = {}
 	local handFns: { [string]: Layer } = {}
+	local kneeHints: { [string]: Vector3 } = {}
 	for i, layer in layers do
 		local w = weights[i]
 		if w <= 0 then
@@ -254,6 +260,10 @@ local function blend(
 					if layer.hands and layer.hands[limb] then
 						handFns[limb] = layer
 					end
+					local knee = layer.kneeHints and layer.kneeHints[limb]
+					if knee then
+						kneeHints[limb] = knee
+					end
 				end
 			end
 		end
@@ -277,12 +287,13 @@ local function blend(
 			local fn = (owner.hands :: any)[limb] :: HandFn
 			local target, hint, rot = fn((chain :: any).Waist * waist.c1:Inverse(), owner.values)
 			local side = if limb == "RHand" then 1 else -1
-			Body.solve(body, limb, chain :: any, target, hint or Vector3.new(0.7 * side, -0.6, 0.5), rot, ik)
+			local fallback = Vector3.new(0.7 * side, -0.6, 0.5)
+			Body.solve(body, limb, chain :: any, target, hint or fallback, rot, ik, owner.exactHands)
 		else
 			local turn = CFrame.Angles(0, math.rad(v[5]), 0)
 			local side = if limb == "RFoot" then 1 else -1
 			local target = body.rest[limb] + Vector3.new(v[2], v[3], v[4]) * body.scale
-			local hint = turn * Vector3.new(0.12 * side, 0, -1)
+			local hint = kneeHints[limb] or turn * Vector3.new(0.12 * side, 0, -1)
 			Body.solve(body, limb, chain :: any, target, hint, turn * CFrame.Angles(math.rad(v[6]), 0, 0), ik)
 		end
 		for _, name in Body.LIMBS[limb] do
@@ -369,9 +380,11 @@ local function newLayer(clip: Clip.Compiled, o: Options): Layer
 		onEnded = {},
 		onStep = {},
 		hands = o.hands,
+		exactHands = o.exactHands,
 		source = o.source,
 		mask = o.mask,
 		keep = o.keep == true,
+		kneeHints = o.kneeHints,
 		values = {},
 	}
 end
