@@ -247,14 +247,14 @@ local Pets: { Pet } = {
 		model = "YetiBrute",
 	},
 	{
-		id = "ice_dragon",
-		name = "Ice Dragon",
+		id = "ice_dragon", -- saved pet id (was the Ice Dragon): never rename, saves reference it
+		name = "Frost Serpent",
 		zone = 6,
 		rarity = "Legendary",
 		weight = 2,
 		income = 330,
 		hatchSeconds = 225,
-		model = "IceDragon",
+		model = "FrostSerpent",
 	},
 
 	-- Zone 7

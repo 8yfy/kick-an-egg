@@ -24,9 +24,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		glow = rgb(120, 220, 255),
 		metal = rgb(150, 190, 230),
 	}),
-	-- Premium hero spec: the Frost Serpent (Models/Premium/FrostSerpent.luau, docs/EggPetPlan.md) under the
-	-- Ice Dragon's model key until the contract rename to FrostSerpent.
-	IceDragon = require(script.Parent.Parent.Premium.FrostSerpent).egg,
+	-- Premium hero spec (Models/Premium/FrostSerpent.luau, docs/EggPetPlan.md).
+	FrostSerpent = require(script.Parent.Parent.Premium.FrostSerpent).egg,
 }
 
 return Eggs

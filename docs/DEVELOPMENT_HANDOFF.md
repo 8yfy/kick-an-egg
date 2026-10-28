@@ -5,8 +5,9 @@
   - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
     (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).
     Rule 3 holds: no meshes. The old `Premium/IceDragon.luau` is removed.
-  - It ships under the model key `IceDragon`, so `Config` is unchanged. The display name / model-key rename to "Frost Serpent" /
-    `FrostSerpent` is a separate stacked `contract:` PR. The pet id stays `ice_dragon`, so saves are untouched.
+  - `a/frost-serpent` ships it under the model key `IceDragon` without touching `Config`. The stacked `contract:` PR
+    (`a/frost-serpent-rename`) renames it to "Frost Serpent" / `FrostSerpent` in `Config/Pets`, the zone files, the recipe
+    and the hero test lists. The pet id stays `ice_dragon`, so saves are untouched.
   - VFX (`VFX/PetFx`): six original sprites (`assets/pet-vfx/vfx_frost_*.png`, uploaded; Image ids in `PetFx/Sprites`). PetFx
     `emit` layers can now be timed bursts (`every`, `count`, `sync`) and aim with `dir` (the pet's frost-breath special).
   - Animation: `Anim/Pet` serpent poses for rigs with a `Coil` joint, `Rig.poseAbout`, and pupils blink with the eyes.
