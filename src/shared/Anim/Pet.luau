@@ -50,12 +50,18 @@ local function run(model: Model, eyesClosed: boolean, pose: (t: number, m: { [st
 	if eyesClosed then
 		setEyes(e, 0.12)
 	end
+	-- Optional time scale: the model's "AnimSpeed" attribute (the admin Model Lab's speed slider); 1 = normal.
+	local clock = os.clock()
+	local last = clock
 	local conn = RunService.RenderStepped:Connect(function()
 		if not model.Parent then
 			return
 		end
 		local now = os.clock()
-		pose(now + phase, motors)
+		local speed = model:GetAttribute("AnimSpeed")
+		clock += (now - last) * (if typeof(speed) == "number" then math.clamp(speed, 0, 4) else 1)
+		last = now
+		pose(clock + phase, motors)
 		if not eyesClosed then
 			if now >= nextBlink then
 				blinkUntil = now + 0.12

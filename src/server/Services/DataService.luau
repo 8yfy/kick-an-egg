@@ -439,6 +439,13 @@ DataService.migrate = migrate
 DataService.slotSpot = slotSpot
 DataService.VERSION = VERSION
 
+-- True when this player's profile is written to the DataStore (false for Studio's in-memory fallback). Read-only;
+-- the admin tools use it to keep test edits away from saved data.
+function DataService:IsPersistent(player: Player): boolean
+	local profile = profiles[player]
+	return profile ~= nil and not profile.inMemory and store ~= nil
+end
+
 -- Saves right away (keeps the lock). Used after purchases and trades. True on success.
 function DataService:SaveNow(player: Player): boolean
 	local profile = profiles[player]
