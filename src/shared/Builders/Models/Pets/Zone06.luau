@@ -36,8 +36,9 @@ local Pets: { [string]: Builder.Spec } = {
 		mane = true,
 		horns = "curl",
 	}),
-	-- Premium hero spec (Models/Premium/IceDragon.luau, docs/EggPetPlan.md).
-	IceDragon = require(script.Parent.Parent.Premium.IceDragon).pet,
+	-- Premium hero spec: the Frost Serpent (Models/Premium/FrostSerpent.luau, docs/EggPetPlan.md) under the
+	-- Ice Dragon's model key until the contract rename to FrostSerpent.
+	IceDragon = require(script.Parent.Parent.Premium.FrostSerpent).pet,
 }
 
 return Pets

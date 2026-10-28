@@ -11,7 +11,7 @@ follow the same language after that, as the brief requires.
 | 01 Sprout Pup | Common | 30 | 36 | 3 | 4 |
 | 03 Meadow Stag | Rare | 32 | 69 | 4 | 5 |
 | 07 Tide Spirit | Epic | 55 | 84 | 5 | 6 |
-| 23 Ice Dragon | Legendary | 62 | 157 | 5 | 7 |
+| 23 Frost Serpent (model key `IceDragon` until the contract rename) | Legendary | 56 | 169 | 5 | 9 |
 | 43 Quetzal Phoenix | Mythic | 81 | 174 | 5 | 7 |
 | 63 Clockwork Titan | Divine | 119 | 212 | 5 | 7 |
 | 79 Prism Seraph | Secret | 135 | 227 | 6 | 9 |
@@ -129,7 +129,7 @@ pet effect uses a different layer stack (checked by the server tests for the bui
 | 20 | Snow Bunny | Uncommon | snowball egg with a fluffy fur band and frosty ear nubs | bunny in earmuffs and a knitted scarf | gentle snowfall | breath puffs, snow sparkle | P |
 | 21 | Frost Penguin | Rare | tuxedo egg with an ice-blue bow tie and frost crown | penguin on ice skates, scarf, ice-shard crest | frost sparkle ring | sliding ice-glow ring, light snow | P |
 | 22 | Yeti Brute | Epic | shaggy fur egg with ice horn stubs and claw marks | huge yeti, ice horns, crystal knuckles | blizzard puffs, cold breath | snowstorm swirl, knuckle glints, frost burst ring | P |
-| 23 | Ice Dragon ✅ | Legendary | navy-to-snow egg: fur trim, ice clusters, crystal horns, frost cracks | armoured dragon: crystal-pane wings, swept horns, ice spine, core | snowflake spiral, cold mist, frost ring | snow squall, frost mist, shard orbit, frost halo, core light | P |
+| 23 | Frost Serpent ✅ (replaces the Ice Dragon) | Legendary | blue egg under a frost cap that drips down the shell, a serpent coil spiralling up it, snow line, antlers + crown crystal | glacier-blue serpent coiled on the ground and rising in an S: studded head with antlers, crystal mane, almond eyes, two-tone glass wings | frost rune-ring glyph, falling pixel snowflakes, glints, cold mist, light | snowflake sigil, glass ice-brick orbit with trails, pixel snowflakes, antler glints, coil mist, frost-breath special, core light | P (Blender-built block data: tools/blender/frost_serpent) |
 
 ### 7 Candy Land: pink, pastel blue, mint, yellow; swirls, sprinkles, frosting, gummies
 | # | Pair | Rarity | Egg design | Pet design (hero feature) | Egg VFX | Pet VFX | Build |

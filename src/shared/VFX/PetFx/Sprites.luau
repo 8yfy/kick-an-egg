@@ -4,11 +4,21 @@
 -- IMAGE id, not the Decal id) and put the ids in UPLOADED. Until then Studio shows the local copies staged by
 -- tools/preview/stage-art.sh, and live servers use a Roblox built-in texture with one warning per sprite.
 -- "sack_<name>" are the Kick Sack sprites, already uploaded (VFX/SackAura).
+-- "frost_<name>" are the Frost Serpent's own sprites (assets/pet-vfx/vfx_frost_*.png, drawn by
+-- tools/blender/frost_serpent/fs_textures.py): sigil, rune_ring, spark, flake, mist, cube.
 local RunService = game:GetService("RunService")
 
 local Sprites = {}
 
-local UPLOADED: { [string]: string } = {}
+-- Image ids (resolved from the uploaded Decals, tools/world/ids/pet-vfx.json).
+local UPLOADED: { [string]: string } = {
+	frost_cube = "rbxassetid://85676958444440",
+	frost_flake = "rbxassetid://123815258124915",
+	frost_mist = "rbxassetid://114596350917381",
+	frost_rune_ring = "rbxassetid://103729123161806",
+	frost_sigil = "rbxassetid://119563595237549",
+	frost_spark = "rbxassetid://88625969712095",
+}
 
 local SACK: { [string]: string } = {
 	sack_glow = "rbxassetid://71769032644460",
@@ -47,6 +57,12 @@ local NAMES: { [string]: string } = {
 	ember_orange = FIRE,
 	energy_arc_cyan = SPARKLE,
 	feather_light = SPARKLE,
+	frost_cube = SPARKLE,
+	frost_flake = SPARKLE,
+	frost_mist = SMOKE,
+	frost_rune_ring = RING,
+	frost_sigil = RING,
+	frost_spark = SPARKLE,
 	galaxy_nebula = SMOKE,
 	halo_gold = RING,
 	halo_ring = RING,

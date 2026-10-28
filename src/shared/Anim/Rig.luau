@@ -46,6 +46,14 @@ function Rig.pose(m: Motor6D?, offset: CFrame)
 	end
 end
 
+-- Pose in the root's frame: C0 = around * base * offset. `around` moves the whole group in root space (e.g. a
+-- rotation about another group's pivot, so a head rides along when the body it sits on sways).
+function Rig.poseAbout(m: Motor6D?, around: CFrame, offset: CFrame)
+	if m then
+		m.C0 = around * Rig.base(m) * offset
+	end
+end
+
 function Rig.reset(m: Motor6D?)
 	if m then
 		m.C0 = Rig.base(m)

@@ -4,7 +4,9 @@
 --   Waddle  idle + +-12 deg roll and alternating leg swing
 --   Hop     the whole rig hops every ~1.2 s with squash and stretch (root never moves)
 --   Sleep   slow breathing, head drooped, eyes shut, "Z"s drifting up
--- Eyes are the parts named EyeL/EyeR (+ GlintL/GlintR), per the Models/Kit convention.
+-- Eyes are the parts named EyeL/EyeR (+ GlintL/GlintR, PupilL/PupilR), per the Models/Kit convention.
+-- Serpent rigs (a Coil joint, e.g. the Frost Serpent) keep the coil on the ground and sway the body about its base
+-- instead: every group is its own Motor6D on Root, so the head, wings and arms follow that sway explicitly.
 local RunService = game:GetService("RunService")
 local Rig = require(script.Parent.Rig)
 
@@ -18,7 +20,7 @@ local function eyes(model: Model): Eyes
 	local e: Eyes = { parts = {}, glints = {}, sizes = {} }
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
-			if d.Name == "EyeL" or d.Name == "EyeR" then
+			if d.Name == "EyeL" or d.Name == "EyeR" or d.Name == "PupilL" or d.Name == "PupilR" then
 				table.insert(e.parts, d)
 				e.sizes[d] = d.Size
 			elseif d.Name == "GlintL" or d.Name == "GlintR" then
@@ -76,7 +78,31 @@ local function run(model: Model, eyesClosed: boolean, pose: (t: number, m: { [st
 	end
 end
 
+-- Serpent idle (4 s S-sway, breathing, head look-around, slow wing settle, arm drift); `slither` adds a 1 Hz roll
+-- and a coil twist while it roams.
+local function serpentPose(t: number, m: { [string]: Motor6D }, slither: number)
+	local w = t * 2 * math.pi
+	local pivot = if m.Body then Rig.base(m.Body) else CFrame.new()
+	local roll = math.sin(w * 0.25) * math.rad(3) + math.sin(w) * slither
+	local pitch = math.sin(w * 0.25 + 1.2) * math.rad(2)
+	local around = pivot * CFrame.Angles(pitch, 0, roll) * pivot:Inverse()
+	Rig.pose(m.Coil, CFrame.Angles(0, math.sin(w) * slither * 0.6, 0))
+	Rig.poseAbout(m.Body, around, CFrame.new())
+	local look = CFrame.Angles(math.sin(t * 0.9) * math.rad(4), math.sin(t * 0.6) * math.rad(10), -roll * 0.6)
+	Rig.poseAbout(m.Head, around, look)
+	local settle = math.sin(w * 0.5) * math.rad(7)
+	Rig.poseAbout(m.WingL, around, CFrame.Angles(0, 0, -settle))
+	Rig.poseAbout(m.WingR, around, CFrame.Angles(0, 0, settle))
+	local drift = math.sin(w * 0.35) * math.rad(8)
+	Rig.poseAbout(m.ArmL, around, CFrame.Angles(drift, 0, 0))
+	Rig.poseAbout(m.ArmR, around, CFrame.Angles(-drift, 0, 0))
+end
+
 local function idlePose(t: number, m: { [string]: Motor6D }, extraRoll: number)
+	if m.Coil then
+		serpentPose(t, m, 0)
+		return
+	end
 	local bob = (math.sin(t * 2 * math.pi * 1.5) * 0.5 + 0.5) * 0.25
 	local up = CFrame.new(0, bob, 0)
 	Rig.pose(m.Body, up * CFrame.Angles(0, 0, extraRoll))
@@ -97,6 +123,10 @@ end
 
 function Pet.Waddle(model: Model, _params: { [string]: any }): () -> ()
 	return run(model, false, function(t, m)
+		if m.Coil then
+			serpentPose(t, m, math.rad(6))
+			return
+		end
 		local w = t * 2 * math.pi * 2
 		idlePose(t, m, math.sin(w) * math.rad(12))
 		local swing = math.sin(w) * math.rad(25)
