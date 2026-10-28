@@ -10,7 +10,7 @@
 
 return table.freeze({
 	users = table.freeze({
-		-- Supplied by the project owner on 2026-10-28 ("likely mine and the co-owner's"); see the PR notes.
+		-- Confirmed by the project owner on 2026-10-28: the owner (8yf_y) and the co-owner.
 		[1340874349] = "Owner",
 		[3953001499] = "Owner",
 	}),

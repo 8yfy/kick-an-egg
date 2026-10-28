@@ -3,7 +3,7 @@
 ## Current checkpoint
 - **Admin panel (2026-10-28, Partner A, branch `a/admin-panel` from `main` 0814c21).** Full write-up: `docs/AdminPanel.md`.
   - Server: `Services/AdminService.luau` + `src/server/Admin/` (allowlist, roles, pipeline, ~44 registered commands, Model Lab, cross-server, audit). Read-only additions in B's area: `DataService:IsPersistent`, `WeatherService:GetEndsAt`. `Anim/Pet.luau` honours an optional `AnimSpeed` attribute. No `Remotes`/`Config` changes; nothing in ReplicatedStorage.
-  - Allowlist: `src/server/Admin/Allowlist.luau` has 1340874349 and 3953001499 as Owner (supplied by the owner; Studio confirmed 1340874349 is the `8yf_y` account; 3953001499 still needs the owner's confirmation). Staging universe ids are empty in `Admin/Config.luau`.
+  - Allowlist: `src/server/Admin/Allowlist.luau` has 1340874349 (`8yf_y`) and 3953001499 (co-owner) as Owner, both confirmed by the owner on 2026-10-28. Staging universe ids are empty in `Admin/Config.luau`.
   - Verified this session: Lune `tools/tests/AdminSecurity.spec.luau` 128/128; Studio `tools/tests/AdminStudio.server.lua` 92/92; existing ServerTests 364/4 (baseline); gameplay smoke (kick, chase, training, egg place/hatch, roaming income, pen upgrade, weather); all tabs built; compact layout at ~600×353.
   - Not verified: published-server MessagingService/MemoryStore, two clients, real phones, staging universe.
   - Test places were built into `build/` (untracked, not committed) and opened in their own Studio window; the user's open places were not touched.
