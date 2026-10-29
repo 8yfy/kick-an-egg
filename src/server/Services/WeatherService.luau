@@ -47,6 +47,11 @@ function WeatherService:GetActive(): string?
 	return active
 end
 
+-- Server time (workspace:GetServerTimeNow()) the running event ends, or nil. Read-only (admin dashboard).
+function WeatherService:GetEndsAt(): number?
+	return endsAt
+end
+
 -- Starts `weather` now for `seconds` (replaces any running event).
 function WeatherService:StartEvent(weather: string, seconds: number)
 	if not Mutations.Weather[weather] then
