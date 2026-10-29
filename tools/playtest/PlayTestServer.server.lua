@@ -58,17 +58,24 @@ hook.OnServerEvent:Connect(function(player, what, arg)
 			plots[uid] = e
 		end
 		DataService():Set(player, { plots = plots })
-		table.insert(lines, "[setup] hook: placed eggs hatch now")
-	elseif what == "giveEgg" then -- arg = a rarity (the first pet of it), else the first pet
+		require(ServerScriptService.Server.Services.PlotService):Refresh(player) -- (their models show READY)
+		table.insert(lines, "[setup] hook: placed eggs are ready to hatch now")
+	elseif what == "giveEgg" then -- arg = a rarity (the first pet of it), or { rarity?, petId?, size?, weather? }
+		local spec = if typeof(arg) == "table" then arg else { rarity = arg }
 		local petId = Pets[1].id
 		for _, pet in Pets do
-			if typeof(arg) == "string" and pet.rarity == arg then
+			if (typeof(spec.petId) == "string" and pet.id == spec.petId) or (spec.petId == nil and typeof(spec.rarity) == "string" and pet.rarity == spec.rarity) then
 				petId = pet.id
 				break
 			end
 		end
 		local eggs = table.clone(data.eggs)
-		table.insert(eggs, { uid = HttpService:GenerateGUID(false), petId = petId })
+		table.insert(eggs, {
+			uid = HttpService:GenerateGUID(false),
+			petId = petId,
+			size = if typeof(spec.size) == "string" then spec.size else nil,
+			weather = if typeof(spec.weather) == "string" then spec.weather else nil,
+		})
 		DataService():Set(player, { eggs = eggs })
 		table.insert(lines, "[setup] hook: gave an inventory egg (" .. petId .. ")")
 	elseif what == "set" and typeof(arg) == "table" then -- dev: set data fields (money, speedLevel ...)

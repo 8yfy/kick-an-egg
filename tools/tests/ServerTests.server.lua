@@ -492,7 +492,10 @@ section("SackService + pens + collecting", function()
 		end
 		check("every pen has its floor frame and owner anchor, no pedestals", areas == 5)
 		local CollectionService = game:GetService("CollectionService")
-		check("the 20 lanes are the landing surfaces (flat start, no ramp)", #CollectionService:GetTagged("LandingSurface") == 20)
+		check(
+			"the 20 lanes are the landing surfaces (flat start, no ramp)",
+			#CollectionService:GetTagged("LandingSurface") == 20
+		)
 		local Physics = game:GetService("PhysicsService")
 		check(
 			"steered eggs pass through characters (the kicker waits on the pad, on the way home)",
@@ -543,6 +546,92 @@ section("SackService + pens + collecting", function()
 			spots = spots and math.abs(spot.X) <= hx and math.abs(spot.Z) <= hz
 		end
 		check("roaming targets stay inside the pen", spots)
+		-- egg experience (docs/EggExperience.md): bigger eggs need room for the size they grow to
+		local bigData = {
+			plots = { e1 = { uid = "e1", petId = "sprout_pup", x = 0, z = 0, hatchAt = 1, size = "Colossal" } },
+			pets = {},
+			penLevel = 1,
+		}
+		check(
+			"egg spot: 1x eggs keep the old 4-stud spacing",
+			PS.eggSpotProblem(area, penData, PS.toWorld(area, 4.2, 0)) == nil
+		)
+		check(
+			"egg spot: a Colossal egg keeps its neighbours further away",
+			PS.eggSpotProblem(area, bigData, PS.toWorld(area, 5, 0)) ~= nil
+				and PS.eggSpotProblem(area, bigData, PS.toWorld(area, 7, 0)) == nil
+		)
+		local ex = PS.penHalf(area)
+		check(
+			"egg spot: a big egg can't grow through the fence",
+			PS.eggSpotProblem(area, { plots = {}, pets = {}, penLevel = 1 }, PS.toWorld(area, ex - 0.2, 0), "Colossal")
+					~= nil
+				and PS.eggSpotProblem(area, { plots = {}, pets = {}, penLevel = 1 }, PS.toWorld(area, ex - 0.2, 0))
+					== nil
+		)
+		-- hatching is the owner's choice, and only when the timer has ended
+		local hatchData =
+			{ plots = { e9 = { uid = "e9", petId = "sprout_pup", x = 0, z = 0, placedAt = 0, hatchAt = 100 } } }
+		check("hatch: not before the timer ends", PS.hatchProblem(hatchData, "e9", 99, 2) ~= nil)
+		check("hatch: ready and close enough", PS.hatchProblem(hatchData, "e9", 100, 2) == nil)
+		check("hatch: too far away", PS.hatchProblem(hatchData, "e9", 200, 40) ~= nil)
+		check(
+			"hatch: someone else's / unknown / already hatched egg",
+			PS.hatchProblem(hatchData, "nope", 200, 0) ~= nil
+		)
+	end
+	do -- Presentation/EggSize, Format: the visual policy and the texts
+		local EggSize = require(Shared.Presentation.EggSize) :: any
+		local Format = require(Shared.Presentation.Format) :: any
+		local order = { "Tiny", "", "Big", "Huge", "Colossal" }
+		local v, prev = true, 0
+		for _, k in order do
+			local s = EggSize.visual(if k == "" then nil else k)
+			v = v and s > prev and s <= EggSize.MAX_VISUAL
+			prev = s
+		end
+		check("egg size: visual scale grows with the size multiplier, capped", v)
+		check(
+			"egg size: 1x eggs look exactly 1x",
+			EggSize.visual(nil) == 1 and EggSize.radius(nil) == EggSize.BASE_RADIUS
+		)
+		local g = true
+		for i = 0, 20 do
+			g = g and EggSize.growth(i / 20) >= EggSize.growth(math.max(0, i - 1) / 20)
+		end
+		check(
+			"egg size: growth starts small, only grows, ends at full size",
+			g and EggSize.growth(0) == EggSize.START and math.abs(EggSize.growth(1) - 1) < 1e-9
+		)
+		check(
+			"egg size: progress from saved timestamps (a rejoin halfway = halfway)",
+			EggSize.progress(100, 200, 150) == 0.5
+				and EggSize.progress(100, 200, 50) == 0
+				and EggSize.progress(100, 200, 900) == 1
+		)
+		check(
+			"egg size: carry tiers follow the real sizes",
+			EggSize.tier("Tiny") == "Small"
+				and EggSize.tier(nil) == "Medium"
+				and EggSize.tier("Big") == "Large"
+				and EggSize.tier("Huge") == "Giant"
+				and EggSize.tier("Colossal") == "Giant"
+		)
+		check("egg size: the size multiplier itself is untouched", EggSize.multiplier("Colossal") == 3.2)
+		check(
+			"format: income keeps its decimal and never rounds up",
+			Format.income(0.8) == "$0.8/s"
+				and Format.income(12) == "$12/s"
+				and Format.income(12549) == "$12.5K/s"
+				and Format.income(1999999) == "$1.99M/s"
+		)
+		check(
+			"format: countdown never negative, MM:SS",
+			Format.clock(-5) == "00:00"
+				and Format.clock(155) == "02:35"
+				and Format.clock(7) == "00:07"
+				and Format.clock(3725) == "1:02:05"
+		)
 	end
 	check("pen 1 = base slots", PS.slotsForPen(1) == Economy.PlotSlots.base)
 	check("pen 2 adds slots", PS.slotsForPen(2) == Economy.PlotSlots.base + Upgrades.Pen.slotsPerLevel)

@@ -296,7 +296,7 @@ export type EggRow = {
 }
 
 -- Hatching eggs (placed in the pen, soonest first) then inventory eggs (oldest first): hold one (EquipEgg)
--- and put it down in your pen. Eggs hatch by themselves on the server at hatchAt; the client never hatches.
+-- and put it down in your pen. Eggs are READY at hatchAt and wait; the owner hatches one by holding E (the server decides).
 function Data.eggs(): { EggRow }
 	local rows: { EggRow } = {}
 	local plots = Data.state.plots

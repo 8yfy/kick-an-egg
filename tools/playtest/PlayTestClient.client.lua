@@ -583,6 +583,38 @@ step("chase", function()
 	end, 6) ~= nil)
 end)
 
+
+-- Hatches placed egg `eggUid` the way a player does: walk up to it, hold the hold-to-hatch prompt, let go.
+local function hatchByHolding(eggUid: string): (boolean, string?)
+	local mine = myBase()
+	local plots = mine and mine:FindFirstChild("Plots")
+	if not plots then
+		return false, "no pen"
+	end
+	-- (looked up again each time: a Refresh rebuilds the pen's models, so an earlier reference can be a dead copy)
+	local egg = waitFor(function()
+		local e = plots:FindFirstChild("Egg_" .. eggUid)
+		return e and e.PrimaryPart and e:GetAttribute("Ready") == true and e
+	end, 6)
+	if not egg then
+		return false, if plots:FindFirstChild("Egg_" .. eggUid) then "the egg never became READY" else "no egg model"
+	end
+	local root = egg.PrimaryPart :: BasePart
+	tp(root.Position + Vector3.new(4.5, 3, 0))
+	local prompt = waitFor(function()
+		local p = root:FindFirstChild("HatchPrompt")
+		return p and p:IsA("ProximityPrompt") and p.Enabled and p
+	end, 5)
+	if not prompt then
+		return false, "no hold-to-hatch prompt on your READY egg"
+	end
+	task.wait(0.4) -- (the prompt has to be showing before a hold counts)
+	prompt:InputHoldBegin()
+	task.wait(prompt.HoldDuration + 0.2)
+	prompt:InputHoldEnd()
+	return true, nil
+end
+
 -- Egg -> pen -> pet.
 local petUid
 step("egg placement", function()
@@ -653,7 +685,32 @@ step("egg placement", function()
 	check("the egg model sits in your pen", waitFor(function()
 		return plots and plots:FindFirstChild("Egg_" .. securedUid)
 	end, 3) ~= nil)
+	local eggModel = plots and plots:FindFirstChild("Egg_" .. securedUid)
+	local display = eggModel and eggModel.PrimaryPart and eggModel.PrimaryPart:FindFirstChild("EggDisplay", true)
+	local nameText = display and display:FindFirstChild("PetName", true)
+	local timerText = display and display:FindFirstChild("Timer", true)
+	check(
+		"the placed egg shows its pet's name and a countdown",
+		nameText ~= nil and nameText.Text ~= "" and timerText ~= nil and string.find(timerText.Text, "^%d+:%d%d") ~= nil,
+		if nameText and timerText then nameText.Text .. " / " .. timerText.Text else nil
+	)
+	-- holding before the timer ends does nothing (the server checks; this skips the client entirely)
+	Remotes.get("HatchEgg"):FireServer(securedUid)
+	task.wait(1)
+	check("a hatch request before the timer ends is refused", (Data.state.plots or {})[securedUid] ~= nil)
 	hook:FireServer("hatch")
+	task.wait(2.5)
+	check(
+		"a finished egg waits, READY TO HATCH (nothing hatches by itself)",
+		(Data.state.plots or {})[securedUid] ~= nil
+			and waitFor(function()
+				local e = plots and plots:FindFirstChild("Egg_" .. securedUid)
+				local t = e and e:FindFirstChild("Timer", true)
+				return t and t.Text == "READY TO HATCH!"
+			end, 3) ~= nil
+	)
+	local held, why = hatchByHolding(securedUid)
+	check("holding E on your READY egg hatches it", held, why)
 	petUid = waitFor(function()
 		for uid, pet in Data.state.pets or {} do
 			if pet.placed then
@@ -663,6 +720,17 @@ step("egg placement", function()
 		return nil
 	end, 6)
 	check("the egg hatches into a pet in your pen", petUid ~= nil)
+	local petsBefore = 0
+	for _ in Data.state.pets or {} do
+		petsBefore += 1
+	end
+	Remotes.get("HatchEgg"):FireServer(securedUid) -- a repeated request
+	task.wait(1)
+	local petsAfter = 0
+	for _ in Data.state.pets or {} do
+		petsAfter += 1
+	end
+	check("a repeated hatch request makes no second pet", petsAfter == petsBefore, `{petsBefore} -> {petsAfter}`)
 	check(
 		"tutorial: wait for it to hatch / it earns (steps 7-8)",
 		table.find(tutorialSteps, 6) ~= nil,
@@ -683,7 +751,36 @@ step("pets", function()
 	if not model then
 		return
 	end
-	task.wait(0.8) -- (the reveal pop)
+	-- the reveal: a silhouette that grows into the real pet, then its nameplate
+	local sawSilhouette = waitFor(function()
+		return model:FindFirstChild("HatchSilhouette") ~= nil
+	end, 4) ~= nil
+	check("the hatch reveal shows the pet as a silhouette first", sawSilhouette)
+	waitFor(function()
+		return (tonumber(model:GetAttribute("RevealUntil")) or 0) <= os.clock()
+			and model:FindFirstChild("HatchSilhouette") == nil
+	end, 12)
+	task.wait(0.3)
+	local plate = model.PrimaryPart and model.PrimaryPart:FindFirstChild("PetNameplate")
+	local plateName = plate and plate:FindFirstChild("PetName", true)
+	local plateIncome = plate and plate:FindFirstChild("Income", true)
+	check(
+		"the pet's nameplate shows its name and its real $/s",
+		plate ~= nil
+			and plate.Enabled
+			and plateName ~= nil
+			and plateName.Text == model:GetAttribute("PetName")
+			and plateIncome ~= nil
+			and string.find(plateIncome.Text, "^%$[%d%.]+[KMBT]?/s$") ~= nil,
+		if plateIncome then plateIncome.Text else nil
+	)
+	local sizeShown = false
+	for _, d in (plate and plate:GetDescendants() or {}) do
+		if d:IsA("TextLabel") and (d.Text == "Tiny" or d.Text == "Big" or d.Text == "Huge" or d.Text == "Colossal") then
+			sizeShown = true
+		end
+	end
+	check("no size mutation on the nameplate", not sizeShown)
 	local shown, hiddenParts = 0, 0
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") and d.Transparency < 1 then
@@ -695,7 +792,7 @@ step("pets", function()
 		end
 	end
 	check(
-		"the freshly hatched pet is VISIBLE right away (no pickup + place needed)",
+		"the freshly hatched pet is VISIBLE after its reveal (no pickup + place needed)",
 		shown > 0 and hiddenParts == 0,
 		`{shown} visible parts, {hiddenParts} hidden`
 	)
@@ -948,6 +1045,10 @@ step("audio: scenarios 9-10, hatching a Common and a Secret pet", function()
 		note(`{rarity} egg: placed {placed ~= nil}, holding {heldTool and heldTool.Name or "nothing"}`)
 		local from = #Audio.history
 		hook:FireServer("hatch")
+		local heldOk, heldWhy = hatchByHolding(uid)
+		if not heldOk then
+			note(`{rarity}: {heldWhy}`)
+		end
 		local name = SoundBank.hatchEvent(rarity)
 		local e = waitFor(function()
 			local list = audioEntries(from, name)
@@ -1067,16 +1168,20 @@ step("speed + power (live)", function()
 			return Data.state.speedLevel == level
 		end, 3)
 		task.wait(0.3)
-		table.clear(moneyLog)
+		-- (kept, not cleared: an income tick can land between the "set" and the purchase, so the money right before
+		-- the purchase is the last value received, not the 1e15 that was set)
+		local from = #moneyLog
+		local startMoney = Data.state.money
 		Remotes.get("BuyUpgrade"):FireServer("RunSpeed")
 		local ok = waitFor(function()
 			return Data.state.speedLevel == level + 1
 		end, 4)
 		task.wait(0.3)
 		local paid = nil
-		for i, entry in moneyLog do
+		for i = from + 1, #moneyLog do
+			local entry = moneyLog[i]
 			if entry.level == level + 1 then -- the purchase's own update: money right before it - money in it
-				local before = if i > 1 then moneyLog[i - 1].money else 1e15
+				local before = if i > 1 then moneyLog[i - 1].money else startMoney
 				paid = before - entry.money
 			end
 		end

@@ -375,7 +375,7 @@ function SackService.showcase(player: Player, variant: string?)
 end
 
 -- Studio-only playtest commands: /sack <1-20> switches your sack, /cash <amount> adds money, /power <n> sets Kick
--- Power (reach farther zones), /speed <level> sets the Run Speed level, /hatch hatches your placed eggs now,
+-- Power (reach farther zones), /speed <level> sets the Run Speed level, /hatch makes your placed eggs ready to hatch,
 -- /showroom opens the one-at-a-time sack showroom, /showcase [game|basic] toggles the 20-sack showroom. One handler for both chat systems; a repeat of the same message within half a
 -- second is ignored so nothing runs twice.
 local lastCommand: { [Player]: { text: string, at: number } } = {}
@@ -396,7 +396,7 @@ function SackService.command(player: Player, message: string)
 		return
 	end
 	local data = DataService:Get(player)
-	if data and string.match(text, "^/hatch%s*$") then -- every egg in your pen hatches on the next tick
+	if data and string.match(text, "^/hatch%s*$") then -- every egg in your pen is READY now (hold E to hatch it)
 		local plots = table.clone(data.plots)
 		local now = workspace:GetServerTimeNow()
 		for uid, egg in plots do
@@ -405,7 +405,8 @@ function SackService.command(player: Player, message: string)
 			plots[uid] = hurried
 		end
 		DataService:Set(player, { plots = plots })
-		print(`[studio] {player.Name}: hatching now`)
+		PlotService:Refresh(player) -- the egg models show their new timer (READY)
+		print(`[studio] {player.Name}: eggs ready to hatch`)
 		return
 	end
 	local cmd, arg = string.match(text, "^/(%a+)%s+(%S+)")

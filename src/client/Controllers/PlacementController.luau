@@ -16,6 +16,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 local Upgrades = require(Shared.Config.Upgrades)
 local Models = require(Shared.Builders.Models)
+local EggSize = require(Shared.Presentation.EggSize)
 local Remotes = require(Shared.Remotes)
 local Audio = require(Shared.Audio)
 
@@ -74,16 +75,32 @@ local function kindOf(tool: Tool?): ("Egg" | "Pet")?
 	return nil
 end
 
--- Why `pos` is not a valid spot (nil = valid): the same rules as PlotService (eggs also keep their spacing).
+-- The held egg's size key (nil for none / a pet).
+local function heldSize(): string?
+	local s = held and held:GetAttribute("EggSize")
+	return if typeof(s) == "string" and s ~= "" then s else nil
+end
+
+-- Why `pos` is not a valid spot (nil = valid): the same rules as PlotService.eggSpotProblem (eggs keep room for the
+-- size they grow to, from the fence and from each other).
 local function problem(area: BasePart, pos: Vector3, kind: "Egg" | "Pet"): string?
 	local p = area.CFrame:PointToObjectSpace(pos)
-	if math.abs(p.X) > area.Size.X / 2 - PEN_MARGIN or math.abs(p.Z) > area.Size.Z / 2 - PEN_MARGIN then
+	local hx, hz = area.Size.X / 2 - PEN_MARGIN, area.Size.Z / 2 - PEN_MARGIN
+	if math.abs(p.X) > hx or math.abs(p.Z) > hz then
 		return "Outside your pen"
 	end
-	for _, egg in if kind == "Egg" then data.plots or {} else {} do
-		if typeof(egg) == "table" and typeof(egg.x) == "number" and typeof(egg.z) == "number" then
-			if (Vector2.new(egg.x, egg.z) - Vector2.new(p.X, p.Z)).Magnitude < EGG_SPACING then
-				return "Too close to another egg"
+	if kind == "Egg" then
+		local radius = EggSize.radius(heldSize())
+		local edge = math.max(0, radius + 0.5 - PEN_MARGIN)
+		if math.abs(p.X) > hx - edge or math.abs(p.Z) > hz - edge then
+			return "Too close to the fence for an egg this big"
+		end
+		for _, egg in data.plots or {} do
+			if typeof(egg) == "table" and typeof(egg.x) == "number" and typeof(egg.z) == "number" then
+				local need = math.max(EGG_SPACING, radius + EggSize.radius(egg.size))
+				if (Vector2.new(egg.x, egg.z) - Vector2.new(p.X, p.Z)).Magnitude < need then
+					return "Too close to another egg"
+				end
 			end
 		end
 	end
@@ -165,6 +182,11 @@ local function makeGhost(tool: Tool)
 		end
 	end
 	model.Name = if kindOf(tool) == "Pet" then "PetGhost" else "EggGhost"
+	if kindOf(tool) == "Egg" then -- the ghost shows the size this egg grows to (its room in the pen)
+		local size = tool:GetAttribute("EggSize")
+		local m = model :: any
+		m:ScaleTo(m:GetScale() * EggSize.visual(if typeof(size) == "string" and size ~= "" then size else nil))
+	end
 	local h = Instance.new("Highlight")
 	h.FillTransparency = 0.55
 	h.OutlineTransparency = 0.1

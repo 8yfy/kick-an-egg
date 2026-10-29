@@ -196,8 +196,27 @@ local function view(step: number): (string, GuiObject?, Vector3?, Instance?, Vec
 			floor,
 			not inside
 	elseif step == S.HATCH then
-		local p, thing, floor = modelTarget(placed("Egg"))
-		return "Your egg is hatching!", nil, p, thing, floor, false
+		-- the egg grows on its timer; once READY its owner hatches it by holding the prompt (EggDisplayController)
+		local egg = placed("Egg")
+		local p, thing, floor = modelTarget(egg)
+		local hatchAt = egg and egg:GetAttribute("HatchAt")
+		local ready = egg ~= nil
+			and (
+				egg:GetAttribute("Ready") == true
+				or (typeof(hatchAt) == "number" and workspace:GetServerTimeNow() >= hatchAt)
+			)
+		if ready then
+			return if touch
+				then "Hold the HATCH button by your egg!"
+				elseif gamepad then "Hold the hatch button at your egg!"
+				else "Hold E at your egg to hatch it!",
+				nil,
+				p,
+				thing,
+				floor,
+				true
+		end
+		return "Your egg is growing! Watch its timer.", nil, p, thing, floor, false
 	elseif step == S.INCOME then
 		local p, thing, floor = modelTarget(placed("Pet"))
 		return "Your pet earns money for you!",

@@ -5,8 +5,8 @@
 -- One drawer at a time; opening a modal closes it.
 --
 -- EGGS: eggs placed in your pen (soonest first): 3D egg, name, countdown + bar from the server's placedAt/hatchAt
---   and synced server time. Eggs hatch BY THEMSELVES at hatchAt, so a finished timer reads HATCHING... until the
---   server swaps the egg for its pet. Then inventory eggs (finished kicks) with a HOLD button: you carry the egg
+--   and synced server time. A finished timer reads READY TO HATCH: the egg waits in the pen until you hold E at it
+--   (EggDisplayController) and the server swaps it for its pet. Then inventory eggs (finished kicks) with a HOLD button: you carry the egg
 --   (an "Egg" Tool, Remotes.EquipEgg) and put it down anywhere in your pen (PlacementController). One compact
 --   "free spots" row. Footer: BIGGER PEN (Remotes.UpgradePen). Badge = eggs in the inventory.
 -- PETS: every pet you own: 3D pet, name, rarity and mutation, $/s, and IN PEN (roaming, earning; walk up to it to
@@ -361,7 +361,7 @@ function Drawers.new(parent: Instance): Drawers
 				time.Size = UDim2.fromOffset(110, 36)
 				local barHolder = Ui.frame(f, "Bar", UDim2.new(1, -118, 0, 30), UDim2.fromOffset(102, 54))
 				local bar = Ui.progress(barHolder, Theme.Buttons.lime, 30)
-				local ready = Ui.pill(f, "HATCHING...", "lime", UDim2.fromOffset(220, 46), 26)
+				local ready = Ui.pill(f, "READY TO HATCH", "lime", UDim2.fromOffset(220, 46), 26)
 				ready.Position = UDim2.fromOffset(102, 46)
 				ready.Visible = false
 				local state = Ui.text(f, "", 22, { stroke = 3, color = C.power, name = "State" })

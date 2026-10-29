@@ -4,8 +4,10 @@
 --     the player waits (attribute PenWaiting) and gets the next one that frees up.
 --   * Eggs: a secured egg goes into the inventory (data.eggs). EquipEgg(uid) puts it in the player's hand as an
 --     "Egg" Tool (one at a time); PlaceEgg(uid, position) puts the held egg down anywhere valid inside the
---     player's own pen (ownership, held tool, pen bounds, spacing, capacity, no double placement). It hatches on
---     its server-time timer (survives rejoin) where it stands.
+--     player's own pen (ownership, held tool, pen bounds, spacing, capacity, no double placement). Bigger eggs need
+--     more room (Presentation/EggSize footprint). It incubates on its server-time timer (survives rejoin), becomes
+--     READY at hatchAt (model attribute Ready) and waits there: the owner hatches it by holding E (HatchEgg; the
+--     server checks owner, ready, reach and that it isn't already hatching, then commits the pet in one change).
 --   * Pets: placed pets ROAM their pen. The server decides every move (one scheduler for everyone): a target
 --     inside the pen away from other pets, a start/end time; the model's attributes PathFrom / PathTo /
 --     PathStart / PathEnd let every client walk it smoothly (PlotController). The server knows each pet's
@@ -21,7 +23,8 @@
 -- Data: plots = { [eggUid]: {uid, petId, size?, weather?, placedAt, hatchAt, x, z} } -- placed eggs
 --       pets  = { [petUid]: {petId, size?, weather?, placed?, x?, z?} }               -- x/z = pen-local spot
 -- Pen-local: PenArea's frame (origin = pen centre on the floor, -Z toward the entrance).
--- Replicated models live in Base<i>.Plots: egg: Kind="Egg", EggUid, PlacedAt, HatchAt, Rarity, ModelKey
+-- Replicated models live in Base<i>.Plots: egg: Kind="Egg", EggUid, PlacedAt, HatchAt, Ready, Rarity, ModelKey,
+--   PetId, PetName, Size, Weather, VisualScale (clients grow it from PlacedAt / HatchAt, Presentation/EggSize)
 --   pet: Kind="Pet", PetUid, OwnerUserId, Rarity, PetName, Size, Weather, Income, HatchedAt, ModelKey, Path*
 
 local HttpService = game:GetService("HttpService")
@@ -36,6 +39,8 @@ local Pets = require(Shared.Config.Pets)
 local Builder = require(Shared.Builders.BlockBuilder)
 local Models = require(Shared.Builders.Models)
 local Remotes = require(Shared.Remotes)
+local EggSize = require(Shared.Presentation.EggSize)
+local HatchStyle = require(Shared.Presentation.HatchStyle)
 
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DataService = require(script.Parent.DataService)
@@ -69,7 +74,7 @@ type Roam = {
 	nextAt: number, -- next decision (after the walk and an idle pause)
 }
 
-local TICK = 1 -- income + hatching
+local TICK = 1 -- income + READY eggs
 local ROAM_TICK = 0.25 -- pet move decisions
 local MODEL_RETRY = 5 -- seconds before rebuilding a model that failed
 local PEN_MARGIN = 3.5 -- studs kept clear of the fences
@@ -80,6 +85,7 @@ local PLACE_REACH = 30 -- a placement must be this close to the player
 local PICKUP_REACH = 16 -- the player must be this close to the pet's (server) position
 local OWNER_NEAR = 10 -- a pet stops and idles while its owner is this close (its Pick Up prompt reaches 9)
 local SPAWN_ABOVE = 3
+local HATCH_REACH = 12 -- studs from the egg's edge (its footprint radius is added: big eggs are hatched from further)
 
 local PlotService = {}
 
@@ -95,6 +101,7 @@ local waiting: { Player } = {} -- no free pen yet, in join order
 local roams: { [Player]: { [string]: Roam } } = {}
 local retryAt: { [Player]: { [string]: number } } = {} -- uid -> when to rebuild a failed model
 local carry: { [Player]: number } = {} -- fractional income not yet paid
+local hatching: { [string]: boolean } = {} -- eggUid -> a hatch of it is being committed right now
 local eggHatched: RemoteEvent
 local announce: RemoteEvent
 
@@ -295,6 +302,12 @@ local function spawnEggModel(player: Player, base: Model, egg: EggPlot): Model?
 	model:SetAttribute("PlacedAt", egg.placedAt)
 	model:SetAttribute("HatchAt", egg.hatchAt)
 	model:SetAttribute("Rarity", if config then config.rarity else "Common")
+	model:SetAttribute("PetId", egg.petId)
+	model:SetAttribute("PetName", if config then config.name else egg.petId)
+	model:SetAttribute("Size", egg.size)
+	model:SetAttribute("Weather", egg.weather)
+	model:SetAttribute("VisualScale", EggSize.visual(egg.size))
+	model:SetAttribute("Ready", workspace:GetServerTimeNow() >= egg.hatchAt)
 	local pos = PlotService.toWorld(area, egg.x, egg.z)
 	model:PivotTo(CFrame.lookAt(pos, pos + area.CFrame.LookVector))
 	model.Parent = plotsFolder(base)
@@ -343,7 +356,9 @@ local function spawnPetModel(player: Player, base: Model, petUid: string, pet: P
 		list = {}
 		roams[player] = list
 	end
-	local r: Roam = { from = here, to = here, t0 = now, t1 = now, nextAt = now + rng:NextNumber(0.5, IDLE_MAX) }
+	-- a freshly hatched pet stays where it hatched while its owner watches the reveal
+	local firstMove = if hatchedAt then now + HatchStyle.HOLD_SECONDS else now + rng:NextNumber(0.5, IDLE_MAX)
+	local r: Roam = { from = here, to = here, t0 = now, t1 = now, nextAt = firstMove }
 	list[petUid] = r
 	setPath(model, area, r)
 	local pos = PlotService.toWorld(area, x, z)
@@ -560,6 +575,10 @@ local function makeTool(kind: "Egg" | "Pet", uid: string, entry: { [string]: any
 	tool:SetAttribute(if kind == "Egg" then "EggUid" else "PetUid", uid)
 	tool:SetAttribute("ModelKey", key)
 	tool:SetAttribute("Rarity", if config then config.rarity else "Common")
+	if kind == "Egg" then -- (CarryController poses the character for the egg's size)
+		tool:SetAttribute("EggSize", if typeof(entry.size) == "string" then entry.size else "")
+		tool:SetAttribute("CarryTier", EggSize.tier(entry.size))
+	end
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
 	handle.Size = Vector3.new(1, 1, 1)
@@ -568,7 +587,7 @@ local function makeTool(kind: "Egg" | "Pet", uid: string, entry: { [string]: any
 	handle.Parent = tool
 	tool.Grip = CFrame.new(0, -0.6, 1.4) * CFrame.Angles(math.rad(-90), 0, 0) -- in both hands, in front
 	tool.Equipped:Connect(function()
-		holdModel(tool, kind, key, if kind == "Egg" then 0.55 else 0.45)
+		holdModel(tool, kind, key, if kind == "Egg" then EggSize.held(entry.size) else 0.45)
 	end)
 	tool.Unequipped:Connect(function()
 		local held = tool:FindFirstChild("Held")
@@ -680,14 +699,23 @@ end
 
 -- Placement ---------------------------------------------------------------------------------------------------
 
--- Why a placement of an egg at `world` is invalid (nil = valid). Pure checks shared with the tests.
-function PlotService.eggSpotProblem(area: BasePart, data: DataService.Data, world: Vector3): string?
+-- Why a placement of an egg (size key `sizeKey`) at `world` is invalid (nil = valid). Pure checks shared with the
+-- tests. Eggs grow to their size (Presentation/EggSize): a bigger egg keeps more room from the fence and from the
+-- other eggs, so a grown egg never pokes through the fence or into its neighbours (1x eggs keep the old rules).
+function PlotService.eggSpotProblem(area: BasePart, data: DataService.Data, world: Vector3, sizeKey: string?): string?
 	local x, z, inside = PlotService.toLocal(area, world)
 	if not inside then
 		return "outside your pen"
 	end
+	local radius = EggSize.radius(sizeKey)
+	local edge = math.max(0, radius + 0.5 - PEN_MARGIN)
+	local hx, hz = PlotService.penHalf(area)
+	if math.abs(x) > hx - edge or math.abs(z) > hz - edge then
+		return "too close to the fence for an egg this big"
+	end
 	for _, egg: EggPlot in data.plots do
-		if (Vector2.new(egg.x, egg.z) - Vector2.new(x, z)).Magnitude < EGG_SPACING then
+		local need = math.max(EGG_SPACING, radius + EggSize.radius(egg.size))
+		if (Vector2.new(egg.x, egg.z) - Vector2.new(x, z)).Magnitude < need then
 			return "too close to another egg"
 		end
 	end
@@ -716,13 +744,13 @@ local function placeEgg(player: Player, eggUid: string, world: Vector3): boolean
 	if (world - hrp.Position).Magnitude > PLACE_REACH then
 		return false
 	end
-	local problem = PlotService.eggSpotProblem(area, data, world)
+	local egg = data.eggs[index]
+	local problem = PlotService.eggSpotProblem(area, data, world, egg.size)
 	if problem then
 		announce:FireClient(player, `Can't place the egg here: {problem}`, "Common")
 		return false
 	end
 	local x, z = PlotService.toLocal(area, world)
-	local egg = data.eggs[index]
 	local eggs = table.clone(data.eggs)
 	table.remove(eggs, index)
 	local config = petsById[egg.petId]
@@ -829,52 +857,112 @@ end
 
 -- Hatching ----------------------------------------------------------------------------------------------------
 
-local function hatchDue(player: Player, now: number)
+-- Eggs whose timer ran out show READY (model attribute Ready). Nothing hatches by itself.
+local function markReady(player: Player, now: number)
 	local data = DataService:Get(player)
-	if not data then
+	local base = baseOf[player]
+	if not data or not base then
 		return
 	end
-	local due: { string } = {}
 	for uid, egg: EggPlot in data.plots do
 		if now >= egg.hatchAt then
-			table.insert(due, uid)
+			local model = findModel(base, "EggUid", uid)
+			if model and model:GetAttribute("Ready") ~= true then
+				model:SetAttribute("Ready", true)
+			end
 		end
 	end
-	if #due == 0 then
-		return
+end
+
+-- Why the owner of `data` can't hatch placed egg `eggUid` now (nil = they can). `distance` is the player's flat
+-- distance to the egg's spot. Pure checks shared with the tests.
+function PlotService.hatchProblem(data: DataService.Data, eggUid: string, now: number, distance: number?): string?
+	local egg: EggPlot? = data.plots[eggUid]
+	if not egg then
+		return "That egg can't be hatched" -- not in this player's pen: someone else's, already hatched or unknown
 	end
-	-- 1. the server creates the owned pets (unique ids) and saves them in one change
-	local plots = table.clone(data.plots)
-	local pets = table.clone(data.pets)
-	local discovered = table.clone(data.discovered)
-	local hatched: { { eggUid: string, petUid: string } } = {}
-	for _, uid in due do
-		local egg: EggPlot = plots[uid]
-		plots[uid] = nil
-		local petUid = HttpService:GenerateGUID(false)
-		pets[petUid] =
-			{ petId = egg.petId, size = egg.size, weather = egg.weather, placed = true, x = egg.x, z = egg.z }
-		discovered[egg.petId] = true -- the Pet Index reveals a pet once you have hatched it
-		table.insert(hatched, { eggUid = uid, petUid = petUid })
+	if now < egg.hatchAt then
+		return "This egg isn't ready to hatch yet"
 	end
-	DataService:Set(player, { plots = plots, pets = pets, discovered = discovered })
-	-- 2. then its model (a failed model is retried; the pet is already saved)
+	if distance and distance > HATCH_REACH + EggSize.radius(egg.size) then
+		return "Get closer to your egg to hatch it"
+	end
+	return nil
+end
+
+-- The owner hatches a READY egg (HatchEgg, after holding E). The pet is created and saved in ONE data change
+-- before anything else happens, so a reveal that is skipped, a disconnect or a server shutdown can never lose or
+-- duplicate it; a repeated or racing request finds the egg gone (or locked) and does nothing.
+local function hatchEgg(player: Player, eggUid: string): boolean
+	if hatching[eggUid] then
+		return false -- this egg's hatch is being committed right now
+	end
+	local data = DataService:Get(player)
 	local base = baseOf[player]
 	local area = base and penArea(base)
-	for _, info in hatched do
-		if base then
-			removeModel(base, "EggUid", info.eggUid)
-			spawnPetModel(player, base, info.petUid, pets[info.petUid], now)
-		end
-		local pet = pets[info.petUid]
-		eggHatched:FireAllClients({
-			eggUid = info.eggUid,
-			petUid = info.petUid,
-			position = if area then PlotService.toWorld(area, pet.x or 0, pet.z or 0) else Vector3.zero,
-		})
-		Analytics.custom(player, "EggHatched", 1, pet.petId)
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not data or not base or not area or not hrp or not hrp:IsA("BasePart") or not humanoid then
+		return false
 	end
+	local egg: EggPlot? = data.plots[eggUid]
+	if not egg then
+		return false -- not yours, or already hatched (a repeated request): nothing to say
+	end
+	if humanoid.Health <= 0 then
+		return false
+	end
+	local now = workspace:GetServerTimeNow()
+	local spot = PlotService.toWorld(area, egg.x, egg.z)
+	local flat = Vector3.new(hrp.Position.X - spot.X, 0, hrp.Position.Z - spot.Z).Magnitude
+	local problem = PlotService.hatchProblem(data, eggUid, now, flat)
+	if problem then
+		announce:FireClient(player, problem, "Common")
+		return false
+	end
+	hatching[eggUid] = true
+	local petUid = HttpService:GenerateGUID(false)
+	local pet: PetEntry =
+		{ petId = egg.petId, size = egg.size, weather = egg.weather, placed = true, x = egg.x, z = egg.z }
+	local ok, err = pcall(function()
+		-- 1. the owned pet, saved in one change (the egg leaves the pen in the same change)
+		local plots = table.clone(data.plots)
+		local pets = table.clone(data.pets)
+		local discovered = table.clone(data.discovered)
+		plots[eggUid] = nil
+		pets[petUid] = pet
+		discovered[egg.petId] = true -- the Pet Index reveals a pet once you have hatched it
+		DataService:Set(player, { plots = plots, pets = pets, discovered = discovered })
+	end)
+	if not ok then
+		hatching[eggUid] = nil
+		warn(`[PlotService] hatch of {eggUid} for {player.Name} failed before saving: {err}`)
+		return false
+	end
+	-- 2. then its model (a failed model is retried; the pet is already saved) and the reveal for everyone
+	local built, buildErr = pcall(function()
+		removeModel(base, "EggUid", eggUid)
+		spawnPetModel(player, base, petUid, pet, now)
+	end)
+	if not built then
+		warn(`[PlotService] pet model after hatching {eggUid}: {buildErr}`)
+	end
+	local config = petsById[egg.petId]
+	eggHatched:FireAllClients({
+		eggUid = eggUid,
+		petUid = petUid,
+		position = spot,
+		petId = egg.petId,
+		ownerUserId = player.UserId,
+		rarity = if config then config.rarity else "Common",
+		size = egg.size,
+		weather = egg.weather,
+	})
+	hatching[eggUid] = nil
+	Analytics.custom(player, "EggHatched", 1, egg.petId)
 	Analytics.funnel(player, Analytics.Funnel.FirstHatch, "FirstHatch")
+	return true
 end
 
 -- Bases -------------------------------------------------------------------------------------------------------
@@ -927,8 +1015,7 @@ local function assignBase(player: Player)
 	player:SetAttribute("PenWaiting", nil)
 	player:SetAttribute("BaseIndex", index)
 	PlotService:MirrorBase(player)
-	pcall(hatchDue, player, workspace:GetServerTimeNow()) -- eggs that finished while offline
-	rebuildModels(player)
+	rebuildModels(player) -- (eggs that finished while offline come back READY, waiting for their owner)
 	if player.Character then
 		spawnAtBase(player, player.Character)
 	end
@@ -1015,6 +1102,11 @@ function PlotService:Start()
 			PlotService:EquipEgg(player, eggUid)
 		end
 	end)
+	Remotes.get("HatchEgg").OnServerEvent:Connect(function(player: Player, eggUid: any)
+		if limiter:allow(player) and typeof(eggUid) == "string" and #eggUid <= 64 then
+			hatchEgg(player, eggUid)
+		end
+	end)
 	Remotes.get("PickupPet").OnServerEvent:Connect(function(player: Player, petUid: any)
 		if limiter:allow(player) and typeof(petUid) == "string" then
 			PlotService:PickupPet(player, petUid)
@@ -1065,7 +1157,7 @@ function PlotService:Start()
 			local now = workspace:GetServerTimeNow()
 			for player in baseOf do
 				local ok, err = pcall(function()
-					hatchDue(player, now)
+					markReady(player, now)
 					payIncome(player)
 					retryModels(player)
 				end)

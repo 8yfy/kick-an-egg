@@ -1,6 +1,16 @@
 # Development handoff
 
 ## Current checkpoint
+- **Egg & pet experience (2026-10-29, Partner B, branch `b/egg-experience`, local only: not pushed, not merged).**
+  - Base: `main` @ `0814c21` + Partner A's `a/frost-serpent-rename` (with `a/frost-serpent`), `a/lazy-pet-merchant`,
+    `a/flat-start`, `a/admin-panel` and `a/merchant-feet`, merged unchanged (only conflict: this file, both sides kept).
+  - Egg billboard (pet name + real countdown + READY TO HATCH!), eggs grow by their size mutation while incubating,
+    server-validated hold-E hatching (no auto-hatch, offline eggs come back READY), size-tiered carry poses, silhouette
+    hatch cinematic per rarity, pet nameplate (name + real $/s + weather only). Full write-up: `docs/EggExperience.md`.
+  - **Contract change, needs Partner A's OK:** `Remotes` adds `HatchEgg` (C->S) and extends the `EggHatched` payload.
+  - Verified: unit tests 379 / 4 (same 4 stale failures as the base, 364 / 4); real Play session (`playtest.sh`): every
+    egg/hatch/nameplate check passes, other failures identical to the base; Studio MCP by hand incl. a real held-E Frost
+    Serpent hatch and screenshots. Not verified: two clients, phone, gamepad, published server.
 - **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**
   - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
     (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).
@@ -114,6 +124,9 @@ See `docs/CharacterAnimation.md`: flying egg starts at pad center instead of kic
 That document reports 365 passing and 3 existing failing server tests; these are historical results, not rerun here. Multiplayer, real mobile and live-server checks are still listed as untested.
 
 ## Pending / next steps
+0. `b/egg-experience`: the user reviews it in Studio; Partner A signs off the `HatchEgg` / `EggHatched` contract change;
+   then push and open a PR (split the `contract:` part out if Partner A asks). Test with two clients, a phone and a
+   gamepad before release.
 1. Review `codex/reactive-tutorial` and `outputs/KickTheEgg-ReactiveTutorial.rbxl`. Do not merge automatically.
 2. Validate on physical mobile/gamepad and a published test server, including reconnect and simultaneous players. This tutorial used single-player Studio, component phone-size previews and recovery fixtures; no multiplayer or native iPhone simulation was run.
 3. Prior checkpoints: `a127074`, `9c43b00`, `ca7f62f`, `c02e28c`, `1ffaf24`, `f372b4c`. The user authorized committing the changes to the repository; the feature branch was pushed successfully to `8yfy/kick-an-egg`. Review that branch before merging. No PR or automatic merge was created.

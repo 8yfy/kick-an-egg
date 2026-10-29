@@ -1,12 +1,13 @@
 --!strict
 -- Brings every pen to life on this client (PlotService models in Base<i>.Plots):
---   * Eggs wobble and crack toward HatchAt and wear their own idle effect (VFX/PetFx).
+--   * Eggs wobble and crack toward HatchAt and wear their own idle effect (VFX/PetFx); a READY egg wobbles livelier
+--     until its owner hatches it (EggDisplayController: growth, timer, hold E).
 --   * Pets WALK their pen: the server picks each move (attributes PathFrom / PathTo / PathStart / PathEnd, server
 --     time); ONE RenderStepped here moves every pet along its path (one CFrame write on the anchored root: the
 --     rig follows), faces it where it walks, and switches Waddle (walking) / Idle (standing, with the odd hop).
 --     Level of detail (VFX/SackLod bands + view test): near and on screen = every frame with pose animation;
 --     further out every few frames without it; far away / off screen = not moved until it matters again.
---   * Freshly hatched pets burst + reveal; weather mutations wear their overlay.
+--   * Freshly hatched pets: HatchCinematicController plays their reveal; weather mutations wear their overlay.
 --   * Your own pets get a "Pick Up" prompt (local; PickupPet, the server checks ownership and distance).
 --   * A small "+$" pops over your pen every few seconds while your pets earn (money goes straight in).
 
@@ -95,9 +96,21 @@ local function trackEgg(egg: Model)
 	if egg:GetAttribute("OwnerUserId") == player.UserId and fresh(egg, "PlacedAt") then
 		Audio.play("EggPlace", egg) -- you just put it down
 	end
-	local stops = { Anim.play(egg, "EggWobble") }
+	local stopWobble = Anim.play(egg, "EggWobble", { speed = if egg:GetAttribute("Ready") == true then 1.7 else 1 })
+	local stops = {
+		function()
+			stopWobble()
+		end,
+	}
 	petFx(egg, "egg", stops)
 	tracked[egg] = stops
+	local readyConn = egg:GetAttributeChangedSignal("Ready"):Connect(function()
+		stopWobble()
+		stopWobble = Anim.play(egg, "EggWobble", { speed = if egg:GetAttribute("Ready") == true then 1.7 else 1 })
+	end)
+	table.insert(stops, function()
+		readyConn:Disconnect()
+	end)
 	local lastStep = -1
 	local connection = RunService.Heartbeat:Connect(function()
 		local placedAt = egg:GetAttribute("PlacedAt")
@@ -161,7 +174,6 @@ local function trackPet(pet: Model)
 	-- ONE setup for every pet, hatched or placed (the server builds both through PlotService.spawnPetModel): the
 	-- assembled model moves only as a whole (its anchored Root; every part rides on Motor6D / welds), its effects
 	-- attach at its real size, its animation runs on its own joints. A hatch only adds the reveal on top.
-	local rarity = pet:GetAttribute("Rarity")
 	local hatchedAt = pet:GetAttribute("HatchedAt")
 	local hatched = typeof(hatchedAt) == "number" and workspace:GetServerTimeNow() - hatchedAt < REVEAL_WINDOW
 	petCount += 1
@@ -187,8 +199,7 @@ local function trackPet(pet: Model)
 		table.insert(view.stops, VFX.attach(mutation.vfx, pet))
 	end
 	if hatched then
-		VFX.play("HatchBurst", pet, { rarity = rarity })
-		VFX.play("PetReveal", pet, { rarity = rarity, name = pet:GetAttribute("PetName") })
+		-- (its reveal is HatchCinematicController's: silhouette, growth, materials, landing)
 	elseif fresh(pet, "PlacedAt") then
 		Audio.play("PetPlace", pet, { own = if pet:GetAttribute("OwnerUserId") == player.UserId then nil else false })
 	end
