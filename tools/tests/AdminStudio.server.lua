@@ -219,6 +219,32 @@ task.wait(1.1) -- flags.set has a 1 s cooldown
 check("staging-only flag in Studio ok", run("flags.set", { flag = "staging.labNight", value = true }).ok)
 check("unknown flag refused", run("flags.set", { flag = "god.mode", value = true }).code == "invalid_params")
 
+-- 5b. announcements: filtered text + sender on the replicated ServerMessage channel
+local channel = ReplicatedStorage:WaitForChild("ServerMessage", 5)
+check("message channel exists", channel ~= nil)
+check(
+	"announcement needs confirmation",
+	run("announce.send", { text = "Hello egg kickers!" }).code == "confirm_required"
+)
+check(
+	"client can't set the sender",
+	run("announce.send", { text = "Hi", displayName = "Spoofed", confirmed = true }).code == "invalid_params"
+)
+local ann = run("announce.send", { text = "Hello egg kickers!", confirmed = true })
+check("announcement sent", ann.ok)
+check(
+	"channel carries text and the real sender",
+	channel
+		and channel:GetAttribute("MsgText") == "Hello egg kickers!"
+		and channel:GetAttribute("UserId") == player.UserId
+		and channel:GetAttribute("Username") == player.Name
+		and channel:GetAttribute("Id") == ann.correlation
+)
+check(
+	"announcement length bound",
+	run("announce.send", { text = string.rep("x", 200), confirmed = true }).code == "invalid_params"
+)
+
 -- 6. progression (Studio in-memory only) ------------------------------------------------------------------------
 local before = DataService:Get(player).money
 local persistent = DataService:IsPersistent(player)
@@ -272,6 +298,15 @@ local _, why8 = X.receive(env({ p = { weather = "Lava", seconds = 20 } }))
 check("broadcast params re-validated", why8 == "invalid_params")
 local _, why9 = X.receive(env({ src = require(Server.Admin.Environment).serverId() }))
 check("own broadcast ignored", why9 == "self")
+local annEnv = env({ cmd = "announce.send", p = { text = "From another server" } })
+local okAnn = X.receive(annEnv)
+check(
+	"global announcement shown on a receiving server",
+	okAnn
+		and channel
+		and channel:GetAttribute("MsgText") == "From another server"
+		and channel:GetAttribute("Username") == player.Name
+)
 print(`[AdminStudio] receiver: {why1} / {why2} / {why3} / {why4} / {why5} / {why6} / {why7} / {why8} / {why9}`)
 
 -- 8. spam ---------------------------------------------------------------------------------------------------------

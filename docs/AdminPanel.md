@@ -98,7 +98,7 @@ There are no DataStore wipes or other destructive data tools.
 | `lab.hatch`, `lab.pen.add`, `lab.pen.clear`, `lab.pen.check` | `lab.use` | Hatch sequence; isolated test pen (≤ 12 pets). |
 | `weather.start` [StartRegisteredWeather], `weather.stop`, `weather.reset` [ResetWeather] | `weather.server` (`weather.global`) | Through `WeatherService`, 10–1800 s; S/G. |
 | `events.start`, `events.stop` [StopRegisteredEvent] | `events.server` (`events.global`) | The weather event (the only timed event the game has); Random is resolved once on the sender. |
-| `announce.send` | `announce.server` (`announce.global`) | Confirmed; filtered with `TextService` before broadcast; ≤ 120 chars; kill switch flag. |
+| `announce.send` | `announce.server` (`announce.global`) | One line at the top of every player's screen: `[headshot] USERNAME: message`. Confirmed; filtered with `TextService`; ≤ 120 chars; kill switch flag. |
 | `flags.list` / `flags.set` | `panel.open` / `flags.server` (`flags.global`) | Registered flags only; staging-only experiments refused in production. |
 | `scenario.reset` [ResetApprovedTestScenario] | `scenario.reset` | Clears lab + test pen, resets this server's flags, stops weather. Confirmed. |
 
@@ -138,6 +138,20 @@ module paths, asset ids or function names anywhere.
   acknowledgements; the panel shows how many servers applied or refused it. Missing acks may mean lost messages.
 - Global weather and flag changes are also stored in an expiring MemoryStore hash map so servers that start later
   pick them up. DataStores are never used as a broadcast channel.
+
+## Announcements
+
+The game's own `Announce` remote has no client listener in `main`, so nothing it sends is ever shown. Admin
+announcements therefore use their own channel: the server writes the filtered text, the sender's UserId and
+username as attributes on `ReplicatedStorage.ServerMessage` (`Admin/Messages.luau`), and every player's
+`UI/Hud/ServerMessage.luau` shows one plain line at the top centre:
+
+    [HEADSHOT] USERNAME: Hello I love kick the egg!
+
+The headshot is Roblox's rendered avatar thumbnail (`rbxthumb://type=AvatarHeadShot`). The sender is always taken
+from the real Player (a client can't set it); receiving servers use the username carried by the checked broadcast.
+Attributes only replicate server → client, so there is no new remote for clients to fire. Messages queue and show
+one at a time (5–10 s each); someone who joins within 8 s of a message still sees it.
 
 ## Audit log
 
@@ -180,14 +194,14 @@ scaled to fit. Screens under 980 × 600: full screen with an icon-only sidebar (
 - `lune run tools/tests/AdminSecurity.spec.luau`: **128 checks passed** (Authorization, Schema, Limiter, Audit,
   Envelope, Pipeline incl. the remote path).
 - `tools/tests/AdminStudio.server.lua` in single-player Studio Play (unpublished place, in-memory data):
-  **92 / 92 passed** on the final build (earlier builds: 86/1 and 87/0; the one failure was the test ignoring a 1 s
+  **99 / 99 passed** on the final build, incl. announcements (earlier builds: 86/1, 87/0, 92/0; the one failure was the test ignoring a 1 s
   cooldown).
 - Existing `tools/tests/ServerTests.server.lua` (plugin context): **364 passed, 4 failed**, the same 4 outdated
   rules listed as the baseline in `DEVELOPMENT_HANDOFF.md`.
 - Gameplay smoke in Studio Play: kick → chase → egg caught, sack training (Kick Power 1 → 6), a test egg placed →
   hatched → pet roaming and earning $1/s, pen upgrade 1 → 2, weather start/stop with the HUD timer agreeing.
 - UI: every tab built without errors at 1297 × 701; the compact layout was checked at about 600 × 353 by shrinking
-  the Studio window. Announcement filtering ran in Studio.
+  the Studio window. An announcement sent from the Game Controls tab showed as `[headshot] 8yf_y: I LOVE` at the top.
 
 ### Not run (needs a published place, more players or devices)
 

@@ -9,15 +9,16 @@ return function(holder: Frame, ctx: { [string]: any })
 	local scroll = W.scroll(holder, "Scroll")
 
 	local aBody = W.section(scroll, "Announcement", W.Theme.Headers.eggs, 1)
+	local hint = W.text(
+		aBody,
+		"Shows one line at the top of every player's screen: your headshot, then USERNAME: message. Header scope: this server or all servers.",
+		14,
+		{ wrap = true, color = W.Colors.muted }
+	)
+	hint.LayoutOrder = 0
 	local text =
 		W.input(aBody, `Message for every player (max {meta.limits.announce} characters, filtered by Roblox)`, nil)
 	text.LayoutOrder = 1
-	local styles = {}
-	for _, r in meta.rarities do
-		table.insert(styles, r.name)
-	end
-	local style = W.dropdown(aBody, "Banner colour", styles, "Rare", function() end)
-	style.gui.LayoutOrder = 2
 	local send = W.button(aBody, "SEND ANNOUNCEMENT", "gold", nil, function()
 		local message = string.sub(text.Text, 1, meta.limits.announce)
 		if #message == 0 then
@@ -33,8 +34,7 @@ return function(holder: Frame, ctx: { [string]: any })
 		if not yes then
 			return
 		end
-		local res =
-			Net.request("announce.send", { text = message, style = style.get(), scope = scope, confirmed = true })
+		local res = Net.request("announce.send", { text = message, scope = scope, confirmed = true })
 		if W.report(res, "Announcement sent.") then
 			text.Text = ""
 		end

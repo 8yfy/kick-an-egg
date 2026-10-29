@@ -1,12 +1,11 @@
 --!strict
--- Game controls: announcements (filtered by Roblox's text filter before anyone sees them), registered feature
--- flags and the approved test-scenario reset. No DataStore wipes or other destructive operations exist here.
+-- Game controls: announcements (filtered by Roblox's text filter before anyone sees them, shown at the top of
+-- every player's screen as "[headshot] USERNAME: message": Admin/Messages + UI/Hud/ServerMessage), registered
+-- feature flags and the approved test-scenario reset. No DataStore wipes or other destructive operations exist here.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Rarities = require(Shared.Config.Rarities)
+local Messages = require(script.Parent.Parent.Messages)
 
 local FLAG_TTL = 6 * 3600 -- a global flag change lasts at most 6 hours on servers that start later
 
@@ -16,14 +15,6 @@ return function(deps: { [string]: any }): { any }
 	local Flags = deps.Flags
 	local ModelLab = deps.ModelLab
 	local S = deps.Services
-
-	local styles = {}
-	for name in Rarities do
-		table.insert(styles, name)
-	end
-	table.sort(styles, function(a, b)
-		return Rarities[a].order < Rarities[b].order
-	end)
 
 	local function filter(text: string, userId: number): (boolean, string)
 		local ok, result = pcall(function()
@@ -40,7 +31,7 @@ return function(deps: { [string]: any }): { any }
 		{
 			id = "announce.send",
 			name = "Announcement",
-			description = "A banner for every player (this server or all servers). Text goes through Roblox's filter.",
+			description = "One line at the top of every player's screen: your headshot, username and message (this server or all servers). Text goes through Roblox's filter.",
 			category = "controls",
 			permission = "announce.server",
 			globalPermission = "announce.global",
@@ -51,7 +42,6 @@ return function(deps: { [string]: any }): { any }
 			cooldown = 5,
 			params = {
 				text = { type = "string", minLength = 1, maxLength = Config.Announce.maxLength, label = "Message" },
-				style = { type = "enum", options = styles, default = "Rare", label = "Colour" },
 			},
 			precheck = function(ctx)
 				if ctx.scope == "global" and not Flags.get("announce.global") then
@@ -67,7 +57,8 @@ return function(deps: { [string]: any }): { any }
 					end
 					p.text = text -- receivers get the filtered text (only this game's servers can publish)
 				end
-				S.AnnounceService:Announce(p.text, p.style)
+				-- ctx.name is the real username (from the Player here, from the checked broadcast elsewhere)
+				Messages.show(p.text, ctx.userId, ctx.name, ctx.correlation)
 				return true, { text = p.text }
 			end,
 		},

@@ -111,7 +111,8 @@ return function(holder: Frame, ctx: { [string]: any })
 		end
 		local scopes = W.text(
 			formBody,
-			`Scope: {State.scopeFor(c.id) == "global" and "ALL SERVERS" or "THIS SERVER"} (header){if #c.scopes > 1
+			`Scope: {State.scopeFor(c.id) == "global" and "ALL SERVERS" or "THIS SERVER"} (header){if #c.scopes
+					> 1
 				then ""
 				else " · this command only runs on one server"}`,
 			14,

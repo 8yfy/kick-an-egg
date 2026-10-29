@@ -188,6 +188,7 @@ function AdminService:Start()
 		return
 	end
 	Diagnostics.start()
+	require(Admin.Messages).channel() -- every client's ServerMessage card waits for it
 	ModelLab.start()
 	CrossServer.start()
 	task.spawn(applyGlobalState)
