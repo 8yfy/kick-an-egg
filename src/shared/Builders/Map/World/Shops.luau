@@ -322,13 +322,38 @@ function Shops.petStand(parent: Instance, x: number, z: number, dir: number): Mo
 			light(glow, rgb(255, 210, 140), 14, 0.9)
 		end
 	end
-	-- the counter, the pet merchant behind it
-	local counter = block(m, "Counter", Vector3.new(16, 3.4, 2.4), at(0, 2.5, -4.6), wood, { sideStuds = true })
-	block(m, "CounterTop", Vector3.new(16.6, 0.4, 3), at(0, 4.4, -4.6), cream)
-	block(m, "CounterStripe", Vector3.new(16.1, 0.6, 0.1), at(0, 3.2, -5.85), teal)
-	Kit.place(art, "PetCarrier", at(5.6, 4.6, -4.6, -15), 0.7, PAL)
-	Kit.place(art, "Lantern", at(-6.2, 4.6, -4.6), 0.7, PAL)
-	Merchants.build("PetSeller", m, at(0, 0.8, 1.2))
+	-- the counter, the pet merchant behind it on a step: the top sits low enough over his feet for him to lean on it
+	-- with his forearms (Anim/Merchant), and stays at a shop counter's height for players
+	local COUNTER, STEP = 3.0, 0.8 -- the counter top over the deck (was 3.8); the merchant's step
+	local counter = block(
+		m,
+		"Counter",
+		Vector3.new(16, COUNTER - 0.4, 2.4),
+		at(0, 0.8 + (COUNTER - 0.4) / 2, -4.6),
+		wood,
+		{ sideStuds = true }
+	)
+	block(m, "CounterTop", Vector3.new(16.6, 0.4, 3), at(0, 0.6 + COUNTER, -4.6), cream)
+	block(m, "CounterStripe", Vector3.new(16.1, 0.6, 0.1), at(0, COUNTER - 0.6, -5.85), teal)
+	Kit.place(art, "PetCarrier", at(5.6, 0.8 + COUNTER, -4.6, -15), 0.7, PAL)
+	Kit.place(art, "Lantern", at(-6.2, 0.8 + COUNTER, -4.6), 0.7, PAL)
+	block(
+		m,
+		"MerchantStep",
+		Vector3.new(16, STEP, 5.2),
+		at(0, 0.8 + STEP / 2, -0.8),
+		rgb(214, 172, 118),
+		{ studs = true }
+	)
+	block(
+		m,
+		"MerchantStepEdge",
+		Vector3.new(16.2, 0.2, 5.4),
+		at(0, 0.8 + STEP - 0.1, -0.8),
+		woodDark,
+		{ collide = false }
+	)
+	Merchants.build("PetSeller", m, at(0, 0.8 + STEP, 1.2))
 	prompt(counter, "OpenMenu:Inventory", "Sell pets", "Pet Selling Stand")
 	-- dressing outside: crates of eggs, pet beds, a price board
 	for _, sx in { -1, 1 } do
@@ -340,7 +365,7 @@ function Shops.petStand(parent: Instance, x: number, z: number, dir: number): Mo
 	Kit.place(art, "PetBed", at(14, 0, -1, 0), 0.85, Palettes.merge(PAL, { Cloth = rgb(255, 150, 190) }))
 	Kit.place(art, "Chalkboard", at(15.6, 0, -9, -30), 1, PAL)
 	Parts.anchor(m, "Approach", Vector3.new(2, 1, 2), at(0, 1.5, -14).Position)
-	Fx.area(art, "Sparkle", Vector3.new(12, 2, 2), at(0, 5.6, -4.6).Position, { rgb(255, 240, 200) }, 1, 120)
+	Fx.area(art, "Sparkle", Vector3.new(12, 2, 2), at(0, 1.8 + COUNTER, -4.6).Position, { rgb(255, 240, 200) }, 1, 120)
 	return m
 end
 
