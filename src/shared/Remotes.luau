@@ -23,7 +23,10 @@
 -- C->S  EquipSack(on: boolean)                    -- take the Kick Sack out (server) / put it away; it lives outside
 --                                                   the Backpack (Player.SackGear) so the hotbar shows eggs + pets
 -- C->S  PlaceEgg(eggUid: string, position: Vector3) -- put the held egg down anywhere valid in your own pen
--- S->C  EggHatched({ eggUid: string, petUid: string, position: Vector3 })
+-- C->S  HatchEgg(eggUid: string)                -- hatch your own READY egg (hold E); the server checks owner, ready,
+--                                                  reach, not already hatching, then commits the pet
+-- S->C  EggHatched({ eggUid: string, petUid: string, position: Vector3, petId: string?, ownerUserId: number?,
+--                    rarity: string?, size: string?, weather: string? })  -- to everyone (the owner plays the reveal)
 -- C->S  PickupPet(petUid: string)                  -- your placed pet back into your inventory (stops its income)
 -- C->S  PlacePet(petUid: string, position: Vector3?) -- a stored pet into your pen (nil = a free spot)
 -- C->S  BuyUpgrade(kind: "RunSpeed")                -- shop: +1 Run Speed ("KickPower" is not sold:
@@ -62,6 +65,7 @@ local EVENTS = {
 	"ChaseEnded",
 	"PlaceEgg",
 	"EggHatched",
+	"HatchEgg",
 	"BuyUpgrade",
 	"Rebirth",
 	"SellPet",
