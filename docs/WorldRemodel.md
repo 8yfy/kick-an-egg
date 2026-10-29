@@ -2,6 +2,8 @@
 
 **Branch:** `a/world-remodel` (from `b/spin-wheel` ac600b0), Partner A.
 
+**Flat start (2026-10-22):** branch `a/flat-start` from `main` 0814c21: the launch ramp is gone and the start is a launch station (see the Launch station row).
+
 **Decisions** (the user, 2026-10-15/16):
 - Keep 5 pens.
 - Open valley instead of the 50-stud canyon walls.
@@ -24,7 +26,7 @@
 | **Boxing Sack Shop** (`World/Shops.luau`) | **Building:** a barrel-vault roof in red and white stripes with gold ribs and a glowing round gable window, a giant boxing glove turning on a gold plinth, a striped awning, stone pillars and arched side windows.<br>**Props:** dumbbells, a speed bag and tyres.<br>**Unchanged:** the counter prompt, `Sign`, `Approach`, the Coach spot and the six display sacks. |
 | **Pet Selling Stand** | **Building:** a teal and cream striped canopy on carved posts, with a paw board on the ridge.<br>**Props:** bunting, lanterns, egg crates on shelves, pet beds, a carrier and a price board.<br>**Unchanged:** the counter prompt, the SELL PETS sign with the approved icon, `Approach` and the merchant spot. |
 | **Pens** (`MapBuilder.buildPen`) | **Same** sizes, centres, `PenArea` and `Floor` tiles.<br>**New:** chunky brick fences in three level styles (wood, white/blue, dark/gold), gate posts, a stone border, lanterns, planters, banners and gold crowns at max level.<br>**Collision:** one collision proxy per fence run. |
-| **Launch** | Egg monuments by the pad, banners at the plaza corners. Kick pad, ramp, safe line and barrier are unchanged. |
+| **Launch station** (flat start, `MapBuilder.buildLaunch`, `Recipes/Launch.luau`) | **No ramp:** the hub and every lane sit at track level, so a steered egg runs home on flat ground and zone 1 keeps its whole lane (its meadow drops from 9 to 3 studs so it meets the hub as a low bank).<br>**Deck:** a studded launch deck in front of the hub (x ±40, z −30..0) with yellow and black hazard stripes; the lawn is cut around it.<br>**Kick spot:** a square yellow studded `KickPad` with a brick arrow, on stepped voxel-round tiers with a blinking glow ring, clear of the safe line.<br>**Pylons:** two red-and-white launch pylons with blinking beacons, carrying the **KICK THE EGG!** board (left as seen from the pad) and a red / amber / green **3 - 2 - 1 - KICK!** board (right).<br>**Runway lights:** chevrons on the lane that blink in sequence toward the zones.<br>**Removed:** the egg statues, fire torches and edge rail. |
 | **20 zones** (`World/Zones/Z01..Z20`) | Open valleys built from stepped banks, plateaus, ground patches, landmarks, clustered vegetation and props, far silhouettes, ambience and blends into the neighbouring zones (see the table below). |
 | **Finale** | The **Heaven Gate** colonnade with the **Golden Egg trophy** on top, on the old end-wall plane. |
 | **Lighting** | Bloom softened (Intensity 0.6→0.38, Threshold 1.3→1.6), so only bright neon glows and studded colours stay crisp. Atmosphere, SunRays and ColorCorrection are unchanged.<br>The place file keeps ClockTime 13.5 and GlobalShadows off. |
@@ -65,7 +67,7 @@
 It runs at two levels:
 - **Inside every Kit template**, once per recipe, with `eps` 0.12 (scaled with the asset).
 - **On the whole built map** in `MapBuilder.build` with `eps` 0.1, plus on a pen after each upgrade rebuild. It never touches gameplay parts:
-  - parts with the LandingSurface tag (lanes and the ramp), shoulders, pen `Floor` / `PenArea`;
+  - parts with the LandingSurface tag (the lanes), shoulders, the `KickPad`, pen `Floor` / `PenArea`;
   - anything that collides in the kick pad / drop / safe line;
   - counters, signs and the ground;
   - anything with a prompt, SurfaceGui or click detector;
@@ -89,7 +91,7 @@ What stays open is open by design:
 
 | Item | What stayed the same |
 |---|---|
-| Kick, ramp and safe line | `Map.KickPad` (`Top`), `Drop.Ramp` (LandingSurface), `Drop.PlayerBarrier` + collision groups, the safe line, and the attributes PlazaY / RampStart / RampEnd / CanyonWidth. |
+| Kick and safe line | `Map.KickPad` (`Top`, now 0.5: the start is flat), `Drop.PlayerBarrier` + collision groups across the lane mouth, the safe line (z −6), and the attributes CanyonWidth and PlazaY / RampStart / RampEnd (now 0 / 0 / 0, which VFX/Avalanche reads as flat ground).<br>**Changed on request:** the launch ramp (`Drop.Ramp`) is gone; zone 1's lane starts at z = 0 like every other zone. |
 | Lanes | Every `Zone<i>.Lane` keeps the same size and position and the LandingSurface tag. Shoulders still run to x = ±40. |
 | Canyon walls | Replaced by **invisible collision walls on exactly the old planes** (`Zone<i>.Wall`, x = ±40, 50 tall, CanQuery off). |
 | End wall | The same plane (`Finale.EndWall`). |
@@ -101,10 +103,11 @@ What stays open is open by design:
 
 ## Asset manifest
 
-All models are **Luau brick recipes** in `src/shared/Builders/Map/World/Recipes/`, cloned through `World/Kit` and coloured by role from `World/Palettes`. 227 recipes:
+All models are **Luau brick recipes** in `src/shared/Builders/Map/World/Recipes/`, cloned through `World/Kit` and coloured by role from `World/Palettes`. 230 recipes:
 
 - **Nature** (44): 7 broadleaf trees, 2 poplars, 5 pines (2 snowy), 4 bushes, 5 rocks, 3 slab stacks, 4 terrain banks, 3 hills, 3 mountains, flowers, grass, stump, log, small mushrooms.
-- **Hub** (37): shop roof, glove, awning, pillar, window, gym props, stand canopy, paw sign, posts, egg crates, pet props, bunting, the Golden Egg centrepiece, egg monument, fence / gate posts and rails, lamp, bench, crate, barrel, lantern, signpost, planter, flag pole, plank bridge, 2 town houses, gazebo, well, hedge.
+- **Hub** (36): shop roof, glove, awning, pillar, window, gym props, stand canopy, paw sign, posts, egg crates, pet props, bunting, the Golden Egg centrepiece, fence / gate posts and rails, lamp, bench, crate, barrel, lantern, signpost, planter, flag pole, plank bridge, 2 town houses, gazebo, well, hedge.
+- **Launch** (4): kick spot, launch pylon, countdown board, KICK THE EGG! board.
 - **Zones1** (37), **Zones2** (34), **Zones3** (36), **Zones4** (27), **Zones5** (12): landmarks and props per zone (tables above).
 
 **Sprites:** `assets/world-vfx/wfx_*.png` (20 files), ids in `src/shared/VFX/WorldSprites.luau`, uploaded by user 1340874349.
@@ -124,7 +127,7 @@ The Blender mesh pipeline (`tools/world/blender`, `upload.py`, `lune/assemble.lu
 
 ## Testing (Studio, 2026-10-16)
 
-**Full-loop playtest** (`tools/playtest`, ~105 s) covers HUD, the tutorial, a Perfect kick to zone 5, flight, the zone bar, steering home over the ramp, EggSecured, placing and hatching in a pen, pet pick up and place, the shop and stand prompts, sounds and respawn. It was run in the open place:
+**Full-loop playtest** (`tools/playtest`, ~105 s) covers HUD, the tutorial, a Perfect kick to zone 5, flight, the zone bar, steering home, EggSecured, placing and hatching in a pen, pet pick up and place, the shop and stand prompts, sounds and respawn. It was run in the open place:
 
 | Run | Result |
 |---|---|
