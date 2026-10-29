@@ -370,6 +370,10 @@ SoundBank.Events = {
 		{ L("tap1", 3.1, 0.05, { eq = { -8, 0, 0 } }) },
 	}, { jitter = 0.04, rolloff = { 20, 160 } }),
 	Toast = ev("UI", 1, false, 0.25, 1, { { chime(G6, 0.16), chime(C7, 0.14, 0.05) } }, { masked = true }),
+	-- admin announcement line (UI/Hud/ServerMessage): a soft whoosh in, then a rising C-G-C chime
+	Announcement = ev("UI", 2, false, 1, 1, {
+		{ whoosh(1.5, 0.12, 0.3), chime(C6, 0.13, 0.08), chime(G6, 0.13, 0.15), chime(C7, 0.12, 0.23, true) },
+	}),
 	InventoryOpen = ev("UI", 1, false, 0.15, 1, { { L("hop", 1.8, 0.12), chime(C6, 0.1, 0.04) } }),
 	InventoryClose = ev("UI", 1, false, 0.15, 1, { { L("hop", 1.35, 0.1) } }),
 	Equip = ev("UI", 1, false, 0.08, 2, { { chime(C6, 0.14), chime(G6, 0.14, 0.045) } }),

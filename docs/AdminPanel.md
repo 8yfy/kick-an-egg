@@ -148,7 +148,11 @@ username as attributes on `ReplicatedStorage.ServerMessage` (`Admin/Messages.lua
 
     [HEADSHOT] USERNAME: Hello I love kick the egg!
 
-The headshot is Roblox's rendered avatar thumbnail (`rbxthumb://type=AvatarHeadShot`). The sender is always taken
+The headshot is Roblox's rendered avatar thumbnail (`rbxthumb://type=AvatarHeadShot`), 76 px, with the username
+in gold and the message in white at 30 px (scaled down on small screens). In: the line drops in with a bouncy pop,
+the headshot spins up, the name pops, the message types itself out and the `Announcement` chime plays (a new
+`Audio/SoundBank` UI event built from Roblox's own sounds: a soft whoosh and a rising C–G–C chime). While it shows
+it bobs gently; out: it lifts, shrinks and fades. Reduced Motion: fades only. The sender is always taken
 from the real Player (a client can't set it); receiving servers use the username carried by the checked broadcast.
 Attributes only replicate server → client, so there is no new remote for clients to fire. Messages queue and show
 one at a time (5–10 s each); someone who joins within 8 s of a message still sees it.
