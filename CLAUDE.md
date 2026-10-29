@@ -77,3 +77,16 @@ The avalanche only hurts its owner. Other players see it but are never caught by
   (`src/client/Controllers`), each exposes `:Init()` and `:Start()`.
 - Commit messages: `feat(area): ...`, `fix(area): ...`, `contract: ...`.
 - Branches: `b/<feature>` for Partner B, `a/<feature>` for Partner A. PR into `main`.
+
+<!-- LIHFOLK KNOWLEDGE VAULT: optional, local, path-free. Setup and the best notes: docs/LihFolkVault.md -->
+## LIHFOLK KNOWLEDGE VAULT
+An optional local Roblox knowledge vault (LihFolk Vault V1). Its path is `$ROBLOX_VAULT`, set per machine in the
+untracked `.claude/settings.local.json`. If it's unset, skip the vault. Never commit the vault or a machine path.
+For Roblox scripting, UI, modeling, VFX, animation, security, performance or debugging tasks:
+1. Find topics in `$ROBLOX_VAULT/VAULT_INDEX.md` (grep it; `docs/LihFolkVault.md` lists the best notes for this game).
+2. Read only the 2–3 most useful notes. Never the whole vault.
+3. Use the relevant skills (the local `lihfolk-roblox-*` skills and our Roblox/Blender skills).
+4. Compare against our real code. This file, approved assets and existing systems win; no duplicate systems.
+   For pets and eggs, the Frost Serpent and its egg are the craftsmanship benchmark, not an anatomy template.
+5. Verify Roblox APIs, limits and policies against the official docs (the vault is dated October 2026).
+6. Implement and test, then cite the notes you used in one line.
