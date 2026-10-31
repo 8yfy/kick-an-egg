@@ -7,6 +7,9 @@
 -- "frost_<name>" are the Frost Serpent's own sprites (assets/pet-vfx/vfx_frost_*.png, drawn by
 -- tools/blender/pets/kit/sprites.py): sigil, rune_ring, spark, flake, mist, cube.
 -- "meadow_<name>" are the Meadow pairs' own pixel sprites (zones/zone01_meadow.py): leaf, blossom, honey drop.
+-- "v3_<name>" are the V3 remodel sprites (tools/blender/pets/v3/sprites_v3.py): the top tier's sun, gear and prism
+-- sigils, rays, steam, feather and cog, plus clover, petal, droplet, bubble, sparkle, ripple and shadow.
+-- The frost, meadow and v3 sprites are uploaded: Decal ids in tools/world/ids/pet-vfx.json, Image ids below.
 local RunService = game:GetService("RunService")
 
 local Sprites = {}
@@ -19,6 +22,23 @@ local UPLOADED: { [string]: string } = {
 	frost_rune_ring = "rbxassetid://103729123161806",
 	frost_sigil = "rbxassetid://119563595237549",
 	frost_spark = "rbxassetid://88625969712095",
+	meadow_blossom = "rbxassetid://134096189291924",
+	meadow_honey = "rbxassetid://128887807493843",
+	meadow_leaf = "rbxassetid://113598579979245",
+	v3_bubble = "rbxassetid://73367184848295",
+	v3_clover = "rbxassetid://73902450345163",
+	v3_cog = "rbxassetid://121925173518465",
+	v3_droplet = "rbxassetid://82969393381613",
+	v3_feather = "rbxassetid://90191710527650",
+	v3_gear_sigil = "rbxassetid://85192584983147",
+	v3_petal = "rbxassetid://96081956109381",
+	v3_prism_sigil = "rbxassetid://132431663406726",
+	v3_rays = "rbxassetid://70464277835228",
+	v3_ripple = "rbxassetid://121273601269778",
+	v3_shadow = "rbxassetid://114372794530941",
+	v3_sparkle = "rbxassetid://77619531977408",
+	v3_steam = "rbxassetid://132881811670369",
+	v3_sun_sigil = "rbxassetid://118282650516582",
 }
 
 local SACK: { [string]: string } = {

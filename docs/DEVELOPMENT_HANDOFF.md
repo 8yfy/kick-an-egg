@@ -17,8 +17,9 @@
   - Rule 3 is kept: in-game pets are still block data. The user also commissioned mesh versions of the three pets
     (beveled, rigged, animated, FBX + GLB, `KickAnEgg_PremiumPets/README.md`). Using them in the game needs a Partner A +
     B decision. `RobloxIntegration/AnimationNotes` recommends one MeshPart per joint on the existing Motor6Ds.
-  - **Pending uploads:** the 14 `assets/pet-vfx/vfx_v3_*.png` and 3 `vfx_meadow_*.png` sprites. Until their Image ids are
-    in `PetFx/Sprites`, live servers use built-in fallback textures.
+  - **Sprites uploaded (2026-10-31):** the 14 `assets/pet-vfx/vfx_v3_*.png` and 3 `vfx_meadow_*.png` sprites. Decal ids
+    are in `tools/world/ids/pet-vfx.json`, and the resolved Image ids in `PetFx/Sprites`. All 17 load in Studio, and the
+    top tier's effects draw the uploaded art.
   - **Verified this session in Studio (single-player Play):**
     - the `ServerTests` hero section re-run by hand plus the new Heaven Lion pair: 57/57. The ladder is SproutPup 37 <
       MeadowStag 70 < TideSpirit 85 < FrostSerpent 170 < QuetzalPhoenix 175 < ClockworkTitan 332 < PrismSeraph 445;
