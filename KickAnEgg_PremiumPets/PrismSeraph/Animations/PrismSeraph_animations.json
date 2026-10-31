@@ -1,0 +1,47 @@
+{
+ "PrismSeraph_Idle": {
+  "frames": 72,
+  "fps": 30,
+  "seconds": 2.4,
+  "bones": [
+   "ArmL",
+   "ArmR",
+   "Body",
+   "Halo",
+   "Head",
+   "Orbit",
+   "WingL",
+   "WingR"
+  ],
+  "loop": true
+ },
+ "PrismSeraph_Float": {
+  "frames": 48,
+  "fps": 30,
+  "seconds": 1.6,
+  "bones": [
+   "Body",
+   "Halo",
+   "Orbit",
+   "WingL",
+   "WingR"
+  ],
+  "loop": true
+ },
+ "PrismSeraph_Special": {
+  "frames": 60,
+  "fps": 30,
+  "seconds": 2.0,
+  "bones": [
+   "ArmL",
+   "ArmR",
+   "Body",
+   "Halo",
+   "Head",
+   "Orbit",
+   "WingL",
+   "WingR"
+  ],
+  "loop": false
+ }
+}

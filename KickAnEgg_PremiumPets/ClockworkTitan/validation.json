@@ -1,0 +1,49 @@
+{
+ "source": {
+  "meshes": 20,
+  "tris": 16748,
+  "size": [
+   7.32,
+   2.97,
+   9.47
+  ]
+ },
+ "fbx": {
+  "meshes": 20,
+  "tris": 16748,
+  "size": [
+   7.32,
+   2.97,
+   9.47
+  ],
+  "bones": 15,
+  "actions": [
+   "ClockworkTitan_Rig.001|ClockworkTitan_Rig|ClockworkTitan_Idle",
+   "ClockworkTitan_Rig.001|ClockworkTitan_Rig|ClockworkTitan_Special",
+   "ClockworkTitan_Rig.001|ClockworkTitan_Rig|ClockworkTitan_Walk"
+  ],
+  "materials": 2,
+  "images": 4,
+  "skinned": 20,
+  "size_match": true
+ },
+ "glb": {
+  "meshes": 20,
+  "tris": 16748,
+  "size": [
+   7.32,
+   2.97,
+   9.47
+  ],
+  "bones": 15,
+  "actions": [
+   "ClockworkTitan_Idle.001",
+   "ClockworkTitan_Special.001",
+   "ClockworkTitan_Walk.001"
+  ],
+  "materials": 3,
+  "images": 3,
+  "skinned": 20,
+  "size_match": true
+ }
+}

@@ -5,7 +5,8 @@
 -- tools/preview/stage-art.sh, and live servers use a Roblox built-in texture with one warning per sprite.
 -- "sack_<name>" are the Kick Sack sprites, already uploaded (VFX/SackAura).
 -- "frost_<name>" are the Frost Serpent's own sprites (assets/pet-vfx/vfx_frost_*.png, drawn by
--- tools/blender/frost_serpent/fs_textures.py): sigil, rune_ring, spark, flake, mist, cube.
+-- tools/blender/pets/kit/sprites.py): sigil, rune_ring, spark, flake, mist, cube.
+-- "meadow_<name>" are the Meadow pairs' own pixel sprites (zones/zone01_meadow.py): leaf, blossom, honey drop.
 local RunService = game:GetService("RunService")
 
 local Sprites = {}
@@ -69,6 +70,9 @@ local NAMES: { [string]: string } = {
 	halo_white = RING,
 	leaf_autumn = SPARKLE,
 	leaf_green = SPARKLE,
+	meadow_blossom = SPARKLE,
+	meadow_honey = SPARKLE,
+	meadow_leaf = SPARKLE,
 	lightning_cyan = SPARKLE,
 	mushroom_pink = SPARKLE,
 	planet_orbit_ring = RING,
@@ -87,6 +91,20 @@ local NAMES: { [string]: string } = {
 	snowflake_ice = SPARKLE,
 	soft_glow_green = GLOW,
 	soft_glow_violet = GLOW,
+	v3_bubble = RING,
+	v3_clover = SPARKLE,
+	v3_cog = SPARKLE,
+	v3_droplet = SPARKLE,
+	v3_feather = SPARKLE,
+	v3_gear_sigil = RING,
+	v3_petal = SPARKLE,
+	v3_prism_sigil = RING,
+	v3_rays = CORE,
+	v3_ripple = RING,
+	v3_shadow = GLOW,
+	v3_sparkle = SPARKLE,
+	v3_steam = SMOKE,
+	v3_sun_sigil = RING,
 	soft_glow_white = GLOW,
 	solar_rays = CORE,
 	spore_magenta = GLOW,

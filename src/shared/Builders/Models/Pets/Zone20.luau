@@ -33,23 +33,8 @@ local Pets: { [string]: Builder.Spec } = {
 		crystals = true,
 		mane = true,
 	}),
-	HeavenLion = C.build({
-		kind = "Quadruped",
-		rarity = "Divine",
-		palette = {
-			main = rgb(255, 235, 180),
-			accent = rgb(255, 255, 255),
-			belly = rgb(255, 245, 220),
-			eye = rgb(255, 220, 120),
-			metal = rgb(255, 210, 90),
-			glow = rgb(255, 240, 180),
-		},
-		mane = true,
-		wings = "feather",
-		ears = "round",
-		tail = "long",
-		armor = true,
-	}),
+	-- Premium hero spec (Models/Premium/HeavenLion.luau, docs/EggPetPlan.md).
+	HeavenLion = require(script.Parent.Parent.Premium.HeavenLion).pet,
 	-- Premium hero spec (Models/Premium/PrismSeraph.luau, docs/EggPetPlan.md).
 	PrismSeraph = require(script.Parent.Parent.Premium.PrismSeraph).pet,
 }

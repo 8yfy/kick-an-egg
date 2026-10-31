@@ -1,0 +1,206 @@
+{
+ "key": "HeavenLion",
+ "name": "HeavenlyLion",
+ "bones": {
+  "Root": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "Body": [
+   0.0,
+   3.569999933242798,
+   0.3149999976158142
+  ],
+  "Head": [
+   0.0,
+   4.934999465942383,
+   -2.0999999046325684
+  ],
+  "ArmL": [
+   -1.028999924659729,
+   3.569999933242798,
+   -1.3125
+  ],
+  "ArmR": [
+   1.028999924659729,
+   3.569999933242798,
+   -1.3125
+  ],
+  "LegL": [
+   -1.028999924659729,
+   3.569999933242798,
+   1.9424999952316284
+  ],
+  "LegR": [
+   1.028999924659729,
+   3.569999933242798,
+   1.9424999952316284
+  ],
+  "Tail": [
+   0.0,
+   4.252500057220459,
+   2.7299997806549072
+  ]
+ },
+ "meshes": {
+  "HeavenlyLion_ArmL_Glow": {
+   "joint": "ArmL",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFFFFF"
+   ],
+   "parts": 10,
+   "tris": 248
+  },
+  "HeavenlyLion_ArmL_Solid": {
+   "joint": "ArmL",
+   "kind": "Solid",
+   "colors": [
+    "C9932E",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 23,
+   "tris": 988
+  },
+  "HeavenlyLion_ArmR_Glow": {
+   "joint": "ArmR",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFFFFF"
+   ],
+   "parts": 10,
+   "tris": 248
+  },
+  "HeavenlyLion_ArmR_Solid": {
+   "joint": "ArmR",
+   "kind": "Solid",
+   "colors": [
+    "C9932E",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 23,
+   "tris": 988
+  },
+  "HeavenlyLion_Body_Glow": {
+   "joint": "Body",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFFFFF"
+   ],
+   "parts": 48,
+   "tris": 1536
+  },
+  "HeavenlyLion_Body_Solid": {
+   "joint": "Body",
+   "kind": "Solid",
+   "colors": [
+    "C9932E",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 153,
+   "tris": 5988
+  },
+  "HeavenlyLion_Head_Glow": {
+   "joint": "Head",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFE27A",
+    "FFFFFF"
+   ],
+   "parts": 13,
+   "tris": 380
+  },
+  "HeavenlyLion_Head_Solid": {
+   "joint": "Head",
+   "kind": "Solid",
+   "colors": [
+    "3E2A1E",
+    "5B3A2C",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8",
+    "FFFFFF"
+   ],
+   "parts": 33,
+   "tris": 1260
+  },
+  "HeavenlyLion_LegL_Glow": {
+   "joint": "LegL",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFFFFF"
+   ],
+   "parts": 11,
+   "tris": 436
+  },
+  "HeavenlyLion_LegL_Solid": {
+   "joint": "LegL",
+   "kind": "Solid",
+   "colors": [
+    "C9932E",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 25,
+   "tris": 1076
+  },
+  "HeavenlyLion_LegR_Glow": {
+   "joint": "LegR",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFFFFF"
+   ],
+   "parts": 11,
+   "tris": 436
+  },
+  "HeavenlyLion_LegR_Solid": {
+   "joint": "LegR",
+   "kind": "Solid",
+   "colors": [
+    "C9932E",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 25,
+   "tris": 1076
+  },
+  "HeavenlyLion_Tail_Glow": {
+   "joint": "Tail",
+   "kind": "Glow",
+   "colors": [
+    "FFD966",
+    "FFFFFF"
+   ],
+   "parts": 10,
+   "tris": 392
+  },
+  "HeavenlyLion_Tail_Solid": {
+   "joint": "Tail",
+   "kind": "Solid",
+   "colors": [
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 41,
+   "tris": 1516
+  }
+ },
+ "tris": 16568,
+ "parts_source": 443
+}

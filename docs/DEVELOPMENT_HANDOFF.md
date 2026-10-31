@@ -1,6 +1,32 @@
 # Development handoff
 
 ## Current checkpoint
+- **Top-tier remodel: Heaven Lion, Clockwork Titan, Prism Seraph (2026-10-31, Partner A, branch `a/top-tier-pets`,
+  stacked on `a/frost-serpent-rename`).**
+  - Rebuilt to the user's three reference images and approved by the user.
+  - Block specs: `Builders/Models/Premium/{HeavenLion,ClockworkTitan,PrismSeraph}.luau` (444 / 332 / 445 parts). The lion
+    is new: Zone 20 now loads it from Premium instead of `Creatures`.
+  - Eggs are in the same files. Effects go in `PetFx/Recipes/{ClockworkFactory,RainbowHeaven}.luau`. The lion's recipe is
+    new; it had none before.
+  - Generators: `tools/blender/pets/` (the Frost Serpent kit generalised into `kit/` + `v3/`; `v3build.py ... dest=premium`).
+  - Shared code:
+    - `Anim/Pet` sets idle tempo and flourishes by rarity, and syncs PetFx specials through the `PetFxSpecial`
+      attribute;
+    - PetFx layers take a `bright` field (ParticleEmitter.Brightness);
+    - `PetFx/Sprites` registers the `v3_*` and `meadow_*` sprites.
+  - Rule 3 is kept: in-game pets are still block data. The user also commissioned mesh versions of the three pets
+    (beveled, rigged, animated, FBX + GLB, `KickAnEgg_PremiumPets/README.md`). Using them in the game needs a Partner A +
+    B decision. `RobloxIntegration/AnimationNotes` recommends one MeshPart per joint on the existing Motor6Ds.
+  - **Pending uploads:** the 14 `assets/pet-vfx/vfx_v3_*.png` and 3 `vfx_meadow_*.png` sprites. Until their Image ids are
+    in `PetFx/Sprites`, live servers use built-in fallback textures.
+  - **Verified this session in Studio (single-player Play):**
+    - the `ServerTests` hero section re-run by hand plus the new Heaven Lion pair: 57/57. The ladder is SproutPup 37 <
+      MeadowStag 70 < TideSpirit 85 < FrostSerpent 170 < QuetzalPhoenix 175 < ClockworkTitan 332 < PrismSeraph 445;
+    - all three idles animate (`Anim/Pet`), and the effects attach and clean up;
+    - no new script errors.
+  - **Not run:** the full `tools/run-tests.sh` (no run-in-roblox here), Roblox's 3D Importer on the mesh exports, and a
+    multiplayer test.
+
 - **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**
   - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
     (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).

@@ -8,11 +8,13 @@
 -- A recipe is { layers = { Layer, ... } }. Lengths are studs at model scale 1 (multiplied by the model's scale,
 -- so Size mutations stay right); y = height above the feet; x/z in the model's frame (-Z = its front).
 --   emit   ParticleEmitter: sprite, rate, life {a,b}, size n|{a,b}|{a,b,c}, speed n|{a,b}, color C3|{C3,...},
---          alpha (transparency) n|{a,b}|{a,b,c}, glow (LightEmission 0..1), y | at {x,y,z}, area {x,y,z} +
+--          alpha (transparency) n|{a,b}|{a,b,c}, glow (LightEmission 0..1), bright (Brightness: big sprites
+--          low, specks high, vault "Particle Emitters In Depth"), y | at {x,y,z}, area {x,y,z} +
 --          shape (Box|Sphere|Cylinder|Disc) + surface, spread, accel {x,y,z}, drag, spin {a,b} (deg/s),
 --          rot {a,b}, face (camera|up|vel|flat), locked, zoff, dir (emission NormalId in the model frame, e.g.
 --          "Front"); every {a,b} + count makes it a timed burst ("special") of `count` particles every a..b s,
---          and bursts sharing a `sync` name fire together
+--          and bursts sharing a `sync` name fire together (a named special also sets the model attribute
+--          PetFxSpecial, which cues the pet's flourish in Anim/Pet)
 --   orbit  `count` items circling the model: radius, y, speed (rad/s, sign = direction), bob, tilt (deg),
 --          phase; item = sprite + size (camera-facing) or part {shape, size, color, material, alpha, spinAxis};
 --          trail {color, life, width, alpha, glow, sprite?} on each item
@@ -204,6 +206,7 @@ local function build(state: State, layers: { Layer }, quality: number)
 			e.Color = colors(layer.color)
 			e.Transparency = seq(layer.alpha or { 0, 1 }, 1)
 			e.LightEmission = layer.glow or 0
+			e.Brightness = layer.bright or 1
 			e.LightInfluence = if layer.glow then 0 else 1
 			e.SpreadAngle = Vector2.new(layer.spread or 180, layer.spread or 180)
 			e.Acceleration = vec(layer.accel, s)
@@ -228,6 +231,9 @@ local function build(state: State, layers: { Layer }, quality: number)
 					if t >= timer.next then
 						timer.fired = t
 						timer.next = t + rng:NextNumber(every[1], every[2] or every[1])
+						if layer.sync then -- a named special also cues the pet's flourish (Anim/Pet)
+							state.model:SetAttribute("PetFxSpecial", t)
+						end
 					end
 					if timer.fired == t and e.Enabled then
 						e:Emit(count)

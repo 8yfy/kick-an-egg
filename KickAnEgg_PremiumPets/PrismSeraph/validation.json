@@ -1,0 +1,49 @@
+{
+ "source": {
+  "meshes": 22,
+  "tris": 17616,
+  "size": [
+   12.14,
+   8.59,
+   10.97
+  ]
+ },
+ "fbx": {
+  "meshes": 22,
+  "tris": 17616,
+  "size": [
+   12.14,
+   8.67,
+   11.21
+  ],
+  "bones": 9,
+  "actions": [
+   "PrismSeraph_Rig.001|PrismSeraph_Rig|PrismSeraph_Float",
+   "PrismSeraph_Rig.001|PrismSeraph_Rig|PrismSeraph_Idle",
+   "PrismSeraph_Rig.001|PrismSeraph_Rig|PrismSeraph_Special"
+  ],
+  "materials": 3,
+  "images": 7,
+  "skinned": 22,
+  "size_match": true
+ },
+ "glb": {
+  "meshes": 22,
+  "tris": 17616,
+  "size": [
+   12.14,
+   8.67,
+   11.21
+  ],
+  "bones": 9,
+  "actions": [
+   "PrismSeraph_Float.001",
+   "PrismSeraph_Idle.001",
+   "PrismSeraph_Special.001"
+  ],
+  "materials": 3,
+  "images": 4,
+  "skinned": 22,
+  "size_match": true
+ }
+}
