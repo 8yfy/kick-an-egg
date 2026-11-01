@@ -74,7 +74,7 @@ The timing is unchanged: 0.6 s per kick with contact at 0.26 s (`Anim/Player.KIC
 
 - **Fitting.** Rays find each counter's real top and back edge. A small search over torso lean and standing distance puts the forearms flat on the top with the upper arms hanging naturally. The NPC is slid only along its own facing, on this client, so it stands right behind its counter and its torso never enters the counter.
 - **Coach.** Its counter is hip high, so it gets a real lean of about 42°.
-- **Pet Merchant.** Its counter is higher than its shoulders, so its arms rest folded on top.
+- **Pet Merchant.** His counter was lowered from 3.8 to 3.0 studs over the deck, and he now stands on a 0.8-stud step behind it (`Builders/Map/World/Shops`). For him the top is about hip high, so he leans on it like the Coach: about 42°, forearms on the top, hands together. For players it stays at a shop counter's height.
 - **Life.**
   - It breathes every 4.3 s and its weight drifts from leg to leg (feet planted).
   - It takes unhurried glances, and a hand sometimes slides along the counter.
@@ -121,6 +121,7 @@ All of this was played in Studio (`build/KTE-anim-after.rbxl`, built from this b
 | Sack, 7-kick chain with all 3 variations (clone) | 0 snaps. The hip and knee peak at about 2,300–2,400°/s at the strike. |
 | Shift-lock (CameraRelative steering) | 0 snaps, and the server counted 5 kicks. |
 | Shopkeepers | The forearms rest on the counter top (0.00–0.04 studs). Only forearm-to-top surface contact; no torso overlap. The greeting plays (`after/shopkeeper_coach_greet.mp4`). |
+| Pet Merchant on the lowered counter (20 s with a customer) | **Feet:** on the step (0.02 studs). **Forearms:** on the top, 0.08–0.11 studs at their lowest corner. **Clipping:** no torso or leg overlap with the counter, the carrier or the lantern. **Greeting:** the wave plays (the hand rises to 2.2 studs over the top). **Selling:** the Counter prompt still fires and opens the inventory. **Stills:** `after/shopkeeper_pet_lean*.jpg`; before: `before/pet_merchant_folded_arms.jpg`. |
 | Respawn mid-cutscene | The normal camera comes back with its subject on the new character. One error was found (`Body.luau`: a dying rig losing joints) and fixed. |
 | R6 rig | The kick, hold and stance play on R6 joints (no IK on R6), with no errors (`after/r6_kick_and_stance.mp4`). |
 | Server tests (Studio edit context, as run-in-roblox would) | 365 passed, 3 failed. The same 3 map/shop tests also fail on the untouched a/full-build (362 passed, 3 failed). All the new animation checks pass. |
@@ -130,7 +131,7 @@ Evidence is in `docs/anim`, which has three folders: `before/`, `after/` and `re
 
 ## Known limits and follow-ups
 
-- **Pet Merchant counter (decided: keep).** Its top is higher than the merchant's shoulders, so it rests its arms folded on top instead of leaning. A real lean would need a step behind the counter (a map change) or a lower counter. The folded-arms pose was chosen, so the map stays as it is.
+- **Pet Merchant counter (changed).** It used to sit above the merchant's shoulders, so his arms rested folded on top. It is now 0.8 studs lower and he stands on a 0.8-stud step behind it, so he leans on it.
 - **Flying egg start (FlightController, Partner B).** The flying egg starts at the pad centre, not at the kicker's foot, so a big egg can pop up beside the kicker at contact. It is cosmetic, but it's B's launch code, so it wasn't touched here.
 - **Shift-lock (SackController, Partner B).** With shift-lock, the body turns back toward the camera right after the kick squares you up to the bag, so the kick goes where the camera looks. The animation blends correctly either way.
 - **Not tested:** a two-player session (watching someone else's kick or training), a real mobile device, and a live server.
