@@ -10,7 +10,9 @@
 --   emit   ParticleEmitter: sprite, rate, life {a,b}, size n|{a,b}|{a,b,c}, speed n|{a,b}, color C3|{C3,...},
 --          alpha (transparency) n|{a,b}|{a,b,c}, glow (LightEmission 0..1), y | at {x,y,z}, area {x,y,z} +
 --          shape (Box|Sphere|Cylinder|Disc) + surface, spread, accel {x,y,z}, drag, spin {a,b} (deg/s),
---          rot {a,b}, face (camera|up|vel|flat), locked, zoff
+--          rot {a,b}, face (camera|up|vel|flat), locked, zoff, dir (emission NormalId in the model frame, e.g.
+--          "Front"); every {a,b} + count makes it a timed burst ("special") of `count` particles every a..b s,
+--          and bursts sharing a `sync` name fire together
 --   orbit  `count` items circling the model: radius, y, speed (rad/s, sign = direction), bob, tilt (deg),
 --          phase; item = sprite + size (camera-facing) or part {shape, size, color, material, alpha, spinAxis};
 --          trail {color, life, width, alpha, glow, sprite?} on each item
@@ -176,6 +178,9 @@ local function build(state: State, layers: { Layer }, quality: number)
 	folder.Parent = model
 	table.insert(state.made, folder)
 
+	local timers: { [string]: { next: number, fired: number } } = {}
+	local rng = Random.new()
+
 	local function attachment(name: string, pos: Vector3): Attachment
 		local a = Instance.new("Attachment")
 		a.Name = name
@@ -208,7 +213,27 @@ local function build(state: State, layers: { Layer }, quality: number)
 			e.Orientation = FACE[layer.face or "camera"] or Enum.ParticleOrientation.FacingCamera
 			e.LockedToPart = layer.locked == true
 			e.ZOffset = layer.zoff or 0
-			e.EmissionDirection = Enum.NormalId.Top
+			e.EmissionDirection = if layer.dir then (Enum.NormalId :: any)[layer.dir] else Enum.NormalId.Top
+			local every = layer.every
+			if type(every) == "table" then
+				e.Rate = 0
+				local key = layer.sync or `burst{i}`
+				local timer = timers[key]
+				if not timer then
+					timer = { next = os.clock() + rng:NextNumber(2, every[1]), fired = -1 }
+					timers[key] = timer
+				end
+				local count = math.max(1, math.floor((layer.count or 10) * quality + 0.5))
+				table.insert(state.movers, function(t)
+					if t >= timer.next then
+						timer.fired = t
+						timer.next = t + rng:NextNumber(every[1], every[2] or every[1])
+					end
+					if timer.fired == t and e.Enabled then
+						e:Emit(count)
+					end
+				end)
+			end
 			if layer.area then
 				local host = fxPart(`Area{i}`, vec(layer.area, s), folder)
 				e.Shape = (Enum.ParticleEmitterShape :: any)[layer.shape or "Box"]

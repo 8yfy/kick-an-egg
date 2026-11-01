@@ -1,6 +1,19 @@
 # Development handoff
 
 ## Current checkpoint
+- **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**
+  - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
+    (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).
+    Rule 3 holds: no meshes. The old `Premium/IceDragon.luau` is removed.
+  - It ships under the model key `IceDragon`, so `Config` is unchanged. The display name / model-key rename to "Frost Serpent" /
+    `FrostSerpent` is a separate stacked `contract:` PR. The pet id stays `ice_dragon`, so saves are untouched.
+  - VFX (`VFX/PetFx`): six original sprites (`assets/pet-vfx/vfx_frost_*.png`, uploaded; Image ids in `PetFx/Sprites`). PetFx
+    `emit` layers can now be timed bursts (`every`, `count`, `sync`) and aim with `dir` (the pet's frost-breath special).
+  - Animation: `Anim/Pet` serpent poses for rigs with a `Coil` joint, `Rig.poseAbout`, and pupils blink with the eyes.
+  - Verified this session in Studio: the hero-ladder/shell/recipe checks of `ServerTests` re-run by hand (57/57, pet 170 parts
+    between Tide Spirit 85 and Quetzal 175). Single-player Play: a placed pet roams the pen with its effects and serpent idle, and
+    a plot egg hatched into the pet. No new script errors. Full `tools/run-tests.sh` was not run (no run-in-roblox on this machine).
+
 - **Pet Merchant leans on his counter (2026-10-22, Partner A, branch `a/lazy-pet-merchant` from `main` @ `0814c21`).**
   - **Stand.** In `Builders/Map/World/Shops.petStand`, the counter top went from 3.8 to 3.0 studs over the deck. The carrier, lantern and sparkle came down with it, and the merchant now stands on a new 0.8-stud `MerchantStep` behind the counter.
   - **Pose.** `Anim/Merchant` (unchanged from `main`) now gives him a real lean, like the Coach.
