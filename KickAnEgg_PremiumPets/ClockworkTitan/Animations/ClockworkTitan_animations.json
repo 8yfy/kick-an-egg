@@ -1,0 +1,56 @@
+{
+ "ClockworkTitan_Idle": {
+  "frames": 72,
+  "fps": 30,
+  "seconds": 2.4,
+  "bones": [
+   "ArmL",
+   "ArmR",
+   "Body",
+   "Gear1",
+   "Gear2",
+   "Gear3",
+   "Gear4",
+   "Gear5",
+   "Gear6",
+   "Gear7",
+   "Head",
+   "HeartHands"
+  ],
+  "loop": true
+ },
+ "ClockworkTitan_Walk": {
+  "frames": 40,
+  "fps": 30,
+  "seconds": 1.33,
+  "bones": [
+   "ArmL",
+   "ArmR",
+   "Body",
+   "HeartHands",
+   "LegL",
+   "LegR"
+  ],
+  "loop": true
+ },
+ "ClockworkTitan_Special": {
+  "frames": 60,
+  "fps": 30,
+  "seconds": 2.0,
+  "bones": [
+   "ArmL",
+   "ArmR",
+   "Body",
+   "Gear1",
+   "Gear2",
+   "Gear3",
+   "Gear4",
+   "Gear5",
+   "Gear6",
+   "Gear7",
+   "Head",
+   "HeartHands"
+  ],
+  "loop": false
+ }
+}

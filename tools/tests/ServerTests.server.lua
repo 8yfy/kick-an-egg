@@ -372,7 +372,9 @@ section("SackService + pens + collecting", function()
 	local lastParts = 0
 	local signatures: { [string]: string } = {}
 	local unique = true
-	for _, key in heroes do
+	local premiumPairs = table.clone(heroes)
+	table.insert(premiumPairs, "HeavenLion") -- a premium pair off the hero ladder (Divine)
+	for _, key in premiumPairs do
 		local egg, pet = HeroModels.egg(key), HeroModels.pet(key)
 		local parts = 0
 		for _, d in pet:GetDescendants() do
@@ -380,8 +382,10 @@ section("SackService + pens + collecting", function()
 				parts += 1
 			end
 		end
-		check(key .. " pet is more detailed than the rarity below it", parts > lastParts)
-		lastParts = parts
+		if table.find(heroes, key) then
+			check(key .. " pet is more detailed than the rarity below it", parts > lastParts)
+			lastParts = parts
+		end
 		local _, shell = Sculpt.shellBounds(egg)
 		check(key .. " egg shell fits the chase", shell.X <= 4.2 and shell.Z <= 4.2 and shell.Y <= 6)
 		check(key .. " egg keeps its Body joint (legs sprout under it)", egg.PrimaryPart:FindFirstChild("Body") ~= nil)

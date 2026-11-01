@@ -1,0 +1,300 @@
+{
+ "key": "PrismSeraph",
+ "name": "PrismSeraph",
+ "bones": {
+  "Root": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "Body": [
+   0.0,
+   5.940000057220459,
+   0.0
+  ],
+  "Head": [
+   0.0,
+   8.140000343322754,
+   0.0
+  ],
+  "ArmL": [
+   -1.375,
+   7.4800004959106445,
+   0.0
+  ],
+  "ArmR": [
+   1.375,
+   7.4800004959106445,
+   0.0
+  ],
+  "Halo": [
+   0.0,
+   9.845000267028809,
+   0.0
+  ],
+  "WingL": [
+   -0.6600000262260437,
+   7.590000152587891,
+   0.7149999737739563
+  ],
+  "WingR": [
+   0.6600000262260437,
+   7.590000152587891,
+   0.7149999737739563
+  ],
+  "Orbit": [
+   0.0,
+   5.71999979019165,
+   0.0
+  ]
+ },
+ "meshes": {
+  "PrismSeraph_ArmL_Crystal": {
+   "joint": "ArmL",
+   "kind": "Crystal",
+   "colors": [
+    "8FC8FF"
+   ],
+   "parts": 1,
+   "tris": 44
+  },
+  "PrismSeraph_ArmL_Glow": {
+   "joint": "ArmL",
+   "kind": "Glow",
+   "colors": [
+    "FFE38A",
+    "FFFFFF"
+   ],
+   "parts": 6,
+   "tris": 216
+  },
+  "PrismSeraph_ArmL_Solid": {
+   "joint": "ArmL",
+   "kind": "Solid",
+   "colors": [
+    "DCD8E6",
+    "E0B24E",
+    "F5F3FA"
+   ],
+   "parts": 22,
+   "tris": 1364
+  },
+  "PrismSeraph_ArmR_Crystal": {
+   "joint": "ArmR",
+   "kind": "Crystal",
+   "colors": [
+    "B59BFF"
+   ],
+   "parts": 1,
+   "tris": 44
+  },
+  "PrismSeraph_ArmR_Glow": {
+   "joint": "ArmR",
+   "kind": "Glow",
+   "colors": [
+    "FFE38A",
+    "FFFFFF"
+   ],
+   "parts": 6,
+   "tris": 216
+  },
+  "PrismSeraph_ArmR_Solid": {
+   "joint": "ArmR",
+   "kind": "Solid",
+   "colors": [
+    "DCD8E6",
+    "E0B24E",
+    "F5F3FA"
+   ],
+   "parts": 22,
+   "tris": 1364
+  },
+  "PrismSeraph_Body_Crystal": {
+   "joint": "Body",
+   "kind": "Crystal",
+   "colors": [
+    "E2D6FF",
+    "FFB88A"
+   ],
+   "parts": 5,
+   "tris": 220
+  },
+  "PrismSeraph_Body_Glow": {
+   "joint": "Body",
+   "kind": "Glow",
+   "colors": [
+    "FFB88A",
+    "FFE38A",
+    "FFFFFF"
+   ],
+   "parts": 37,
+   "tris": 1388
+  },
+  "PrismSeraph_Body_Solid": {
+   "joint": "Body",
+   "kind": "Solid",
+   "colors": [
+    "DCD8E6",
+    "E0B24E",
+    "F5F3FA",
+    "FFFFFF"
+   ],
+   "parts": 57,
+   "tris": 1932
+  },
+  "PrismSeraph_Halo_Glow": {
+   "joint": "Halo",
+   "kind": "Glow",
+   "colors": [
+    "FFE38A"
+   ],
+   "parts": 12,
+   "tris": 528
+  },
+  "PrismSeraph_Head_Crystal": {
+   "joint": "Head",
+   "kind": "Crystal",
+   "colors": [
+    "FFE9FF"
+   ],
+   "parts": 2,
+   "tris": 88
+  },
+  "PrismSeraph_Head_Glow": {
+   "joint": "Head",
+   "kind": "Glow",
+   "colors": [
+    "7FE8FF",
+    "FFE9FF",
+    "FFFFFF"
+   ],
+   "parts": 7,
+   "tris": 116
+  },
+  "PrismSeraph_Head_Solid": {
+   "joint": "Head",
+   "kind": "Solid",
+   "colors": [
+    "1E1A2E",
+    "DCD8E6",
+    "E0B24E",
+    "F5F3FA",
+    "FFE38A"
+   ],
+   "parts": 14,
+   "tris": 592
+  },
+  "PrismSeraph_Orbit_Crystal": {
+   "joint": "Orbit",
+   "kind": "Crystal",
+   "colors": [
+    "7FF0CF",
+    "FF8FCB",
+    "FFE57A"
+   ],
+   "parts": 28,
+   "tris": 896
+  },
+  "PrismSeraph_Orbit_Glow": {
+   "joint": "Orbit",
+   "kind": "Glow",
+   "colors": [
+    "7FF0CF",
+    "FF8FCB",
+    "FFE57A"
+   ],
+   "parts": 7,
+   "tris": 308
+  },
+  "PrismSeraph_Orbit_Solid": {
+   "joint": "Orbit",
+   "kind": "Solid",
+   "colors": [
+    "E0B24E",
+    "FFE38A"
+   ],
+   "parts": 35,
+   "tris": 1204
+  },
+  "PrismSeraph_WingL_Crystal": {
+   "joint": "WingL",
+   "kind": "Crystal",
+   "colors": [
+    "7FF0CF",
+    "8FC8FF",
+    "B59BFF",
+    "FF8FCB",
+    "FFB88A",
+    "FFE57A"
+   ],
+   "parts": 60,
+   "tris": 1920
+  },
+  "PrismSeraph_WingL_Glow": {
+   "joint": "WingL",
+   "kind": "Glow",
+   "colors": [
+    "7FF0CF",
+    "8FC8FF",
+    "B59BFF",
+    "FF8FCB",
+    "FFB88A",
+    "FFE57A"
+   ],
+   "parts": 15,
+   "tris": 660
+  },
+  "PrismSeraph_WingL_Solid": {
+   "joint": "WingL",
+   "kind": "Solid",
+   "colors": [
+    "DCD8E6",
+    "E0B24E",
+    "F5F3FA"
+   ],
+   "parts": 13,
+   "tris": 968
+  },
+  "PrismSeraph_WingR_Crystal": {
+   "joint": "WingR",
+   "kind": "Crystal",
+   "colors": [
+    "7FF0CF",
+    "8FC8FF",
+    "B59BFF",
+    "FF8FCB",
+    "FFB88A",
+    "FFE57A"
+   ],
+   "parts": 60,
+   "tris": 1920
+  },
+  "PrismSeraph_WingR_Glow": {
+   "joint": "WingR",
+   "kind": "Glow",
+   "colors": [
+    "7FF0CF",
+    "8FC8FF",
+    "B59BFF",
+    "FF8FCB",
+    "FFB88A",
+    "FFE57A"
+   ],
+   "parts": 15,
+   "tris": 660
+  },
+  "PrismSeraph_WingR_Solid": {
+   "joint": "WingR",
+   "kind": "Solid",
+   "colors": [
+    "DCD8E6",
+    "E0B24E",
+    "F5F3FA"
+   ],
+   "parts": 13,
+   "tris": 968
+  }
+ },
+ "tris": 17616,
+ "parts_source": 444
+}

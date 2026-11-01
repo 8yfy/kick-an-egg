@@ -19,14 +19,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		top = "flame",
 		glow = rgb(255, 200, 255),
 	}),
-	HeavenLion = E.build({
-		rarity = "Divine",
-		colors = { rgb(255, 251, 242), rgb(255, 235, 180), rgb(255, 255, 255) },
-		pattern = "rainbow",
-		top = "halo",
-		glow = rgb(255, 240, 180),
-		metal = rgb(255, 210, 90),
-	}),
+	-- Premium hero spec (Models/Premium/HeavenLion.luau, docs/EggPetPlan.md).
+	HeavenLion = require(script.Parent.Parent.Premium.HeavenLion).egg,
 	-- Premium hero spec (Models/Premium/PrismSeraph.luau, docs/EggPetPlan.md).
 	PrismSeraph = require(script.Parent.Parent.Premium.PrismSeraph).egg,
 }

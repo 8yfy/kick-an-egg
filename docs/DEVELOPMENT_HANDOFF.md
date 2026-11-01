@@ -1,6 +1,63 @@
 # Development handoff
 
 ## Current checkpoint
+- **Top-tier remodel: Heaven Lion, Clockwork Titan, Prism Seraph (2026-10-31, Partner A, branch `a/top-tier-pets`,
+  stacked on `a/frost-serpent-rename`).**
+  - Rebuilt to the user's three reference images and approved by the user.
+  - Block specs: `Builders/Models/Premium/{HeavenLion,ClockworkTitan,PrismSeraph}.luau` (444 / 332 / 445 parts). The lion
+    is new: Zone 20 now loads it from Premium instead of `Creatures`.
+  - Eggs are in the same files. Effects go in `PetFx/Recipes/{ClockworkFactory,RainbowHeaven}.luau`. The lion's recipe is
+    new; it had none before.
+  - Generators: `tools/blender/pets/` (the Frost Serpent kit generalised into `kit/` + `v3/`; `v3build.py ... dest=premium`).
+  - Shared code:
+    - `Anim/Pet` sets idle tempo and flourishes by rarity, and syncs PetFx specials through the `PetFxSpecial`
+      attribute;
+    - PetFx layers take a `bright` field (ParticleEmitter.Brightness);
+    - `PetFx/Sprites` registers the `v3_*` and `meadow_*` sprites.
+  - Rule 3 is kept: in-game pets are still block data. The user also commissioned mesh versions of the three pets
+    (beveled, rigged, animated, FBX + GLB, `KickAnEgg_PremiumPets/README.md`). Using them in the game needs a Partner A +
+    B decision. `RobloxIntegration/AnimationNotes` recommends one MeshPart per joint on the existing Motor6Ds.
+  - **Sprites uploaded (2026-10-31):** the 14 `assets/pet-vfx/vfx_v3_*.png` and 3 `vfx_meadow_*.png` sprites. Decal ids
+    are in `tools/world/ids/pet-vfx.json`, and the resolved Image ids in `PetFx/Sprites`. All 17 load in Studio, and the
+    top tier's effects draw the uploaded art.
+  - **Verified this session in Studio (single-player Play):**
+    - the `ServerTests` hero section re-run by hand plus the new Heaven Lion pair: 57/57. The ladder is SproutPup 37 <
+      MeadowStag 70 < TideSpirit 85 < FrostSerpent 170 < QuetzalPhoenix 175 < ClockworkTitan 332 < PrismSeraph 445;
+    - all three idles animate (`Anim/Pet`), and the effects attach and clean up;
+    - no new script errors.
+  - **Not run:** the full `tools/run-tests.sh` (no run-in-roblox here), Roblox's 3D Importer on the mesh exports, and a
+    multiplayer test.
+
+- **Signature motion and effects for the top tier (2026-11-01, Partner A, same branch `a/top-tier-pets`, PR #59).**
+  - The user asked for unique effects and animations per pet, not the shared stack with new colours. They picked one
+    concept per pet and approved the result in recorded pen clips:
+    - Heaven Lion: Judgement Light;
+    - Clockwork Titan: Overcharged Engine;
+    - Prism Seraph: Aurora Veil.
+  - The tables are in `docs/EggPetPlan.md` ("Signature motion", "Signature effects").
+  - **Motion:** `Anim/PetProfiles.luau` gives each pet its own idle, roam and special, keyed by model key. `Anim/Pet`
+    uses a profile when the pet has one and falls back to the rarity tempo when it doesn't. The `Anim.play` API is
+    unchanged. New joints: `Mane` on the lion, `HeartHands` and `Gear1-7` on the titan (re-baked Premium specs).
+  - **Effects:**
+    - `VFX/PetFx/Signature.luau` adds the layer kinds `arc`, `blades`, `strike`, `dial`, `ribbon`, `trail` and
+      `curtain`.
+    - `emit` takes `part`, `cue`, `on`, `beat` and `delay`.
+    - `beam` takes `top`, `pulse`, `curve` and `bright`.
+    - `light` takes `flicker` and `cycle`.
+    - Handles get `Fire(sync)`.
+  - **New sprites:** `assets/pet-vfx/vfx_v3_{shaft,arc,clock_dial,veil}.png` (`tools/blender/pets/v3/sprites_signature.py`).
+    Uploaded 2026-11-01: Decal ids are in `tools/world/ids/pet-vfx.json` and Image ids in `PetFx/Sprites`. All 10
+    textures the three pets' effects use load from uploaded ids in Studio.
+  - **Verified in Studio (single-player Play):** the `ServerTests` hero and premium-pair checks pass 57/57, and the
+    ladder still rises (titan 340 < seraph 445). Each pet was recorded idling, firing its special and roaming in a pen.
+    No new script errors.
+  - **Mesh deliverables rebuilt (2026-11-01):** `KickAnEgg_PremiumPets` for the new joints: the lion's Mane bone (9
+    bones, 16 meshes); the titan's HeartHands and Gear1-7 now come from the model's own joints. This also fixes a UV
+    bug that rendered the titan's brass arms as dark iron. All three re-imports validate, with 0 texture/colour
+    mismatches.
+  - **Not done:**
+    - unique motion and effects for the remaining pets.
+
 - **Admin panel (2026-10-28, Partner A, branch `a/admin-panel` from `main` 0814c21).** Full write-up: `docs/AdminPanel.md`.
   - Server: `Services/AdminService.luau` + `src/server/Admin/` (allowlist, roles, pipeline, ~44 registered commands, Model Lab, cross-server, audit). Read-only additions in B's area: `DataService:IsPersistent`, `WeatherService:GetEndsAt`. `Anim/Pet.luau` honours an optional `AnimSpeed` attribute. No `Remotes`/`Config` changes; nothing in ReplicatedStorage.
   - Allowlist: `src/server/Admin/Allowlist.luau` has 1340874349 (`8yf_y`) and 3953001499 (co-owner) as Owner, both confirmed by the owner on 2026-10-28. Staging universe ids are empty in `Admin/Config.luau`.

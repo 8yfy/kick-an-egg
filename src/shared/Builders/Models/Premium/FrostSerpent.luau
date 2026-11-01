@@ -5,7 +5,7 @@
 -- Egg: blue shell under a white frost cap whose edge drips down the shell, a serpent coil spiralling up it with
 --      crystal fins, a snow line at the base and two small antlers either side of a crown crystal.
 -- BAKED FILE: modelled in Blender from Roblox primitives (assets/blender/FrostSerpent.blend) and exported by
--- tools/blender/frost_serpent (see its README). Change the model there and re-export instead of editing by hand.
+-- tools/blender/pets (heroes/frost_serpent.py, see its README). Change the model there and re-export, not by hand.
 -- Joints: Coil, Body, Head, ArmL/ArmR, WingL/WingR; each group starts with its hinge (Anim/Pet serpent poses).
 local Builder = require(script.Parent.Parent.Parent.BlockBuilder)
 local S = require(script.Parent.Parent.Sculpt)

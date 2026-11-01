@@ -71,8 +71,63 @@ egg shell fits the chase, every recipe is valid and unique, and effects attach a
 | Epic | 75–110 | 45–60 | 5–6 | transformed silhouette, floating parts (Orbit), layered particles |
 | Legendary | 120–160 | 55–70 | 6–7 | hero silhouette (wings/horns/spikes), one major ring, an accent light |
 | Mythic | 160–190 | 70–90 | 7 | several effect families, Halo + Orbit groups, rays or trails, two lights |
-| Divine | 190–220 | 100–125 | 7 | ceremonial framing: sigil disc, rays, crown/halo, gear or sun framing |
-| Secret | 220+ | 130+ | 8–9 | the showcase stack: rainbow trails, prism rings, rays, holy glow, three orbit layers |
+| Divine | 320–450 | 100–135 | 7 | ceremonial framing: sigil disc, rays, crown/halo, gear or sun framing |
+| Secret | 340+ | 90+ | 8–9 | the showcase stack: rainbow trails, prism rings, rays, holy glow, three orbit layers |
+
+Divine and Secret were raised on 2026-10-31, when the top tier was rebuilt to the user's reference images and approved:
+- Clockwork Titan 332 / 131;
+- Heaven Lion 444 / 103;
+- Prism Seraph 445 / 96.
+
+The hero ladder test still needs the hero part counts to rise strictly in hero order.
+
+- **Effects and motion by rarity** (decided 2026-10-29 for the Frost Serpent–style remodel; applies to every pair):
+  - Effects grow with rarity, and motion calms down and gets prouder.
+  - **A ground glyph (sigil) is a Legendary+ privilege.** Lower rarities get at most a soft aura, and a Rare egg
+    gets a thin pulse ring.
+  - Motion lives in `Anim/Pet` and is driven by the pet's `Rarity` attribute.
+  - Hovering pets (no part near the feet) float, lean into their walk and let their legs dangle; insects also
+    buzz their wings.
+  - A named PetFx special (`sync`) also cues the pet's flourish, so the effect and the gesture land together.
+
+| Rarity | Under the pet | Pet effects | Egg effects | Motion |
+|---|---|---|---|---|
+| Common | nothing (soft glow behind it) | soft glow + one themed particle family (+ small light) | faint aura + one family | bouncy: quick bob, big waddle roll, a random hop every 3–6 s |
+| Uncommon | nothing | Common + one accent (small orbit or a popping burst) | + one accent | bouncy, hops every 5–9 s |
+| Rare | nothing | signature effect (themed swirl / orbit) + one family + a timed special + light | signature orbit + pulse ring + light | calmer, small roll; flourish (head toss, tail flick, wings spread, paw lift) every 7–11 s or on its special |
+| Epic | soft ring at most | floating Orbit parts + layered particles + special | + orbit | calmer, flourish every 8–12 s |
+| Legendary | its own glyph (like the Frost Serpent's sigil) | hero ring/glyph + accent light + special | its egg glyph | slow and majestic, flourish on its special |
+| Mythic | glyph + Halo/Orbit groups | several families, rays or trails, two lights | glyph + orbit | slow, flourish |
+| Divine | ceremonial sigil disc + rays | crown/halo, gear or sun framing | sigil | slowest, flourish |
+| Secret | showcase stack | 8–9 layers | showcase | slowest, flourish |
+
+- **Signature motion** (2026-11-01, user: "unique VFX and animations for each pet"; the top tier first):
+  - Every pet gets its own profile in `src/shared/Anim/PetProfiles.luau`, keyed by model key, which owns its idle,
+    roam and special. Pets without one fall back to the rarity tempo above.
+  - The special plays when the pet's PetFx special fires (`sync`, cued through `PetFxSpecial`). PetFx `delay`
+    lands the burst on the gesture's climax.
+  - Minor rhythmic beats are PetFx `beat` bursts that the profile moves with (the titan's steam hiss).
+
+| Pet | Idle | Roam | Special (every 10–14 s) |
+|---|---|---|---|
+| Heaven Lion | slow 4 s breath (the mane swells with it), proud held head turns, tail-tip flick | heavy prowl: rolling shoulders, low head | **Roar** 2.2 s: gathers, rears its head, thrusts forward with a shaking head and flaring mane; flash, gold shockwave ring blown forward, spark cone |
+| Clockwork Titan | head sweeps in 1 s ticks, chest clock ticks, seven gears turn, fists pump; steam hiss every 3.2 s drops and shudders it | stiff stomp that sinks on each footfall | **Overclock** 2.4 s: fists up, the clock races four turns, then a slam; steam blasts from the vents, brass cogs spray and fall |
+| Prism Seraph | floats on a slow figure eight; wing beats pause at the top of each stroke; light pillar | glides forward, wings swept back, arms trailing | **Bless** 2.6 s: wings spread, arms open, it rises and turns once in the air; prism sparks, a prism ring rolls over the ground |
+
+- **Signature effects** (2026-11-01, user: "actual unique VFX, creative VFX per pet"): each pet gets its own effect
+  concept, not the shared stack of ground sigil, orbiters and particles with new colours. New layer kinds live in
+  `src/shared/VFX/PetFx/Signature.luau`: `arc`, `blades`, `strike`, `dial`, `ribbon`, `trail` and `curtain`.
+  `emit` layers can ride a part (`part`), fire on a motion cue (`cue`, set by Anim/PetProfiles: footfalls,
+  ticks), or react to another layer's special (`on`).
+
+| Pet | Concept (user pick) | Always | Special |
+|---|---|---|---|
+| Heaven Lion | Judgement Light | slanted shafts of light from above, breathing; motes drifting down; a warm light pool; a crown of light-blades turning behind the mane | Roar: the crown flares and spins up; pillars of light slam down in a ring, each landing with a gold ring and sparks |
+| Clockwork Titan | Overcharged Engine | amber lightning crackling between crown and shoulder spires; a surge every 3.2 s jolts the body; sparks from the knee on each stomp; exhaust smoke on every clock tick; a flickering core light | Overclock: a giant amber clock dial spins up in front of it, the lightning goes wild, then a gear shockwave, flying cogs and a steam blast |
+| Prism Seraph | Aurora Veil | aurora ribbons flowing from its back; aurora trails off the wingtips; drifting aurora specks; a light shifting through the aurora colours | Bless: an aurora curtain of mint, cyan, violet and pink veils unfurls in a ring around it and ripples, then fades |
+
+Joints the profiles need: the lion has `Mane`; the titan has `HeartHands` (the chest clock hands) and `Gear1-7`
+(the chest gears).
 
 **Build approach:** every pair is planned as **procedural blocks** (BlockBuilder + Sculpt). Four organic
 pairs would benefit from **hybrid** blocks + a few MeshPart accents (31 Tide Leviathan, 55 Celestial Whale,
@@ -129,7 +184,7 @@ pet effect uses a different layer stack (checked by the server tests for the bui
 | 20 | Snow Bunny | Uncommon | snowball egg with a fluffy fur band and frosty ear nubs | bunny in earmuffs and a knitted scarf | gentle snowfall | breath puffs, snow sparkle | P |
 | 21 | Frost Penguin | Rare | tuxedo egg with an ice-blue bow tie and frost crown | penguin on ice skates, scarf, ice-shard crest | frost sparkle ring | sliding ice-glow ring, light snow | P |
 | 22 | Yeti Brute | Epic | shaggy fur egg with ice horn stubs and claw marks | huge yeti, ice horns, crystal knuckles | blizzard puffs, cold breath | snowstorm swirl, knuckle glints, frost burst ring | P |
-| 23 | Frost Serpent ✅ (replaces the Ice Dragon) | Legendary | blue egg under a frost cap that drips down the shell, a serpent coil spiralling up it, snow line, antlers + crown crystal | glacier-blue serpent coiled on the ground and rising in an S: studded head with antlers, crystal mane, almond eyes, two-tone glass wings | frost rune-ring glyph, falling pixel snowflakes, glints, cold mist, light | snowflake sigil, glass ice-brick orbit with trails, pixel snowflakes, antler glints, coil mist, frost-breath special, core light | P (Blender-built block data: tools/blender/frost_serpent) |
+| 23 | Frost Serpent ✅ (replaces the Ice Dragon) | Legendary | blue egg under a frost cap that drips down the shell, a serpent coil spiralling up it, snow line, antlers + crown crystal | glacier-blue serpent coiled on the ground and rising in an S: studded head with antlers, crystal mane, almond eyes, two-tone glass wings | frost rune-ring glyph, falling pixel snowflakes, glints, cold mist, light | snowflake sigil, glass ice-brick orbit with trails, pixel snowflakes, antler glints, coil mist, frost-breath special, core light | P (Blender-built block data: tools/blender/pets) |
 
 ### 7 Candy Land: pink, pastel blue, mint, yellow; swirls, sprinkles, frosting, gummies
 | # | Pair | Rarity | Egg design | Pet design (hero feature) | Egg VFX | Pet VFX | Build |

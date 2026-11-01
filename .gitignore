@@ -27,5 +27,5 @@ tools/world/blend/
 tools/world/ids/*.studio.txt
 __pycache__/
 
-# Frost Serpent Blender check renders (tools/blender/frost_serpent/preview.py)
-tools/blender/frost_serpent/out/
+# Pet kit Blender check renders (tools/blender/pets/preview.py)
+tools/blender/pets/out/

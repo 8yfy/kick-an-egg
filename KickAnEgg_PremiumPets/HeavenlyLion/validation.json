@@ -1,0 +1,49 @@
+{
+ "source": {
+  "meshes": 16,
+  "tris": 16568,
+  "size": [
+   6.72,
+   10.37,
+   10.65
+  ]
+ },
+ "fbx": {
+  "meshes": 16,
+  "tris": 16568,
+  "size": [
+   6.72,
+   10.37,
+   10.65
+  ],
+  "bones": 9,
+  "actions": [
+   "HeavenlyLion_Rig.001|HeavenlyLion_Rig|HeavenlyLion_Idle",
+   "HeavenlyLion_Rig.001|HeavenlyLion_Rig|HeavenlyLion_Special",
+   "HeavenlyLion_Rig.001|HeavenlyLion_Rig|HeavenlyLion_Walk"
+  ],
+  "materials": 2,
+  "images": 4,
+  "skinned": 16,
+  "size_match": true
+ },
+ "glb": {
+  "meshes": 16,
+  "tris": 16568,
+  "size": [
+   6.72,
+   10.37,
+   10.65
+  ],
+  "bones": 9,
+  "actions": [
+   "HeavenlyLion_Idle.001",
+   "HeavenlyLion_Special.001",
+   "HeavenlyLion_Walk.001"
+  ],
+  "materials": 2,
+  "images": 3,
+  "skinned": 16,
+  "size_match": true
+ }
+}
