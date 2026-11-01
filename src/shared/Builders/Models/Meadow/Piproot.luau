@@ -1,0 +1,1200 @@
+--!strict
+-- Piproot (Zone 1 Meadow, Common). Zone 1 Meadow roster (Config/Pets).
+-- Pet: a cheerful botanical frog: broad flat head, raised square eyes, a wide smile with a pink tongue, cream throat
+--      and belly, big folded hind legs with long cream toes, short front legs, layered leaf armour down the back, a
+--      two-leaf sprout and two small white flowers. Joints: Body, Head, Jaw, Throat, ArmL/R, LegL/R.
+-- Egg: cream shell under overlapping leaf plates, small white flowers and the two-leaf sprout on top.
+-- BAKED FILE: modelled in Blender from Roblox primitives by tools/blender/pets (zone1/piproot.py, zone1/eggs.py).
+local Builder = require(script.Parent.Parent.Parent.BlockBuilder)
+local S = require(script.Parent.Parent.Sculpt)
+
+local P, rgb = S.part, Color3.fromRGB
+local MAIN = rgb(124, 207, 46) -- #7CCF2E
+local DARK = rgb(62, 154, 42) -- #3E9A2A
+local LIGHT = rgb(181, 232, 90) -- #B5E85A
+local GLOW = rgb(140, 255, 90) -- #8CFF5A
+local CREAM = rgb(242, 230, 196) -- #F2E6C4
+local CREAM2 = rgb(227, 211, 168) -- #E3D3A8
+local LEAF = rgb(124, 207, 46) -- #7CCF2E
+local LEAF2 = rgb(93, 181, 42) -- #5DB52A
+local LEAF3 = rgb(181, 232, 90) -- #B5E85A
+local FLOWER = rgb(255, 255, 255) -- #FFFFFF
+local FLOWER2 = rgb(242, 242, 234) -- #F2F2EA
+local POLLEN = rgb(255, 201, 60) -- #FFC93C
+local MAIN2 = rgb(107, 190, 36) -- #6BBE24
+local TONGUE = rgb(240, 122, 142) -- #F07A8E
+local MOUTH = rgb(90, 36, 48) -- #5A2430
+local EYE = rgb(246, 246, 246) -- #F6F6F6
+local INK = rgb(20, 20, 20) -- #141414
+local GLINT = rgb(255, 255, 255) -- #FFFFFF
+
+local egg: Builder.Spec = {
+	parts = {
+		P("Shell1", { 1.736, 0.571, 1.736 }, { 0, 0.286, 0 }, rgb(243, 230, 198), { joint = "Body" }),
+		P("Shell2", { 2.668, 0.571, 2.668 }, { 0, 0.857, 0 }, rgb(230, 214, 176), { joint = "Body" }),
+		P("Shell3", { 3, 0.571, 3 }, { 0, 1.429, 0 }, rgb(243, 230, 198), { joint = "Body" }),
+		P("Shell4", { 3.01, 0.571, 3.01 }, { 0, 2, 0 }, LEAF, { joint = "Body" }),
+		P("Shell5", { 2.769, 0.571, 2.769 }, { 0, 2.571, 0 }, LEAF, { joint = "Body" }),
+		P("Shell6", { 2.272, 0.571, 2.272 }, { 0, 3.143, 0 }, LEAF, { joint = "Body" }),
+		P("Shell7", { 1.364, 0.571, 1.364 }, { 0, 3.714, 0 }, LEAF, { joint = "Body" }),
+		P(
+			"PetalLeafA1",
+			{ 0.95, 1.134, 0.12 },
+			{ 0, 2.053, -1.717 },
+			LEAF,
+			{ joint = "Body", rot = { -155.772, 0, 0 }, studs = false }
+		),
+		P(
+			"PetalLeafA1Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ 0, 1.536, -1.95 },
+			LEAF,
+			{ joint = "Body", rot = { -155.772, 0, 45 }, studs = false }
+		),
+		P(
+			"PetalLeafA2",
+			{ 0.95, 1.134, 0.12 },
+			{ 1.717, 2.053, -1.184 },
+			LEAF2,
+			{ joint = "Body", rot = { -90, 65.772, -90 }, studs = false }
+		),
+		P(
+			"PetalLeafA2Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ 1.95, 1.536, -1.184 },
+			LEAF2,
+			{ joint = "Body", rot = { -90, 65.772, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafA3",
+			{ 0.95, 1.134, 0.12 },
+			{ 1.717, 2.053, 0 },
+			LEAF,
+			{ joint = "Body", rot = { -90, 65.772, -90 }, studs = false }
+		),
+		P(
+			"PetalLeafA3Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ 1.95, 1.536, 0 },
+			LEAF,
+			{ joint = "Body", rot = { -90, 65.772, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafA4",
+			{ 0.95, 1.134, 0.12 },
+			{ 1.184, 2.053, 1.717 },
+			LEAF2,
+			{ joint = "Body", rot = { -24.228, 0, 180 }, studs = false }
+		),
+		P(
+			"PetalLeafA4Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ 1.184, 1.536, 1.95 },
+			LEAF2,
+			{ joint = "Body", rot = { -24.228, 0, -135 }, studs = false }
+		),
+		P(
+			"PetalLeafA5",
+			{ 0.95, 1.134, 0.12 },
+			{ 0, 2.053, 1.717 },
+			LEAF,
+			{ joint = "Body", rot = { -24.228, 0, 180 }, studs = false }
+		),
+		P(
+			"PetalLeafA5Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ 0, 1.536, 1.95 },
+			LEAF,
+			{ joint = "Body", rot = { -24.228, 0, -135 }, studs = false }
+		),
+		P(
+			"PetalLeafA6",
+			{ 0.95, 1.134, 0.12 },
+			{ -1.717, 2.053, 1.184 },
+			LEAF2,
+			{ joint = "Body", rot = { -90, -65.772, 90 }, studs = false }
+		),
+		P(
+			"PetalLeafA6Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ -1.95, 1.536, 1.184 },
+			LEAF2,
+			{ joint = "Body", rot = { 90, -114.228, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafA7",
+			{ 0.95, 1.134, 0.12 },
+			{ -1.717, 2.053, 0 },
+			LEAF,
+			{ joint = "Body", rot = { -90, -65.772, 90 }, studs = false }
+		),
+		P(
+			"PetalLeafA7Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ -1.95, 1.536, 0 },
+			LEAF,
+			{ joint = "Body", rot = { 90, -114.228, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafA8",
+			{ 0.95, 1.134, 0.12 },
+			{ -1.184, 2.053, -1.717 },
+			LEAF2,
+			{ joint = "Body", rot = { -155.772, 0, 0 }, studs = false }
+		),
+		P(
+			"PetalLeafA8Tip",
+			{ 0.672, 0.672, 0.115 },
+			{ -1.184, 1.536, -1.95 },
+			LEAF2,
+			{ joint = "Body", rot = { -155.772, 0, 45 }, studs = false }
+		),
+		P(
+			"PetalLeafB1",
+			{ 0.85, 0.966, 0.12 },
+			{ 0.471, 2.822, -1.416 },
+			LEAF2,
+			{ joint = "Body", rot = { -158.199, 0, 0 }, studs = false }
+		),
+		P(
+			"PetalLeafB1Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ 0.471, 2.373, -1.595 },
+			LEAF2,
+			{ joint = "Body", rot = { -158.199, 0, 45 }, studs = false }
+		),
+		P(
+			"PetalLeafB2",
+			{ 0.85, 0.966, 0.12 },
+			{ 1.416, 2.822, -0.471 },
+			LEAF3,
+			{ joint = "Body", rot = { -90, 68.199, -90 }, studs = false }
+		),
+		P(
+			"PetalLeafB2Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ 1.595, 2.373, -0.471 },
+			LEAF3,
+			{ joint = "Body", rot = { -90, 68.199, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafB3",
+			{ 0.85, 0.966, 0.12 },
+			{ 1.416, 2.822, 0.471 },
+			LEAF2,
+			{ joint = "Body", rot = { -90, 68.199, -90 }, studs = false }
+		),
+		P(
+			"PetalLeafB3Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ 1.595, 2.373, 0.471 },
+			LEAF2,
+			{ joint = "Body", rot = { -90, 68.199, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafB4",
+			{ 0.85, 0.966, 0.12 },
+			{ 0.471, 2.822, 1.416 },
+			LEAF3,
+			{ joint = "Body", rot = { -21.801, 0, 180 }, studs = false }
+		),
+		P(
+			"PetalLeafB4Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ 0.471, 2.373, 1.595 },
+			LEAF3,
+			{ joint = "Body", rot = { -21.801, 0, -135 }, studs = false }
+		),
+		P(
+			"PetalLeafB5",
+			{ 0.85, 0.966, 0.12 },
+			{ -0.471, 2.822, 1.416 },
+			LEAF2,
+			{ joint = "Body", rot = { -21.801, 0, 180 }, studs = false }
+		),
+		P(
+			"PetalLeafB5Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ -0.471, 2.373, 1.595 },
+			LEAF2,
+			{ joint = "Body", rot = { -21.801, 0, -135 }, studs = false }
+		),
+		P(
+			"PetalLeafB6",
+			{ 0.85, 0.966, 0.12 },
+			{ -1.416, 2.822, 0.471 },
+			LEAF3,
+			{ joint = "Body", rot = { -90, -68.199, 90 }, studs = false }
+		),
+		P(
+			"PetalLeafB6Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ -1.595, 2.373, 0.471 },
+			LEAF3,
+			{ joint = "Body", rot = { 90, -111.801, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafB7",
+			{ 0.85, 0.966, 0.12 },
+			{ -1.416, 2.822, -0.471 },
+			LEAF2,
+			{ joint = "Body", rot = { -90, -68.199, 90 }, studs = false }
+		),
+		P(
+			"PetalLeafB7Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ -1.595, 2.373, -0.471 },
+			LEAF2,
+			{ joint = "Body", rot = { 90, -111.801, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafB8",
+			{ 0.85, 0.966, 0.12 },
+			{ -0.471, 2.822, -1.416 },
+			LEAF3,
+			{ joint = "Body", rot = { -158.199, 0, 0 }, studs = false }
+		),
+		P(
+			"PetalLeafB8Tip",
+			{ 0.601, 0.601, 0.115 },
+			{ -0.471, 2.373, -1.595 },
+			LEAF3,
+			{ joint = "Body", rot = { -158.199, 0, 45 }, studs = false }
+		),
+		P(
+			"PetalLeafC1",
+			{ 0.7, 0.756, 0.12 },
+			{ 0, 3.508, -0.871 },
+			LEAF3,
+			{ joint = "Body", rot = { -163.301, 0, 0 }, studs = false }
+		),
+		P(
+			"PetalLeafC1Tip",
+			{ 0.495, 0.495, 0.115 },
+			{ 0, 3.146, -0.979 },
+			LEAF3,
+			{ joint = "Body", rot = { -163.301, 0, 45 }, studs = false }
+		),
+		P(
+			"PetalLeafC2",
+			{ 0.7, 0.756, 0.12 },
+			{ 0.871, 3.508, -0.394 },
+			LEAF,
+			{ joint = "Body", rot = { -90, 73.301, -90 }, studs = false }
+		),
+		P(
+			"PetalLeafC2Tip",
+			{ 0.495, 0.495, 0.115 },
+			{ 0.979, 3.146, -0.394 },
+			LEAF,
+			{ joint = "Body", rot = { -90, 73.301, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafC3",
+			{ 0.7, 0.756, 0.12 },
+			{ 0.871, 3.508, 0.394 },
+			LEAF3,
+			{ joint = "Body", rot = { -90, 73.301, -90 }, studs = false }
+		),
+		P(
+			"PetalLeafC3Tip",
+			{ 0.495, 0.495, 0.115 },
+			{ 0.979, 3.146, 0.394 },
+			LEAF3,
+			{ joint = "Body", rot = { -90, 73.301, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafC4",
+			{ 0.7, 0.756, 0.12 },
+			{ 0, 3.508, 0.871 },
+			LEAF,
+			{ joint = "Body", rot = { -16.699, 0, -180 }, studs = false }
+		),
+		P(
+			"PetalLeafC4Tip",
+			{ 0.495, 0.495, 0.115 },
+			{ 0, 3.146, 0.979 },
+			LEAF,
+			{ joint = "Body", rot = { -16.699, 0, -135 }, studs = false }
+		),
+		P(
+			"PetalLeafC5",
+			{ 0.7, 0.756, 0.12 },
+			{ -0.871, 3.508, 0.394 },
+			LEAF3,
+			{ joint = "Body", rot = { -90, -73.301, 90 }, studs = false }
+		),
+		P(
+			"PetalLeafC5Tip",
+			{ 0.495, 0.495, 0.115 },
+			{ -0.979, 3.146, 0.394 },
+			LEAF3,
+			{ joint = "Body", rot = { 90, -106.699, -45 }, studs = false }
+		),
+		P(
+			"PetalLeafC6",
+			{ 0.7, 0.756, 0.12 },
+			{ -0.871, 3.508, -0.394 },
+			LEAF,
+			{ joint = "Body", rot = { -90, -73.301, 90 }, studs = false }
+		),
+		P(
+			"PetalLeafC6Tip",
+			{ 0.495, 0.495, 0.115 },
+			{ -0.979, 3.146, -0.394 },
+			LEAF,
+			{ joint = "Body", rot = { 90, -106.699, -45 }, studs = false }
+		),
+		P(
+			"Bloom1Petal1",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.869, 1.563, -2.1 },
+			FLOWER2,
+			{ joint = "Body", rot = { -70.71, 0, 0 }, studs = false }
+		),
+		P(
+			"Bloom1Petal2",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.681, 1.692, -2.055 },
+			GLINT,
+			{ joint = "Body", rot = { -70.71, -72, 0 }, studs = false }
+		),
+		P(
+			"Bloom1Petal3",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.752, 1.901, -1.982 },
+			FLOWER2,
+			{ joint = "Body", rot = { -70.71, -144, 0 }, studs = false }
+		),
+		P(
+			"Bloom1Petal4",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.985, 1.901, -1.982 },
+			GLINT,
+			{ joint = "Body", rot = { -70.71, 144, 0 }, studs = false }
+		),
+		P(
+			"Bloom1Petal5",
+			{ 0.304, 0.1, 0.33 },
+			{ -1.057, 1.692, -2.055 },
+			FLOWER2,
+			{ joint = "Body", rot = { -70.71, 72, 0 }, studs = false }
+		),
+		P(
+			"Bloom1Centre",
+			{ 0.224, 0.14, 0.224 },
+			{ -0.869, 1.76, -2.063 },
+			POLLEN,
+			{ joint = "Body", rot = { -70.71, 45, 0 }, material = "Neon", studs = false }
+		),
+		P(
+			"Bloom2Petal1",
+			{ 0.304, 0.1, 0.33 },
+			{ 2.1, 1.563, -1.305 },
+			FLOWER2,
+			{ joint = "Body", rot = { -90, -19.29, -90 }, studs = false }
+		),
+		P(
+			"Bloom2Petal2",
+			{ 0.304, 0.1, 0.33 },
+			{ 2.055, 1.692, -1.117 },
+			GLINT,
+			{ joint = "Body", rot = { 17.05, -174.141, 71.589 }, studs = false }
+		),
+		P(
+			"Bloom2Petal3",
+			{ 0.304, 0.1, 0.33 },
+			{ 1.982, 1.901, -1.188 },
+			FLOWER2,
+			{ joint = "Body", rot = { 127.588, 15.501, -101.625 }, studs = false }
+		),
+		P(
+			"Bloom2Petal4",
+			{ 0.304, 0.1, 0.33 },
+			{ 1.982, 1.901, -1.421 },
+			GLINT,
+			{ joint = "Body", rot = { 52.412, 15.501, -78.375 }, studs = false }
+		),
+		P(
+			"Bloom2Petal5",
+			{ 0.304, 0.1, 0.33 },
+			{ 2.055, 1.692, -1.493 },
+			FLOWER2,
+			{ joint = "Body", rot = { -17.05, -5.859, -71.589 }, studs = false }
+		),
+		P(
+			"Bloom2Centre",
+			{ 0.224, 0.14, 0.224 },
+			{ 2.063, 1.76, -1.305 },
+			POLLEN,
+			{ joint = "Body", rot = { -43.346, -13.509, -76.099 }, material = "Neon", studs = false }
+		),
+		P(
+			"Bloom3Petal1",
+			{ 0.304, 0.1, 0.33 },
+			{ 2.1, 1.563, 0.869 },
+			FLOWER2,
+			{ joint = "Body", rot = { -90, -19.29, -90 }, studs = false }
+		),
+		P(
+			"Bloom3Petal2",
+			{ 0.304, 0.1, 0.33 },
+			{ 2.055, 1.692, 1.057 },
+			GLINT,
+			{ joint = "Body", rot = { 17.05, -174.141, 71.589 }, studs = false }
+		),
+		P(
+			"Bloom3Petal3",
+			{ 0.304, 0.1, 0.33 },
+			{ 1.982, 1.901, 0.985 },
+			FLOWER2,
+			{ joint = "Body", rot = { 127.588, 15.501, -101.625 }, studs = false }
+		),
+		P(
+			"Bloom3Petal4",
+			{ 0.304, 0.1, 0.33 },
+			{ 1.982, 1.901, 0.752 },
+			GLINT,
+			{ joint = "Body", rot = { 52.412, 15.501, -78.375 }, studs = false }
+		),
+		P(
+			"Bloom3Petal5",
+			{ 0.304, 0.1, 0.33 },
+			{ 2.055, 1.692, 0.681 },
+			FLOWER2,
+			{ joint = "Body", rot = { -17.05, -5.859, -71.589 }, studs = false }
+		),
+		P(
+			"Bloom3Centre",
+			{ 0.224, 0.14, 0.224 },
+			{ 2.063, 1.76, 0.869 },
+			POLLEN,
+			{ joint = "Body", rot = { -43.346, -13.509, -76.099 }, material = "Neon", studs = false }
+		),
+		P(
+			"Bloom4Petal1",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.265, 1.563, 2.1 },
+			FLOWER2,
+			{ joint = "Body", rot = { 70.71, 180, 0 }, studs = false }
+		),
+		P(
+			"Bloom4Petal2",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.454, 1.692, 2.055 },
+			GLINT,
+			{ joint = "Body", rot = { 70.71, 108, 0 }, studs = false }
+		),
+		P(
+			"Bloom4Petal3",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.382, 1.901, 1.982 },
+			FLOWER2,
+			{ joint = "Body", rot = { 70.71, 36, 0 }, studs = false }
+		),
+		P(
+			"Bloom4Petal4",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.149, 1.901, 1.982 },
+			GLINT,
+			{ joint = "Body", rot = { 70.71, -36, 0 }, studs = false }
+		),
+		P(
+			"Bloom4Petal5",
+			{ 0.304, 0.1, 0.33 },
+			{ -0.077, 1.692, 2.055 },
+			FLOWER2,
+			{ joint = "Body", rot = { 70.71, -108, 0 }, studs = false }
+		),
+		P(
+			"Bloom4Centre",
+			{ 0.224, 0.14, 0.224 },
+			{ -0.265, 1.76, 2.063 },
+			POLLEN,
+			{ joint = "Body", rot = { 70.71, -135, 0 }, material = "Neon", studs = false }
+		),
+		P(
+			"Bloom5Petal1",
+			{ 0.304, 0.1, 0.33 },
+			{ -2.1, 1.563, 0.265 },
+			FLOWER2,
+			{ joint = "Body", rot = { -90, 19.29, 90 }, studs = false }
+		),
+		P(
+			"Bloom5Petal2",
+			{ 0.304, 0.1, 0.33 },
+			{ -2.055, 1.692, 0.077 },
+			GLINT,
+			{ joint = "Body", rot = { -17.05, 5.859, 71.589 }, studs = false }
+		),
+		P(
+			"Bloom5Petal3",
+			{ 0.304, 0.1, 0.33 },
+			{ -1.982, 1.901, 0.149 },
+			FLOWER2,
+			{ joint = "Body", rot = { 52.412, -15.501, 78.375 }, studs = false }
+		),
+		P(
+			"Bloom5Petal4",
+			{ 0.304, 0.1, 0.33 },
+			{ -1.982, 1.901, 0.382 },
+			GLINT,
+			{ joint = "Body", rot = { 127.588, -15.501, 101.625 }, studs = false }
+		),
+		P(
+			"Bloom5Petal5",
+			{ 0.304, 0.1, 0.33 },
+			{ -2.055, 1.692, 0.454 },
+			FLOWER2,
+			{ joint = "Body", rot = { 17.05, 174.141, -71.589 }, studs = false }
+		),
+		P(
+			"Bloom5Centre",
+			{ 0.224, 0.14, 0.224 },
+			{ -2.063, 1.76, 0.265 },
+			POLLEN,
+			{ joint = "Body", rot = { -136.654, 13.509, 103.901 }, material = "Neon", studs = false }
+		),
+		P(
+			"SproutStem",
+			{ 0.2, 0.652, 0.2 },
+			{ 0, 4.275, 0.025 },
+			DARK,
+			{ joint = "Body", rot = { 4.399, 0, 0 }, studs = false }
+		),
+		P(
+			"SproutL",
+			{ 0.7, 0.966, 0.12 },
+			{ -0.422, 4.834, 0.073 },
+			LEAF3,
+			{ joint = "Body", rot = { 1.351, -177.57, -60.917 }, studs = false }
+		),
+		P(
+			"SproutLTip",
+			{ 0.495, 0.495, 0.115 },
+			{ -0.843, 5.069, 0.097 },
+			LEAF3,
+			{ joint = "Body", rot = { 1.351, -177.57, -15.917 }, studs = false }
+		),
+		P(
+			"SproutLVein",
+			{ 0.112, 0.92, 0.05 },
+			{ -0.449, 4.85, 0.135 },
+			LEAF,
+			{ joint = "Body", rot = { 1.351, -177.57, -60.917 }, studs = false }
+		),
+		P(
+			"SproutR",
+			{ 0.7, 0.966, 0.12 },
+			{ 0.422, 4.834, 0.073 },
+			LEAF3,
+			{ joint = "Body", rot = { 1.351, 177.57, 60.917 }, studs = false }
+		),
+		P(
+			"SproutRTip",
+			{ 0.495, 0.495, 0.115 },
+			{ 0.843, 5.069, 0.097 },
+			LEAF3,
+			{ joint = "Body", rot = { -178.649, 2.43, -74.083 }, studs = false }
+		),
+		P(
+			"SproutRVein",
+			{ 0.112, 0.92, 0.05 },
+			{ 0.449, 4.85, 0.135 },
+			LEAF,
+			{ joint = "Body", rot = { 1.351, 177.57, 60.917 }, studs = false }
+		),
+	},
+}
+
+local pet: Builder.Spec = {
+	parts = {
+		P(
+			"HingeBody",
+			{ 0.24, 0.24, 0.24 },
+			{ 0, 1.44, 0.24 },
+			LEAF,
+			{ joint = "Body", transparency = 1, studs = false }
+		),
+		P("Torso", { 2.76, 1.5, 2.76 }, { 0, 1.56, 0.42 }, LEAF, { joint = "Body", rot = { -12, 0, 0 } }),
+		P(
+			"Belly",
+			{ 2.28, 1.08, 2.28 },
+			{ 0, 0.936, 0.3 },
+			CREAM,
+			{ joint = "Body", rot = { -12, 0, 0 }, studs = false }
+		),
+		P("Rump", { 2.4, 1.08, 0.84 }, { 0, 1.26, 1.74 }, MAIN2, { joint = "Body", rot = { -25, 0, 0 } }),
+		P("Chest", { 2.28, 1.26, 0.66 }, { 0, 1.38, -1.02 }, CREAM, { joint = "Body", rot = { -12, 0, 0 } }),
+		P("ChestLow", { 1.8, 0.54, 0.6 }, { 0, 0.72, -0.84 }, CREAM2, { joint = "Body", studs = false }),
+		P(
+			"Leaf1",
+			{ 0.96, 1.26, 0.192 },
+			{ -0.799, 2.278, 0.063 },
+			DARK,
+			{ joint = "Body", rot = { -82.621, -16.84, 166.655 }, studs = false }
+		),
+		P(
+			"Leaf1Tip",
+			{ 0.679, 0.679, 0.184 },
+			{ -0.938, 2.158, 0.665 },
+			DARK,
+			{ joint = "Body", rot = { -82.621, -16.84, -148.345 }, studs = false }
+		),
+		P(
+			"Leaf1Vein",
+			{ 0.154, 1.2, 0.06 },
+			{ -0.781, 2.179, 0.094 },
+			MAIN2,
+			{ joint = "Body", rot = { -82.621, -16.84, 166.655 }, studs = false }
+		),
+		P(
+			"Leaf2",
+			{ 0.96, 1.26, 0.192 },
+			{ 0.799, 2.278, 0.063 },
+			LEAF,
+			{ joint = "Body", rot = { -82.621, 16.84, -166.655 }, studs = false }
+		),
+		P(
+			"Leaf2Tip",
+			{ 0.679, 0.679, 0.184 },
+			{ 0.938, 2.158, 0.665 },
+			LEAF,
+			{ joint = "Body", rot = { -82.621, 16.84, -121.655 }, studs = false }
+		),
+		P(
+			"Leaf2Vein",
+			{ 0.154, 1.2, 0.06 },
+			{ 0.781, 2.179, 0.094 },
+			DARK,
+			{ joint = "Body", rot = { -82.621, 16.84, -166.655 }, studs = false }
+		),
+		P(
+			"Leaf3",
+			{ 0.936, 1.31, 0.192 },
+			{ -1.379, 2.09, 0.718 },
+			LEAF,
+			{ joint = "Body", rot = { 90.722, -154.843, -23.737 }, studs = false }
+		),
+		P(
+			"Leaf3Tip",
+			{ 0.662, 0.662, 0.184 },
+			{ -1.617, 1.97, 1.317 },
+			LEAF,
+			{ joint = "Body", rot = { 90.722, -154.843, 21.263 }, studs = false }
+		),
+		P(
+			"Leaf3Vein",
+			{ 0.15, 1.248, 0.06 },
+			{ -1.355, 1.994, 0.76 },
+			DARK,
+			{ joint = "Body", rot = { 90.722, -154.843, -23.737 }, studs = false }
+		),
+		P(
+			"Leaf4",
+			{ 0.936, 1.31, 0.192 },
+			{ 0, 2.332, 0.762 },
+			LEAF3,
+			{ joint = "Body", rot = { -78.69, 0, 180 }, studs = false }
+		),
+		P(
+			"Leaf4Tip",
+			{ 0.662, 0.662, 0.184 },
+			{ 0, 2.203, 1.405 },
+			LEAF3,
+			{ joint = "Body", rot = { -78.69, 0, -135 }, studs = false }
+		),
+		P(
+			"Leaf4Vein",
+			{ 0.15, 1.248, 0.06 },
+			{ 0, 2.228, 0.79 },
+			DARK,
+			{ joint = "Body", rot = { -78.69, 0, 180 }, studs = false }
+		),
+		P(
+			"Leaf5",
+			{ 0.936, 1.31, 0.192 },
+			{ 1.379, 2.09, 0.718 },
+			DARK,
+			{ joint = "Body", rot = { 90.722, 154.843, 23.737 }, studs = false }
+		),
+		P(
+			"Leaf5Tip",
+			{ 0.662, 0.662, 0.184 },
+			{ 1.617, 1.97, 1.317 },
+			DARK,
+			{ joint = "Body", rot = { -89.278, 25.157, -111.263 }, studs = false }
+		),
+		P(
+			"Leaf5Vein",
+			{ 0.15, 1.248, 0.06 },
+			{ 1.355, 1.994, 0.76 },
+			MAIN2,
+			{ joint = "Body", rot = { 90.722, 154.843, 23.737 }, studs = false }
+		),
+		P(
+			"Leaf6",
+			{ 0.912, 1.26, 0.192 },
+			{ -0.871, 2.002, 1.44 },
+			LEAF3,
+			{ joint = "Body", rot = { -83.323, -18.1, 165.382 }, studs = false }
+		),
+		P(
+			"Leaf6Tip",
+			{ 0.645, 0.645, 0.184 },
+			{ -1.022, 1.882, 2.039 },
+			LEAF3,
+			{ joint = "Body", rot = { -83.323, -18.1, -149.618 }, studs = false }
+		),
+		P(
+			"Leaf6Vein",
+			{ 0.146, 1.2, 0.06 },
+			{ -0.852, 1.902, 1.472 },
+			DARK,
+			{ joint = "Body", rot = { -83.323, -18.1, 165.382 }, studs = false }
+		),
+		P(
+			"Leaf7",
+			{ 0.912, 1.26, 0.192 },
+			{ 0.871, 2.002, 1.44 },
+			DARK,
+			{ joint = "Body", rot = { -83.323, 18.1, -165.382 }, studs = false }
+		),
+		P(
+			"Leaf7Tip",
+			{ 0.645, 0.645, 0.184 },
+			{ 1.022, 1.882, 2.039 },
+			DARK,
+			{ joint = "Body", rot = { -83.323, 18.1, -120.382 }, studs = false }
+		),
+		P(
+			"Leaf7Vein",
+			{ 0.146, 1.2, 0.06 },
+			{ 0.852, 1.902, 1.472 },
+			MAIN2,
+			{ joint = "Body", rot = { -83.323, 18.1, -165.382 }, studs = false }
+		),
+		P(
+			"Leaf8",
+			{ 0.84, 1.058, 0.192 },
+			{ -1.333, 1.597, 1.923 },
+			DARK,
+			{ joint = "Body", rot = { 90.722, -154.843, -23.737 }, studs = false }
+		),
+		P(
+			"Leaf8Tip",
+			{ 0.594, 0.594, 0.184 },
+			{ -1.526, 1.5, 2.407 },
+			DARK,
+			{ joint = "Body", rot = { 90.722, -154.843, 21.263 }, studs = false }
+		),
+		P(
+			"Leaf8Vein",
+			{ 0.134, 1.008, 0.06 },
+			{ -1.306, 1.503, 1.957 },
+			MAIN2,
+			{ joint = "Body", rot = { 90.722, -154.843, -23.737 }, studs = false }
+		),
+		P(
+			"Leaf9",
+			{ 0.84, 1.058, 0.192 },
+			{ 0, 1.84, 1.959 },
+			DARK,
+			{ joint = "Body", rot = { -78.69, 0, 180 }, studs = false }
+		),
+		P(
+			"Leaf9Tip",
+			{ 0.594, 0.594, 0.184 },
+			{ 0, 1.736, 2.478 },
+			DARK,
+			{ joint = "Body", rot = { -78.69, 0, -135 }, studs = false }
+		),
+		P(
+			"Leaf9Vein",
+			{ 0.134, 1.008, 0.06 },
+			{ 0, 1.739, 1.977 },
+			MAIN2,
+			{ joint = "Body", rot = { -78.69, 0, 180 }, studs = false }
+		),
+		P(
+			"Leaf10",
+			{ 0.84, 1.058, 0.192 },
+			{ 1.333, 1.597, 1.923 },
+			LEAF,
+			{ joint = "Body", rot = { 90.722, 154.843, 23.737 }, studs = false }
+		),
+		P(
+			"Leaf10Tip",
+			{ 0.594, 0.594, 0.184 },
+			{ 1.526, 1.5, 2.407 },
+			LEAF,
+			{ joint = "Body", rot = { -89.278, 25.157, -111.263 }, studs = false }
+		),
+		P(
+			"Leaf10Vein",
+			{ 0.134, 1.008, 0.06 },
+			{ 1.306, 1.503, 1.957 },
+			DARK,
+			{ joint = "Body", rot = { 90.722, 154.843, 23.737 }, studs = false }
+		),
+		P(
+			"Flower1Petal1",
+			{ 0.375, 0.12, 0.408 },
+			{ -0.752, 2.482, -0.064 },
+			FLOWER2,
+			{ joint = "Body", rot = { 5.091, 1.779, 19.211 }, studs = false }
+		),
+		P(
+			"Flower1Petal2",
+			{ 0.375, 0.12, 0.408 },
+			{ -0.527, 2.544, 0.105 },
+			GLINT,
+			{ joint = "Body", rot = { 47.992, -62.632, 45.678 }, studs = false }
+		),
+		P(
+			"Flower1Petal3",
+			{ 0.375, 0.12, 0.408 },
+			{ -0.602, 2.49, 0.377 },
+			FLOWER2,
+			{ joint = "Body", rot = { -8.642, -144.557, -23.81 }, studs = false }
+		),
+		P(
+			"Flower1Petal4",
+			{ 0.375, 0.12, 0.408 },
+			{ -0.874, 2.395, 0.377 },
+			GLINT,
+			{ joint = "Body", rot = { 18.272, 148.017, -22.814 }, studs = false }
+		),
+		P(
+			"Flower1Petal5",
+			{ 0.375, 0.12, 0.408 },
+			{ -0.966, 2.39, 0.105 },
+			FLOWER2,
+			{ joint = "Body", rot = { -42.989, 65.129, 51.443 }, studs = false }
+		),
+		P(
+			"Flower1Centre",
+			{ 0.277, 0.168, 0.277 },
+			{ -0.756, 2.494, 0.183 },
+			POLLEN,
+			{ joint = "Body", rot = { -13.644, 43.579, 27.001 }, material = "Neon", studs = false }
+		),
+		P(
+			"Flower2Petal1",
+			{ 0.331, 0.12, 0.36 },
+			{ 1.091, 1.967, 1.256 },
+			FLOWER2,
+			{ joint = "Body", rot = { 39.806, -134.312, 30.807 }, studs = false }
+		),
+		P(
+			"Flower2Petal2",
+			{ 0.331, 0.12, 0.36 },
+			{ 0.861, 2.034, 1.34 },
+			GLINT,
+			{ joint = "Body", rot = { 8.482, 159.542, 22.449 }, studs = false }
+		),
+		P(
+			"Flower2Petal3",
+			{ 0.331, 0.12, 0.36 },
+			{ 0.735, 2.142, 1.148 },
+			FLOWER2,
+			{ joint = "Body", rot = { 95.692, 68.679, -79.73 }, studs = false }
+		),
+		P(
+			"Flower2Petal4",
+			{ 0.331, 0.12, 0.36 },
+			{ 0.887, 2.142, 0.945 },
+			GLINT,
+			{ joint = "Body", rot = { 21.804, 13.074, -21.549 }, studs = false }
+		),
+		P(
+			"Flower2Petal5",
+			{ 0.331, 0.12, 0.36 },
+			{ 1.107, 2.034, 1.011 },
+			FLOWER2,
+			{ joint = "Body", rot = { -13.076, -52.349, -35.852 }, studs = false }
+		),
+		P(
+			"Flower2Centre",
+			{ 0.245, 0.168, 0.245 },
+			{ 0.949, 2.096, 1.15 },
+			POLLEN,
+			{ joint = "Body", rot = { -59.508, -68.47, -77.137 }, material = "Neon", studs = false }
+		),
+		P(
+			"Flower3Petal1",
+			{ 0.304, 0.12, 0.33 },
+			{ 0.176, 2.302, -0.614 },
+			FLOWER2,
+			{ joint = "Body", rot = { -11.201, 1.113, -5.601 }, studs = false }
+		),
+		P(
+			"Flower3Petal2",
+			{ 0.304, 0.12, 0.33 },
+			{ 0.366, 2.309, -0.48 },
+			GLINT,
+			{ joint = "Body", rot = { -27.034, -70.108, -16.668 }, studs = false }
+		),
+		P(
+			"Flower3Petal3",
+			{ 0.304, 0.12, 0.33 },
+			{ 0.299, 2.36, -0.263 },
+			FLOWER2,
+			{ joint = "Body", rot = { -7.086, -143.089, 7.011 }, studs = false }
+		),
+		P(
+			"Flower3Petal4",
+			{ 0.304, 0.12, 0.33 },
+			{ 0.067, 2.383, -0.263 },
+			GLINT,
+			{ joint = "Body", rot = { -15.202, 145.309, 6.816 }, studs = false }
+		),
+		P(
+			"Flower3Petal5",
+			{ 0.304, 0.12, 0.33 },
+			{ -0.009, 2.347, -0.48 },
+			FLOWER2,
+			{ joint = "Body", rot = { 6.516, 72.239, -18.658 }, studs = false }
+		),
+		P(
+			"Flower3Centre",
+			{ 0.224, 0.168, 0.224 },
+			{ 0.184, 2.375, -0.427 },
+			POLLEN,
+			{ joint = "Body", rot = { -5.516, 45.835, -8.052 }, material = "Neon", studs = false }
+		),
+		P(
+			"HingeThroat",
+			{ 0.24, 0.24, 0.24 },
+			{ 0, 1.62, -1.2 },
+			LEAF,
+			{ joint = "Throat", transparency = 1, studs = false }
+		),
+		P("ThroatSac", { 1.5, 1.14, 1.08 }, { 0, 1.584, -1.344 }, CREAM, { joint = "Throat", studs = false }),
+		P(
+			"HingeHead",
+			{ 0.24, 0.24, 0.24 },
+			{ 0, 2.34, -0.84 },
+			LEAF,
+			{ joint = "Head", transparency = 1, studs = false }
+		),
+		P("Skull", { 3, 0.9, 2.16 }, { 0, 2.7, -1.5 }, LEAF, { joint = "Head" }),
+		P("Brow", { 2.76, 0.36, 0.42 }, { 0, 2.94, -2.46 }, MAIN2, { joint = "Head", studs = false }),
+		P("UpperLip", { 2.82, 0.384, 0.48 }, { 0, 2.376, -2.52 }, LEAF3, { joint = "Head", studs = false }),
+		P("Nostrils", { 0.84, 0.096, 0.072 }, { 0, 2.616, -2.796 }, DARK, { joint = "Head", studs = false }),
+		P("MouthBack", { 2.4, 0.504, 1.44 }, { 0, 2.064, -1.74 }, MOUTH, { joint = "Head", studs = false }),
+		P("CheekL", { 0.504, 0.9, 1.44 }, { -1.344, 2.34, -1.56 }, MAIN2, { joint = "Head", studs = false }),
+		P("SmileSideL", { 0.096, 0.12, 1.32 }, { -1.608, 2.208, -1.74 }, MOUTH, { joint = "Head", studs = false }),
+		P(
+			"SmileCurlL",
+			{ 0.096, 0.12, 0.36 },
+			{ -1.608, 2.304, -1.056 },
+			MOUTH,
+			{ joint = "Head", rot = { -35, 0, 0 }, studs = false }
+		),
+		P("EyeTurretL", { 1.14, 0.9, 1.08 }, { -0.936, 3.42, -1.74 }, LEAF, { joint = "Head" }),
+		P("EyeRimL", { 1.2, 0.192, 1.14 }, { -0.936, 3.84, -1.74 }, LEAF3, { joint = "Head", studs = false }),
+		P("EyeL", { 0.888, 0.744, 0.072 }, { -0.936, 3.432, -2.304 }, EYE, { joint = "Head", studs = false }),
+		P("PupilL", { 0.624, 0.6, 0.072 }, { -0.888, 3.396, -2.352 }, INK, { joint = "Head", studs = false }),
+		P(
+			"GlintL",
+			{ 0.204, 0.204, 0.06 },
+			{ -0.744, 3.564, -2.4 },
+			EYE,
+			{ joint = "Head", material = "Neon", studs = false }
+		),
+		P("CheekR", { 0.504, 0.9, 1.44 }, { 1.344, 2.34, -1.56 }, MAIN2, { joint = "Head", studs = false }),
+		P("SmileSideR", { 0.096, 0.12, 1.32 }, { 1.608, 2.208, -1.74 }, MOUTH, { joint = "Head", studs = false }),
+		P(
+			"SmileCurlR",
+			{ 0.096, 0.12, 0.36 },
+			{ 1.608, 2.304, -1.056 },
+			MOUTH,
+			{ joint = "Head", rot = { -35, 0, 0 }, studs = false }
+		),
+		P("EyeTurretR", { 1.14, 0.9, 1.08 }, { 0.936, 3.42, -1.74 }, LEAF, { joint = "Head" }),
+		P("EyeRimR", { 1.2, 0.192, 1.14 }, { 0.936, 3.84, -1.74 }, LEAF3, { joint = "Head", studs = false }),
+		P("EyeR", { 0.888, 0.744, 0.072 }, { 0.936, 3.432, -2.304 }, EYE, { joint = "Head", studs = false }),
+		P("PupilR", { 0.624, 0.6, 0.072 }, { 0.888, 3.396, -2.352 }, INK, { joint = "Head", studs = false }),
+		P(
+			"GlintR",
+			{ 0.204, 0.204, 0.06 },
+			{ 0.744, 3.564, -2.4 },
+			EYE,
+			{ joint = "Head", material = "Neon", studs = false }
+		),
+		P(
+			"SproutStem",
+			{ 0.264, 0.971, 0.264 },
+			{ 0, 3.624, -1.308 },
+			DARK,
+			{ joint = "Head", rot = { 8.531, 0, 0 }, studs = false }
+		),
+		P(
+			"SproutStem2",
+			{ 0.216, 0.814, 0.216 },
+			{ 0.048, 4.482, -1.278 },
+			LEAF,
+			{ joint = "Head", rot = { -5.881, 0.701, -6.773 }, studs = false }
+		),
+		P(
+			"SproutBud",
+			{ 0.336, 0.336, 0.336 },
+			{ 0.096, 4.884, -1.32 },
+			LEAF3,
+			{ joint = "Head", rot = { 45, 45, 0 }, studs = false }
+		),
+		P(
+			"SproutL",
+			{ 1.02, 1.462, 0.144 },
+			{ -0.557, 5.15, -1.284 },
+			LEAF3,
+			{ joint = "Head", rot = { 1.273, -177.456, -63.407 }, studs = false }
+		),
+		P(
+			"SproutLTip",
+			{ 0.721, 0.721, 0.138 },
+			{ -1.21, 5.477, -1.247 },
+			LEAF3,
+			{ joint = "Head", rot = { 1.273, -177.456, -18.407 }, studs = false }
+		),
+		P(
+			"SproutLVein",
+			{ 0.163, 1.392, 0.06 },
+			{ -0.6, 5.172, -1.209 },
+			LEAF,
+			{ joint = "Head", rot = { 1.273, -177.456, -63.407 }, studs = false }
+		),
+		P(
+			"SproutR",
+			{ 1.02, 1.462, 0.144 },
+			{ 0.749, 5.15, -1.284 },
+			LEAF3,
+			{ joint = "Head", rot = { 1.273, 177.456, 63.407 }, studs = false }
+		),
+		P(
+			"SproutRTip",
+			{ 0.721, 0.721, 0.138 },
+			{ 1.402, 5.477, -1.247 },
+			LEAF3,
+			{ joint = "Head", rot = { -178.727, 2.544, -71.593 }, studs = false }
+		),
+		P(
+			"SproutRVein",
+			{ 0.163, 1.392, 0.06 },
+			{ 0.792, 5.172, -1.209 },
+			LEAF,
+			{ joint = "Head", rot = { 1.273, 177.456, 63.407 }, studs = false }
+		),
+		P(
+			"HingeJaw",
+			{ 0.24, 0.24, 0.24 },
+			{ 0, 1.92, -0.9 },
+			LEAF,
+			{ joint = "Jaw", transparency = 1, studs = false }
+		),
+		P(
+			"LowerJaw",
+			{ 2.76, 0.504, 1.92 },
+			{ 0, 1.405, -1.543 },
+			CREAM,
+			{ joint = "Jaw", rot = { -20, 0, 0 }, studs = false }
+		),
+		P(
+			"Chin",
+			{ 2.28, 0.3, 0.36 },
+			{ 0, 1.21, -2.429 },
+			CREAM2,
+			{ joint = "Jaw", rot = { -20, 0, 0 }, studs = false }
+		),
+		P(
+			"Tongue",
+			{ 1.32, 0.216, 1.26 },
+			{ 0, 1.556, -2.006 },
+			TONGUE,
+			{ joint = "Jaw", rot = { -12, 0, 0 }, studs = false }
+		),
+		P(
+			"HingeArmL",
+			{ 0.24, 0.24, 0.24 },
+			{ -1.02, 1.38, -1.14 },
+			LEAF,
+			{ joint = "ArmL", transparency = 1, studs = false }
+		),
+		P(
+			"ArmL",
+			{ 0.66, 1.12, 0.66 },
+			{ -1.11, 0.882, -1.38 },
+			LEAF,
+			{ joint = "ArmL", rot = { 25.018, -4.37, 170.726 } }
+		),
+		P("ArmBandL", { 0.744, 0.216, 0.744 }, { -1.128, 0.782, -1.428 }, LEAF3, { joint = "ArmL", studs = false }),
+		P("HandL", { 0.84, 0.36, 0.66 }, { -1.224, 0.204, -1.8 }, MAIN2, { joint = "ArmL", studs = false }),
+		P("ToeL1", { 0.24, 0.312, 0.456 }, { -1.512, 0.156, -2.232 }, CREAM, { joint = "ArmL", studs = false }),
+		P("ToeL2", { 0.24, 0.312, 0.456 }, { -1.224, 0.156, -2.232 }, CREAM, { joint = "ArmL", studs = false }),
+		P("ToeL3", { 0.24, 0.312, 0.456 }, { -0.936, 0.156, -2.232 }, CREAM, { joint = "ArmL", studs = false }),
+		P(
+			"HingeArmR",
+			{ 0.24, 0.24, 0.24 },
+			{ 1.02, 1.38, -1.14 },
+			LEAF,
+			{ joint = "ArmR", transparency = 1, studs = false }
+		),
+		P(
+			"ArmR",
+			{ 0.66, 1.12, 0.66 },
+			{ 1.11, 0.882, -1.38 },
+			LEAF,
+			{ joint = "ArmR", rot = { 25.018, 4.37, -170.726 } }
+		),
+		P("ArmBandR", { 0.744, 0.216, 0.744 }, { 1.128, 0.782, -1.428 }, LEAF3, { joint = "ArmR", studs = false }),
+		P("HandR", { 0.84, 0.36, 0.66 }, { 1.224, 0.204, -1.8 }, MAIN2, { joint = "ArmR", studs = false }),
+		P("ToeR1", { 0.24, 0.312, 0.456 }, { 0.936, 0.156, -2.232 }, CREAM, { joint = "ArmR", studs = false }),
+		P("ToeR2", { 0.24, 0.312, 0.456 }, { 1.224, 0.156, -2.232 }, CREAM, { joint = "ArmR", studs = false }),
+		P("ToeR3", { 0.24, 0.312, 0.456 }, { 1.512, 0.156, -2.232 }, CREAM, { joint = "ArmR", studs = false }),
+		P(
+			"HingeLegL",
+			{ 0.24, 0.24, 0.24 },
+			{ -1.26, 1.2, 1.02 },
+			LEAF,
+			{ joint = "LegL", transparency = 1, studs = false }
+		),
+		P("ThighL", { 1.32, 1.5, 1.98 }, { -1.704, 1.14, 0.84 }, LEAF, { joint = "LegL", rot = { -10, 0, 0 } }),
+		P(
+			"ThighTopL",
+			{ 1.2, 0.3, 1.68 },
+			{ -1.704, 1.944, 0.72 },
+			LEAF3,
+			{ joint = "LegL", rot = { -10, 0, 0 }, studs = false }
+		),
+		P("KneeL", { 1.14, 1.08, 0.72 }, { -1.74, 0.9, -0.18 }, MAIN2, { joint = "LegL", studs = false }),
+		P("ShinL", { 0.96, 0.54, 2.16 }, { -1.86, 0.3, 0.66 }, DARK, { joint = "LegL" }),
+		P("FootL", { 1.14, 0.36, 1.08 }, { -1.944, 0.18, -0.66 }, MAIN2, { joint = "LegL", studs = false }),
+		P("HindToeL1", { 0.288, 0.336, 0.66 }, { -2.304, 0.168, -1.416 }, CREAM, { joint = "LegL", studs = false }),
+		P("HindToeL2", { 0.288, 0.336, 0.66 }, { -1.944, 0.168, -1.416 }, CREAM, { joint = "LegL", studs = false }),
+		P("HindToeL3", { 0.288, 0.336, 0.66 }, { -1.584, 0.168, -1.416 }, CREAM, { joint = "LegL", studs = false }),
+		P(
+			"HingeLegR",
+			{ 0.24, 0.24, 0.24 },
+			{ 1.26, 1.2, 1.02 },
+			LEAF,
+			{ joint = "LegR", transparency = 1, studs = false }
+		),
+		P("ThighR", { 1.32, 1.5, 1.98 }, { 1.704, 1.14, 0.84 }, LEAF, { joint = "LegR", rot = { -10, 0, 0 } }),
+		P(
+			"ThighTopR",
+			{ 1.2, 0.3, 1.68 },
+			{ 1.704, 1.944, 0.72 },
+			LEAF3,
+			{ joint = "LegR", rot = { -10, 0, 0 }, studs = false }
+		),
+		P("KneeR", { 1.14, 1.08, 0.72 }, { 1.74, 0.9, -0.18 }, MAIN2, { joint = "LegR", studs = false }),
+		P("ShinR", { 0.96, 0.54, 2.16 }, { 1.86, 0.3, 0.66 }, DARK, { joint = "LegR" }),
+		P("FootR", { 1.14, 0.36, 1.08 }, { 1.944, 0.18, -0.66 }, MAIN2, { joint = "LegR", studs = false }),
+		P("HindToeR1", { 0.288, 0.336, 0.66 }, { 1.584, 0.168, -1.416 }, CREAM, { joint = "LegR", studs = false }),
+		P("HindToeR2", { 0.288, 0.336, 0.66 }, { 1.944, 0.168, -1.416 }, CREAM, { joint = "LegR", studs = false }),
+		P("HindToeR3", { 0.288, 0.336, 0.66 }, { 2.304, 0.168, -1.416 }, CREAM, { joint = "LegR", studs = false }),
+	},
+}
+
+return { egg = egg, pet = pet }

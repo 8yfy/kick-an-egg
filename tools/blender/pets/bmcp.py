@@ -3,7 +3,7 @@
 It talks to the same add-on bridge the Blender MCP server (mcp-for-blender) uses, so these scripts run with or
 without the MCP server. `code` joins the files in order and prepends REPO = <repository root>, ARGS = the
 `key=value` pairs after `--`, and a boot block that puts this folder on sys.path and drops cached `kit`, `heroes`,
-`zones` and `v3` modules (so every run imports the current source).
+`zones`, `v3` and `zone1` modules (so every run imports the current source).
 Usage:
   python -I bmcp.py ping
   python -I bmcp.py code build.py -- what=zone1          # runs the files inside the live Blender GUI
@@ -20,7 +20,7 @@ BOOT = """import sys
 _kit = REPO + "/tools/blender/pets"
 if _kit not in sys.path:
     sys.path.insert(0, _kit)
-for _m in [m for m in sys.modules if m.split(".")[0] in ("kit", "heroes", "zones", "v3")]:
+for _m in [m for m in sys.modules if m.split(".")[0] in ("kit", "heroes", "zones", "v3", "zone1")]:
     del sys.modules[_m]
 """
 

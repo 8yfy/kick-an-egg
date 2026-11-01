@@ -1,0 +1,31 @@
+{
+ "key": "WalkingOrchard",
+ "name": "The Walking Orchard",
+ "rarity": "Divine",
+ "zone": "Meadow",
+ "concept": "The Walking Orchard: a sacred bark stag whose antlers grow into fruit-laden canopies, gold crest and hooves",
+ "pet_parts": 486,
+ "egg_parts": 151,
+ "pet_size_studs": [
+  10.54,
+  12.5,
+  10.14
+ ],
+ "joints": [
+  "AntlerL",
+  "AntlerR",
+  "ArmL",
+  "ArmR",
+  "Body",
+  "Head",
+  "LegL",
+  "LegR",
+  "Neck",
+  "Tail"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "spec": "src/shared/Builders/Models/Meadow/WalkingOrchard.luau",
+ "status": "approved by the user 2026-11-01; live in Zone 1 (Config/Pets)"
+}

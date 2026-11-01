@@ -10,7 +10,7 @@
 -- CLAIM when eligible, pending during the request, claimed only after the server's DataChanged confirms
 -- it. No reward is configured today, so the panel shows the zone's progress instead (never "$0" or "free").
 -- Footer: DISCOVERED found / total. Short screens: the detail becomes a sheet that slides over the list.
--- Top of the list: COMPLETION REWARDS (Economy.IndexMilestones: 10 / 25 / 40 / 60 / all 79 discovered): total
+-- Top of the list: COMPLETION REWARDS (Economy.IndexMilestones: 10 / 25 / 40 / 60 / all 84 discovered): total
 -- found and %, a bar to the next milestone with its reward, and one chip per milestone (CLAIM when reached,
 -- CLAIMED after the server confirms, LOCKED before). Claims go to Remotes.ClaimIndexMilestone (IndexService).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,6 +30,7 @@ local PetIndex = {}
 local DETAIL_W = 370
 local SECTION_H = 262
 local STRIP_W = 200
+local CARDS_H = 186 -- one row of pet cards; a zone with more than 4 pets wraps into rows of 4 (Zone 1 Meadow has 8)
 
 local function remote(name: string): RemoteEvent
 	local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes")) :: any
@@ -398,9 +399,10 @@ function PetIndex.define()
 
 			-- Build every section once; refresh only repaints.
 			for order, zone in Data.index() do
+				local rows = math.max(1, math.ceil(#zone.pets / 4))
 				local sec = Ui.surface(list, "Zone" .. zone.id, C.card, Theme.Studs.body, 4)
 				sec.LayoutOrder = order
-				sec.Size = UDim2.new(1, -8, 0, SECTION_H)
+				sec.Size = UDim2.new(1, -8, 0, SECTION_H + (rows - 1) * (CARDS_H + 10))
 				local strip = Instance.new("Frame")
 				strip.Name = "ZoneArt"
 				strip.Position = UDim2.fromOffset(10, 10)
@@ -432,21 +434,25 @@ function PetIndex.define()
 				zNum.Size = UDim2.new(1, -16, 0, 24)
 				zNum.ZIndex = 2
 
-				local cardsBox =
-					Ui.frame(sec, "Pets", UDim2.new(1, -(STRIP_W + 34), 0, 186), UDim2.fromOffset(STRIP_W + 22, 10))
+				local cardsBox = Ui.frame(
+					sec,
+					"Pets",
+					UDim2.new(1, -(STRIP_W + 34), 0, CARDS_H * rows + 10 * (rows - 1)),
+					UDim2.fromOffset(STRIP_W + 22, 10)
+				)
 				local barHolder =
 					Ui.frame(sec, "Bar", UDim2.new(1, -(STRIP_W + 34), 0, 44), UDim2.new(0, STRIP_W + 22, 1, -54))
 				local bar = Ui.progress(barHolder, Theme.Buttons.lime, 44, 30)
 				local s: Section = { zone = zone, gui = sec, bar = bar, cards = {} }
-				local n = math.max(4, #zone.pets)
+				local n = math.max(4, math.ceil(#zone.pets / rows))
 				for i, pet in zone.pets do
 					local b = Instance.new("TextButton")
 					b.Name = pet.petId
 					b.Text = ""
 					b.AutoButtonColor = false
 					b.Selectable = true
-					b.Size = UDim2.new(1 / n, -10, 1, 0)
-					b.Position = UDim2.new((i - 1) / n, 5, 0, 0)
+					b.Size = UDim2.new(1 / n, -10, 1 / rows, if rows > 1 then -10 else 0)
+					b.Position = UDim2.new((i - 1) % n / n, 5, (i - 1) // n / rows, 0)
 					Ui.corner(b)
 					Ui.fill(b, rarityFill(pet.rarity))
 					local stroke = Ui.stroke(b, 4)

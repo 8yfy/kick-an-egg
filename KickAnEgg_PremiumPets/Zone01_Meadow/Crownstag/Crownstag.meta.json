@@ -1,0 +1,29 @@
+{
+ "key": "Crownstag",
+ "name": "Crownstag",
+ "rarity": "Rare",
+ "zone": "Meadow",
+ "concept": "Crownstag: a chestnut stag with a shaggy cream ruff, wide flowering antlers, a gold crown with a pink gem",
+ "pet_parts": 203,
+ "egg_parts": 150,
+ "pet_size_studs": [
+  6.47,
+  7.34,
+  8.06
+ ],
+ "joints": [
+  "ArmL",
+  "ArmR",
+  "Body",
+  "Head",
+  "LegL",
+  "LegR",
+  "Neck",
+  "Tail"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "spec": "src/shared/Builders/Models/Meadow/Crownstag.luau",
+ "status": "approved by the user 2026-11-01; live in Zone 1 (Config/Pets)"
+}

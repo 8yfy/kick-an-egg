@@ -1,0 +1,28 @@
+{
+ "key": "ThistlebackHedgehog",
+ "name": "Thistleback Hedgehog",
+ "rarity": "Epic",
+ "zone": "Meadow",
+ "concept": "Thistleback Hedgehog: a round hedgehog under a dome of leaf plates and cream thorns, vines and berries",
+ "pet_parts": 246,
+ "egg_parts": 103,
+ "pet_size_studs": [
+  5.94,
+  8.73,
+  5.75
+ ],
+ "joints": [
+  "ArmL",
+  "ArmR",
+  "Body",
+  "Head",
+  "LegL",
+  "LegR",
+  "Quills"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "spec": "src/shared/Builders/Models/Meadow/ThistlebackHedgehog.luau",
+ "status": "approved by the user 2026-11-01; live in Zone 1 (Config/Pets)"
+}
