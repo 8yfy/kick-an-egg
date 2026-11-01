@@ -137,7 +137,7 @@ def build():
         joint_of[ob.name] = j
         for rx, piv in cfg["spin"]:
             m = re.match(rx, ob["rbx_name"])
-            if m:
+            if m and ob["rbx_joint"] != m.group(1) + ("Hands" if "Hand" in rx else ""):  # not already a joint
                 sub = m.group(1) + ("Hands" if "Hand" in rx else "")
                 joint_of[ob.name] = sub
                 parent_joint[sub] = j

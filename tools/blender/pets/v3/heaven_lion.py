@@ -90,6 +90,8 @@ def build(name="PK3_HeavenLion_Pet", offset=(0, 0, 0)):
             material="Neon", studs=False)
 
     # ---- the mane: rows of big rhombus scales wrapped round an ellipsoid (an artichoke opening at the face) -----
+    # Its own joint (pivot at the ellipsoid centre): it breathes, follows the head and flares on the roar.
+    k.hinge("Mane", MANE)
     a, b, c = 2.3, 2.45, 2.3  # ellipsoid radii round MANE
 
     def on_mane(phi, th):
@@ -130,6 +132,7 @@ def build(name="PK3_HeavenLion_Pet", offset=(0, 0, 0)):
                                        (-1.05, 1.5, "main"), (1.05, 1.5, "main"))):
         base = MANE + Vector((x, b * 0.82 - 0.1 * abs(x), 0.15 + 0.25 * abs(x)))
         spike(k, "Crest%d" % (i + 1), base, (x * 0.45, 1, 0.7), (x * 0.4, 0, -1), ln, 0.72, col, thick=0.18)
+    J("Body")
     # a bib under the chin, down the chest, carrying the radiant chest star
     for i, (x, y, sz) in enumerate(((-0.55, 3.15, 0.85), (0.55, 3.15, 0.85))):
         diamond(k, "Bib%d" % (i + 1), Vector((x, y, -2.32)), Vector((0, -0.25, -1)).normalized(),

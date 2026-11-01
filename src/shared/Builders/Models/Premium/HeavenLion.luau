@@ -753,837 +753,844 @@ local pet: Builder.Spec = {
 			{ joint = "Body", rot = { 45, 0, 0 }, material = "Neon", studs = false }
 		),
 		P(
+			"HingeMane",
+			{ 0.21, 0.21, 0.21 },
+			{ 0, 5.512, -1.26 },
+			MAIN,
+			{ joint = "Mane", transparency = 1, studs = false }
+		),
+		P(
 			"Mane1_1",
 			{ 1.05, 0.189, 1.05 },
 			{ 0, 7.025, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -77.505, 45, 0 }, studs = false }
+			{ joint = "Mane", rot = { -77.505, 45, 0 }, studs = false }
 		),
 		P(
 			"Mane1_2",
 			{ 1.05, 0.189, 1.05 },
 			{ 0.616, 6.875, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -61.879, 68.462, -18.238 }, studs = false }
+			{ joint = "Mane", rot = { -61.879, 68.462, -18.238 }, studs = false }
 		),
 		P(
 			"Mane1_3",
 			{ 1.05, 0.189, 1.05 },
 			{ 1.11, 6.455, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { 30.633, 77.528, -112.766 }, studs = false }
+			{ joint = "Mane", rot = { 30.633, 77.528, -112.766 }, studs = false }
 		),
 		P(
 			"Mane1_4",
 			{ 1.05, 0.189, 1.05 },
 			{ 1.384, 5.849, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -108.891, 124.117, 25.369 }, studs = false }
+			{ joint = "Mane", rot = { -108.891, 124.117, 25.369 }, studs = false }
 		),
 		P(
 			"Mane1_5",
 			{ 1.05, 0.189, 1.05 },
 			{ 1.384, 5.176, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -100.911, 149.549, 16.186 }, studs = false }
+			{ joint = "Mane", rot = { -100.911, 149.549, 16.186 }, studs = false }
 		),
 		P(
 			"Mane1_6",
 			{ 1.05, 0.189, 1.05 },
 			{ 1.11, 4.57, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { 81.649, 4.794, -168.473 }, studs = false }
+			{ joint = "Mane", rot = { 81.649, 4.794, -168.473 }, studs = false }
 		),
 		P(
 			"Mane1_7",
 			{ 1.05, 0.189, 1.05 },
 			{ 0.616, 4.15, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -98.614, -159.593, 7.042 }, studs = false }
+			{ joint = "Mane", rot = { -98.614, -159.593, 7.042 }, studs = false }
 		),
 		P(
 			"Mane1_8",
 			{ 1.05, 0.189, 1.05 },
 			{ 0, 4, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -102.495, -135, 0 }, studs = false }
+			{ joint = "Mane", rot = { -102.495, -135, 0 }, studs = false }
 		),
 		P(
 			"Mane1_9",
 			{ 1.05, 0.189, 1.05 },
 			{ -0.616, 4.15, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -118.121, -111.538, -18.238 }, studs = false }
+			{ joint = "Mane", rot = { -118.121, -111.538, -18.238 }, studs = false }
 		),
 		P(
 			"Mane1_10",
 			{ 1.05, 0.189, 1.05 },
 			{ -1.11, 4.57, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -30.633, -77.528, 67.234 }, studs = false }
+			{ joint = "Mane", rot = { -30.633, -77.528, 67.234 }, studs = false }
 		),
 		P(
 			"Mane1_11",
 			{ 1.05, 0.189, 1.05 },
 			{ -1.384, 5.176, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -71.109, -55.883, 25.369 }, studs = false }
+			{ joint = "Mane", rot = { -71.109, -55.883, 25.369 }, studs = false }
 		),
 		P(
 			"Mane1_12",
 			{ 1.05, 0.189, 1.05 },
 			{ -1.384, 5.849, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -79.089, -30.451, 16.186 }, studs = false }
+			{ joint = "Mane", rot = { -79.089, -30.451, 16.186 }, studs = false }
 		),
 		P(
 			"Mane1_13",
 			{ 1.05, 0.189, 1.05 },
 			{ -1.11, 6.455, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -81.649, -4.794, 11.527 }, studs = false }
+			{ joint = "Mane", rot = { -81.649, -4.794, 11.527 }, studs = false }
 		),
 		P(
 			"Mane1_14",
 			{ 1.05, 0.189, 1.05 },
 			{ -0.616, 6.875, -3.214 },
 			MAIN,
-			{ joint = "Body", rot = { -81.386, 20.407, 7.042 }, studs = false }
+			{ joint = "Mane", rot = { -81.386, 20.407, 7.042 }, studs = false }
 		),
 		P(
 			"Mane2_1",
 			{ 1.176, 0.189, 1.176 },
 			{ 0.339, 7.562, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { -52.373, 53.117, -9.452 }, studs = false }
+			{ joint = "Mane", rot = { -52.373, 53.117, -9.452 }, studs = false }
 		),
 		P(
 			"Mane2_2",
 			{ 1.176, 0.189, 1.176 },
 			{ 0.977, 7.315, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { -23.982, 65.307, -42.035 }, studs = false }
+			{ joint = "Mane", rot = { -23.982, 65.307, -42.035 }, studs = false }
 		),
 		P(
 			"Mane2_3",
 			{ 1.176, 0.189, 1.176 },
 			{ 1.497, 6.85, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { 21.448, 65.208, -91.183 }, studs = false }
+			{ joint = "Mane", rot = { 21.448, 65.208, -91.183 }, studs = false }
 		),
 		P(
 			"Mane2_4",
 			{ 1.176, 0.189, 1.176 },
 			{ 1.836, 6.224, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { 49.641, 53.154, -122.722 }, studs = false }
+			{ joint = "Mane", rot = { 49.641, 53.154, -122.722 }, studs = false }
 		),
 		P(
 			"Mane2_5",
 			{ 1.176, 0.189, 1.176 },
 			{ 1.954, 5.512, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { 61.949, 36.752, -138.314 }, studs = false }
+			{ joint = "Mane", rot = { 61.949, 36.752, -138.314 }, studs = false }
 		),
 		P(
 			"Mane2_6",
 			{ 1.176, 0.189, 1.176 },
 			{ 1.836, 4.801, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { 67.57, 18.915, -147.771 }, studs = false }
+			{ joint = "Mane", rot = { 67.57, 18.915, -147.771 }, studs = false }
 		),
 		P(
 			"Mane2_7",
 			{ 1.176, 0.189, 1.176 },
 			{ 1.497, 4.175, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { 69.626, 0.496, -155.212 }, studs = false }
+			{ joint = "Mane", rot = { 69.626, 0.496, -155.212 }, studs = false }
 		),
 		P(
 			"Mane2_8",
 			{ 1.176, 0.189, 1.176 },
 			{ 0.977, 3.71, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { 68.76, -18.077, -162.887 }, studs = false }
+			{ joint = "Mane", rot = { 68.76, -18.077, -162.887 }, studs = false }
 		),
 		P(
 			"Mane2_9",
 			{ 1.176, 0.189, 1.176 },
 			{ 0.339, 3.463, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { -115.869, -143.699, 7.025 }, studs = false }
+			{ joint = "Mane", rot = { -115.869, -143.699, 7.025 }, studs = false }
 		),
 		P(
 			"Mane2_10",
 			{ 1.176, 0.189, 1.176 },
 			{ -0.339, 3.463, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { -127.627, -126.883, -9.452 }, studs = false }
+			{ joint = "Mane", rot = { -127.627, -126.883, -9.452 }, studs = false }
 		),
 		P(
 			"Mane2_11",
 			{ 1.176, 0.189, 1.176 },
 			{ -0.977, 3.71, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { 23.982, -65.307, 137.965 }, studs = false }
+			{ joint = "Mane", rot = { 23.982, -65.307, 137.965 }, studs = false }
 		),
 		P(
 			"Mane2_12",
 			{ 1.176, 0.189, 1.176 },
 			{ -1.497, 4.175, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { -21.448, -65.208, 88.817 }, studs = false }
+			{ joint = "Mane", rot = { -21.448, -65.208, 88.817 }, studs = false }
 		),
 		P(
 			"Mane2_13",
 			{ 1.176, 0.189, 1.176 },
 			{ -1.836, 4.801, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { -49.641, -53.154, 57.278 }, studs = false }
+			{ joint = "Mane", rot = { -49.641, -53.154, 57.278 }, studs = false }
 		),
 		P(
 			"Mane2_14",
 			{ 1.176, 0.189, 1.176 },
 			{ -1.954, 5.512, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { -61.949, -36.752, 41.686 }, studs = false }
+			{ joint = "Mane", rot = { -61.949, -36.752, 41.686 }, studs = false }
 		),
 		P(
 			"Mane2_15",
 			{ 1.176, 0.189, 1.176 },
 			{ -1.836, 6.224, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { -67.57, -18.915, 32.229 }, studs = false }
+			{ joint = "Mane", rot = { -67.57, -18.915, 32.229 }, studs = false }
 		),
 		P(
 			"Mane2_16",
 			{ 1.176, 0.189, 1.176 },
 			{ -1.497, 6.85, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { -69.626, -0.496, 24.788 }, studs = false }
+			{ joint = "Mane", rot = { -69.626, -0.496, 24.788 }, studs = false }
 		),
 		P(
 			"Mane2_17",
 			{ 1.176, 0.189, 1.176 },
 			{ -0.977, 7.315, -2.68 },
 			GOLD,
-			{ joint = "Body", rot = { -68.76, 18.077, 17.113 }, studs = false }
+			{ joint = "Mane", rot = { -68.76, 18.077, 17.113 }, studs = false }
 		),
 		P(
 			"Mane2_18",
 			{ 1.176, 0.189, 1.176 },
 			{ -0.339, 7.562, -2.68 },
 			MAIN,
-			{ joint = "Body", rot = { -64.131, 36.301, 7.025 }, studs = false }
+			{ joint = "Mane", rot = { -64.131, 36.301, 7.025 }, studs = false }
 		),
 		P(
 			"Mane3_1",
 			{ 1.26, 0.189, 1.26 },
 			{ 0, 7.959, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -40.893, 45, 0 }, studs = false }
+			{ joint = "Mane", rot = { -40.893, 45, 0 }, studs = false }
 		),
 		P(
 			"Mane3_2",
 			{ 1.26, 0.189, 1.26 },
 			{ 0.71, 7.839, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -21.163, 54.354, -25.611 }, studs = false }
+			{ joint = "Mane", rot = { -21.163, 54.354, -25.611 }, studs = false }
 		),
 		P(
 			"Mane3_3",
 			{ 1.26, 0.189, 1.26 },
 			{ 1.35, 7.492, -2.006 },
 			GLOW,
-			{ joint = "Body", rot = { 6.057, 56.384, -58.318 }, material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 6.057, 56.384, -58.318 }, material = "Neon", studs = false }
 		),
 		P(
 			"Mane3_4",
 			{ 1.26, 0.189, 1.26 },
 			{ 1.858, 6.951, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 29.626, 50.492, -87.102 }, studs = false }
+			{ joint = "Mane", rot = { 29.626, 50.492, -87.102 }, studs = false }
 		),
 		P(
 			"Mane3_5",
 			{ 1.26, 0.189, 1.26 },
 			{ 2.184, 6.269, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 44.25, 39.815, -106.868 }, studs = false }
+			{ joint = "Mane", rot = { 44.25, 39.815, -106.868 }, studs = false }
 		),
 		P(
 			"Mane3_6",
 			{ 1.26, 0.189, 1.26 },
 			{ 2.297, 5.512, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 52.466, 26.913, -120.505 }, studs = false }
+			{ joint = "Mane", rot = { 52.466, 26.913, -120.505 }, studs = false }
 		),
 		P(
 			"Mane3_7",
 			{ 1.26, 0.189, 1.26 },
 			{ 2.184, 4.756, -2.006 },
 			GLOW,
-			{ joint = "Body", rot = { 56.737, 12.878, -131.059 }, material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 56.737, 12.878, -131.059 }, material = "Neon", studs = false }
 		),
 		P(
 			"Mane3_8",
 			{ 1.26, 0.189, 1.26 },
 			{ 1.858, 4.074, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 58.137, -1.843, -140.528 }, studs = false }
+			{ joint = "Mane", rot = { 58.137, -1.843, -140.528 }, studs = false }
 		),
 		P(
 			"Mane3_9",
 			{ 1.26, 0.189, 1.26 },
 			{ 1.35, 3.533, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 56.742, -16.904, -150.502 }, studs = false }
+			{ joint = "Mane", rot = { 56.742, -16.904, -150.502 }, studs = false }
 		),
 		P(
 			"Mane3_10",
 			{ 1.26, 0.189, 1.26 },
 			{ 0.71, 3.186, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 51.699, -31.703, -162.777 }, studs = false }
+			{ joint = "Mane", rot = { 51.699, -31.703, -162.777 }, studs = false }
 		),
 		P(
 			"Mane3_11",
 			{ 1.26, 0.189, 1.26 },
 			{ 0, 3.066, -2.006 },
 			GLOW,
-			{ joint = "Body", rot = { 40.893, -45, 180 }, material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 40.893, -45, 180 }, material = "Neon", studs = false }
 		),
 		P(
 			"Mane3_12",
 			{ 1.26, 0.189, 1.26 },
 			{ -0.71, 3.186, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { 21.163, -54.354, 154.389 }, studs = false }
+			{ joint = "Mane", rot = { 21.163, -54.354, 154.389 }, studs = false }
 		),
 		P(
 			"Mane3_13",
 			{ 1.26, 0.189, 1.26 },
 			{ -1.35, 3.533, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -6.057, -56.384, 121.682 }, studs = false }
+			{ joint = "Mane", rot = { -6.057, -56.384, 121.682 }, studs = false }
 		),
 		P(
 			"Mane3_14",
 			{ 1.26, 0.189, 1.26 },
 			{ -1.858, 4.074, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -29.626, -50.492, 92.898 }, studs = false }
+			{ joint = "Mane", rot = { -29.626, -50.492, 92.898 }, studs = false }
 		),
 		P(
 			"Mane3_15",
 			{ 1.26, 0.189, 1.26 },
 			{ -2.184, 4.756, -2.006 },
 			GLOW,
-			{ joint = "Body", rot = { -44.25, -39.815, 73.132 }, material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -44.25, -39.815, 73.132 }, material = "Neon", studs = false }
 		),
 		P(
 			"Mane3_16",
 			{ 1.26, 0.189, 1.26 },
 			{ -2.297, 5.512, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -52.466, -26.913, 59.495 }, studs = false }
+			{ joint = "Mane", rot = { -52.466, -26.913, 59.495 }, studs = false }
 		),
 		P(
 			"Mane3_17",
 			{ 1.26, 0.189, 1.26 },
 			{ -2.184, 6.269, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -56.737, -12.878, 48.941 }, studs = false }
+			{ joint = "Mane", rot = { -56.737, -12.878, 48.941 }, studs = false }
 		),
 		P(
 			"Mane3_18",
 			{ 1.26, 0.189, 1.26 },
 			{ -1.858, 6.951, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -58.137, 1.843, 39.472 }, studs = false }
+			{ joint = "Mane", rot = { -58.137, 1.843, 39.472 }, studs = false }
 		),
 		P(
 			"Mane3_19",
 			{ 1.26, 0.189, 1.26 },
 			{ -1.35, 7.492, -2.006 },
 			GLOW,
-			{ joint = "Body", rot = { -56.742, 16.904, 29.498 }, material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -56.742, 16.904, 29.498 }, material = "Neon", studs = false }
 		),
 		P(
 			"Mane3_20",
 			{ 1.26, 0.189, 1.26 },
 			{ -0.71, 7.839, -2.006 },
 			MAIN,
-			{ joint = "Body", rot = { -51.699, 31.703, 17.223 }, studs = false }
+			{ joint = "Mane", rot = { -51.699, 31.703, 17.223 }, studs = false }
 		),
 		P(
 			"Mane4_1",
 			{ 1.281, 0.189, 1.281 },
 			{ 0.378, 8.053, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { -12.147, 47.812, -13.297 }, studs = false }
+			{ joint = "Mane", rot = { -12.147, 47.812, -13.297 }, studs = false }
 		),
 		P(
 			"Mane4_2",
 			{ 1.281, 0.189, 1.281 },
 			{ 1.096, 7.805, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { 9.214, 48.309, -41.752 }, studs = false }
+			{ joint = "Mane", rot = { 9.214, 48.309, -41.752 }, studs = false }
 		),
 		P(
 			"Mane4_3",
 			{ 1.281, 0.189, 1.281 },
 			{ 1.708, 7.332, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { 27.088, 42.488, -66.63 }, studs = false }
+			{ joint = "Mane", rot = { 27.088, 42.488, -66.63 }, studs = false }
 		),
 		P(
 			"Mane4_4",
 			{ 1.281, 0.189, 1.281 },
 			{ 2.152, 6.68, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { 38.625, 32.822, -85.344 }, studs = false }
+			{ joint = "Mane", rot = { 38.625, 32.822, -85.344 }, studs = false }
 		),
 		P(
 			"Mane4_5",
 			{ 1.281, 0.189, 1.281 },
 			{ 2.385, 5.915, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { 45.185, 21.331, -99.626 }, studs = false }
+			{ joint = "Mane", rot = { 45.185, 21.331, -99.626 }, studs = false }
 		),
 		P(
 			"Mane4_6",
 			{ 1.281, 0.189, 1.281 },
 			{ 2.385, 5.11, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { 48.345, 8.961, -111.608 }, studs = false }
+			{ joint = "Mane", rot = { 48.345, 8.961, -111.608 }, studs = false }
 		),
 		P(
 			"Mane4_7",
 			{ 1.281, 0.189, 1.281 },
 			{ 2.152, 4.345, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { 48.848, -3.911, -122.908 }, studs = false }
+			{ joint = "Mane", rot = { 48.848, -3.911, -122.908 }, studs = false }
 		),
 		P(
 			"Mane4_14",
 			{ 1.281, 0.189, 1.281 },
 			{ -2.152, 4.345, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { -38.625, -32.822, 94.656 }, studs = false }
+			{ joint = "Mane", rot = { -38.625, -32.822, 94.656 }, studs = false }
 		),
 		P(
 			"Mane4_15",
 			{ 1.281, 0.189, 1.281 },
 			{ -2.385, 5.11, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { -45.185, -21.331, 80.374 }, studs = false }
+			{ joint = "Mane", rot = { -45.185, -21.331, 80.374 }, studs = false }
 		),
 		P(
 			"Mane4_16",
 			{ 1.281, 0.189, 1.281 },
 			{ -2.385, 5.915, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { -48.345, -8.961, 68.392 }, studs = false }
+			{ joint = "Mane", rot = { -48.345, -8.961, 68.392 }, studs = false }
 		),
 		P(
 			"Mane4_17",
 			{ 1.281, 0.189, 1.281 },
 			{ -2.152, 6.68, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { -48.848, 3.911, 57.092 }, studs = false }
+			{ joint = "Mane", rot = { -48.848, 3.911, 57.092 }, studs = false }
 		),
 		P(
 			"Mane4_18",
 			{ 1.281, 0.189, 1.281 },
 			{ -1.708, 7.332, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { -46.642, 17.008, 45.063 }, studs = false }
+			{ joint = "Mane", rot = { -46.642, 17.008, 45.063 }, studs = false }
 		),
 		P(
 			"Mane4_19",
 			{ 1.281, 0.189, 1.281 },
 			{ -1.096, 7.805, -1.26 },
 			GOLD,
-			{ joint = "Body", rot = { -40.87, 29.749, 30.673 }, studs = false }
+			{ joint = "Mane", rot = { -40.87, 29.749, 30.673 }, studs = false }
 		),
 		P(
 			"Mane4_20",
 			{ 1.281, 0.189, 1.281 },
 			{ -0.378, 8.053, -1.26 },
 			GOLD2,
-			{ joint = "Body", rot = { -29.839, 40.811, 11.776 }, studs = false }
+			{ joint = "Mane", rot = { -29.839, 40.811, 11.776 }, studs = false }
 		),
 		P(
 			"Mane5_1",
 			{ 1.207, 0.189, 1.207 },
 			{ 0, 7.959, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { -2.71, 45, 0 }, studs = false }
+			{ joint = "Mane", rot = { -2.71, 45, 0 }, studs = false }
 		),
 		P(
 			"Mane5_2",
 			{ 1.207, 0.189, 1.207 },
 			{ 0.879, 7.773, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { 20.013, 42.165, -32.499 }, studs = false }
+			{ joint = "Mane", rot = { 20.013, 42.165, -32.499 }, studs = false }
 		),
 		P(
 			"Mane5_3",
 			{ 1.207, 0.189, 1.207 },
 			{ 1.624, 7.243, -0.514 },
 			GOLD,
-			{ joint = "Body", rot = { 35.521, 31.716, -58.172 }, studs = false }
+			{ joint = "Mane", rot = { 35.521, 31.716, -58.172 }, studs = false }
 		),
 		P(
 			"Mane5_4",
 			{ 1.207, 0.189, 1.207 },
 			{ 2.122, 6.449, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { 43.034, 17.724, -77.031 }, studs = false }
+			{ joint = "Mane", rot = { 43.034, 17.724, -77.031 }, studs = false }
 		),
 		P(
 			"Mane5_5",
 			{ 1.207, 0.189, 1.207 },
 			{ 2.297, 5.512, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { 45.063, 2.687, -92.69 }, studs = false }
+			{ joint = "Mane", rot = { 45.063, 2.687, -92.69 }, studs = false }
 		),
 		P(
 			"Mane5_6",
 			{ 1.207, 0.189, 1.207 },
 			{ 2.122, 4.576, -0.514 },
 			GOLD,
-			{ joint = "Body", rot = { 42.955, -12.344, -108.157 }, studs = false }
+			{ joint = "Mane", rot = { 42.955, -12.344, -108.157 }, studs = false }
 		),
 		P(
 			"Mane5_12",
 			{ 1.207, 0.189, 1.207 },
 			{ -2.122, 4.576, -0.514 },
 			GOLD,
-			{ joint = "Body", rot = { -43.034, -17.724, 102.969 }, studs = false }
+			{ joint = "Mane", rot = { -43.034, -17.724, 102.969 }, studs = false }
 		),
 		P(
 			"Mane5_13",
 			{ 1.207, 0.189, 1.207 },
 			{ -2.297, 5.512, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { -45.063, -2.687, 87.31 }, studs = false }
+			{ joint = "Mane", rot = { -45.063, -2.687, 87.31 }, studs = false }
 		),
 		P(
 			"Mane5_14",
 			{ 1.207, 0.189, 1.207 },
 			{ -2.122, 6.449, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { -42.955, 12.344, 71.843 }, studs = false }
+			{ joint = "Mane", rot = { -42.955, 12.344, 71.843 }, studs = false }
 		),
 		P(
 			"Mane5_15",
 			{ 1.207, 0.189, 1.207 },
 			{ -1.624, 7.243, -0.514 },
 			GOLD,
-			{ joint = "Body", rot = { -36.408, 26.655, 53.969 }, studs = false }
+			{ joint = "Mane", rot = { -36.408, 26.655, 53.969 }, studs = false }
 		),
 		P(
 			"Mane5_16",
 			{ 1.207, 0.189, 1.207 },
 			{ -0.879, 7.773, -0.514 },
 			MAIN2,
-			{ joint = "Body", rot = { -23.489, 38.692, 30.679 }, studs = false }
+			{ joint = "Mane", rot = { -23.489, 38.692, 30.679 }, studs = false }
 		),
 		P(
 			"Mane6_1",
 			{ 1.155, 0.189, 1.155 },
 			{ 0.506, 7.523, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { 29.237, 39.898, -19.586 }, studs = false }
+			{ joint = "Mane", rot = { 29.237, 39.898, -19.586 }, studs = false }
 		),
 		P(
 			"Mane6_2",
 			{ 1.155, 0.189, 1.155 },
 			{ 1.382, 6.984, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { 44.412, 22.26, -48.615 }, studs = false }
+			{ joint = "Mane", rot = { 44.412, 22.26, -48.615 }, studs = false }
 		),
 		P(
 			"Mane6_3",
 			{ 1.155, 0.189, 1.155 },
 			{ 1.887, 6.051, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { 47.584, 0.778, -69.73 }, studs = false }
+			{ joint = "Mane", rot = { 47.584, 0.778, -69.73 }, studs = false }
 		),
 		P(
 			"Mane6_4",
 			{ 1.155, 0.189, 1.155 },
 			{ 1.887, 4.974, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { 42.128, -20.268, -90.829 }, studs = false }
+			{ joint = "Mane", rot = { 42.128, -20.268, -90.829 }, studs = false }
 		),
 		P(
 			"Mane6_9",
 			{ 1.155, 0.189, 1.155 },
 			{ -1.887, 4.974, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { -47.584, -0.778, 110.27 }, studs = false }
+			{ joint = "Mane", rot = { -47.584, -0.778, 110.27 }, studs = false }
 		),
 		P(
 			"Mane6_10",
 			{ 1.155, 0.189, 1.155 },
 			{ -1.887, 6.051, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { -42.128, 20.268, 89.171 }, studs = false }
+			{ joint = "Mane", rot = { -42.128, 20.268, 89.171 }, studs = false }
 		),
 		P(
 			"Mane6_11",
 			{ 1.155, 0.189, 1.155 },
 			{ -1.382, 6.984, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { -27.129, 37.723, 61.385 }, studs = false }
+			{ joint = "Mane", rot = { -27.129, 37.723, 61.385 }, studs = false }
 		),
 		P(
 			"Mane6_12",
 			{ 1.155, 0.189, 1.155 },
 			{ -0.506, 7.523, 0.16 },
 			MAIN,
-			{ joint = "Body", rot = { 0.219, 46.285, 21.848 }, studs = false }
+			{ joint = "Mane", rot = { 0.219, 46.285, 21.848 }, studs = false }
 		),
 		P(
 			"ManeSpike1a",
 			{ 0.189, 0.739, 0.157 },
 			{ 0.41, 7.991, -1.762 },
 			GOLD,
-			{ joint = "Body", rot = { -64.519, 21.103, -94.381 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -64.519, 21.103, -94.381 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike1b",
 			{ 0.189, 0.739, 1.657 },
 			{ 0.737, 8.755, -1.398 },
 			GOLD,
-			{ joint = "Body", rot = { 115.481, -21.103, -85.619 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 115.481, -21.103, -85.619 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike2a",
 			{ 0.189, 0.738, 0.165 },
 			{ 1.181, 7.692, -1.762 },
 			GLOW,
-			{ joint = "Body", rot = { -58.821, 39.321, -105.38 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -58.821, 39.321, -105.38 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike2b",
 			{ 0.189, 0.738, 1.571 },
 			{ 1.731, 8.266, -1.415 },
 			GLOW,
-			{ joint = "Body", rot = { 121.179, -39.321, -74.62 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 121.179, -39.321, -74.62 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike3a",
 			{ 0.189, 0.734, 0.18 },
 			{ 1.81, 7.13, -1.762 },
 			MAIN,
-			{ joint = "Body", rot = { -44.145, 56.261, -124.471 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -44.145, 56.261, -124.471 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike3b",
 			{ 0.189, 0.734, 1.407 },
 			{ 2.469, 7.437, -1.446 },
 			MAIN,
-			{ joint = "Body", rot = { 135.855, -56.261, -55.529 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 135.855, -56.261, -55.529 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike4a",
 			{ 0.189, 0.727, 0.206 },
 			{ 2.22, 6.373, -1.762 },
 			GOLD,
-			{ joint = "Body", rot = { -6.397, 66.588, -166.049 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -6.397, 66.588, -166.049 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike4b",
 			{ 0.189, 0.727, 1.183 },
 			{ 2.857, 6.404, -1.488 },
 			GOLD,
-			{ joint = "Body", rot = { 173.603, -66.588, -13.951 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 173.603, -66.588, -13.951 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike5a",
 			{ 0.189, 0.715, 0.245 },
 			{ 2.362, 5.512, -1.762 },
 			GLOW,
-			{ joint = "Body", rot = { 39.879, 59.613, 144.219 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 39.879, 59.613, 144.219 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike5b",
 			{ 0.189, 0.715, 0.92 },
 			{ 2.865, 5.323, -1.536 },
 			GLOW,
-			{ joint = "Body", rot = { -140.121, -59.613, 35.781 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -140.121, -59.613, 35.781 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike6a",
 			{ 0.189, 0.715, 0.245 },
 			{ 2.22, 4.652, -1.762 },
 			MAIN,
-			{ joint = "Body", rot = { 57.09, 44.401, 122.666 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 57.09, 44.401, 122.666 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike6b",
 			{ 0.189, 0.715, 0.92 },
 			{ 2.628, 4.302, -1.536 },
 			MAIN,
-			{ joint = "Body", rot = { -122.91, -44.401, 57.334 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -122.91, -44.401, 57.334 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike13a",
 			{ 0.189, 0.715, 0.92 },
 			{ -2.628, 4.302, -1.536 },
 			GOLD,
-			{ joint = "Body", rot = { -122.91, 44.401, -57.334 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -122.91, 44.401, -57.334 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike13b",
 			{ 0.189, 0.715, 0.245 },
 			{ -2.22, 4.652, -1.762 },
 			GOLD,
-			{ joint = "Body", rot = { 57.09, -44.401, -122.666 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 57.09, -44.401, -122.666 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike14a",
 			{ 0.189, 0.715, 0.245 },
 			{ -2.362, 5.512, -1.762 },
 			GLOW,
-			{ joint = "Body", rot = { -39.879, -59.613, -35.781 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -39.879, -59.613, -35.781 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike14b",
 			{ 0.189, 0.715, 0.92 },
 			{ -2.865, 5.701, -1.536 },
 			GLOW,
-			{ joint = "Body", rot = { -39.879, 120.387, 35.781 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -39.879, 120.387, 35.781 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike15a",
 			{ 0.189, 0.727, 1.183 },
 			{ -2.857, 6.404, -1.488 },
 			MAIN,
-			{ joint = "Body", rot = { 173.603, 66.588, 13.951 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 173.603, 66.588, 13.951 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike15b",
 			{ 0.189, 0.727, 0.206 },
 			{ -2.22, 6.373, -1.762 },
 			MAIN,
-			{ joint = "Body", rot = { -6.397, -66.588, 166.049 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -6.397, -66.588, 166.049 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike16a",
 			{ 0.189, 0.734, 1.407 },
 			{ -2.469, 7.437, -1.446 },
 			GOLD,
-			{ joint = "Body", rot = { 135.855, 56.261, 55.529 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 135.855, 56.261, 55.529 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike16b",
 			{ 0.189, 0.734, 0.18 },
 			{ -1.81, 7.13, -1.762 },
 			GOLD,
-			{ joint = "Body", rot = { -44.144, -56.261, 124.471 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -44.144, -56.261, 124.471 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike17a",
 			{ 0.189, 0.738, 1.571 },
 			{ -1.731, 8.266, -1.415 },
 			GLOW,
-			{ joint = "Body", rot = { 121.179, 39.321, 74.62 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 121.179, 39.321, 74.62 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike17b",
 			{ 0.189, 0.738, 0.165 },
 			{ -1.181, 7.692, -1.762 },
 			GLOW,
-			{ joint = "Body", rot = { -58.821, -39.321, 105.38 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -58.821, -39.321, 105.38 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"ManeSpike18a",
 			{ 0.189, 0.739, 1.657 },
 			{ -0.737, 8.755, -1.398 },
 			MAIN,
-			{ joint = "Body", rot = { 115.481, 21.103, 85.619 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 115.481, 21.103, 85.619 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"ManeSpike18b",
 			{ 0.189, 0.739, 0.157 },
 			{ -0.41, 7.991, -1.762 },
 			MAIN,
-			{ joint = "Body", rot = { -64.519, -21.103, 94.381 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -64.519, -21.103, 94.381 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Crest1a",
 			{ 0.189, 0.746, 0.122 },
 			{ 0, 7.622, -1.103 },
 			GOLD,
-			{ joint = "Body", rot = { -55.008, 9.293, -90 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -55.008, 9.293, -90 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Crest1b",
 			{ 0.189, 0.746, 2.219 },
 			{ 0.189, 8.568, -0.44 },
 			GOLD,
-			{ joint = "Body", rot = { 124.992, -9.293, -90 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 124.992, -9.293, -90 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Crest2a",
 			{ 0.189, 0.742, 1.835 },
 			{ -0.942, 8.275, -0.374 },
 			GLOW,
-			{ joint = "Body", rot = { 129.391, 21.637, 66.827 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 129.391, 21.637, 66.827 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"Crest2b",
 			{ 0.189, 0.742, 0.144 },
 			{ -0.577, 7.564, -0.958 },
 			GLOW,
-			{ joint = "Body", rot = { -50.609, -21.638, 113.173 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -50.609, -21.638, 113.173 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"Crest3a",
 			{ 0.189, 0.742, 0.144 },
 			{ 0.577, 7.564, -0.958 },
 			GLOW,
-			{ joint = "Body", rot = { -50.609, 21.637, -113.173 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { -50.609, 21.637, -113.173 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"Crest3b",
 			{ 0.189, 0.742, 1.835 },
 			{ 0.942, 8.275, -0.374 },
 			GLOW,
-			{ joint = "Body", rot = { 129.391, -21.637, -66.827 }, shape = "Wedge", material = "Neon", studs = false }
+			{ joint = "Mane", rot = { 129.391, -21.637, -66.827 }, shape = "Wedge", material = "Neon", studs = false }
 		),
 		P(
 			"Crest4a",
 			{ 0.189, 0.735, 1.443 },
 			{ -1.529, 8.004, -0.346 },
 			MAIN,
-			{ joint = "Body", rot = { 134.315, 31.785, 49.66 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 134.315, 31.785, 49.66 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Crest4b",
 			{ 0.189, 0.735, 0.176 },
 			{ -1.102, 7.512, -0.827 },
 			MAIN,
-			{ joint = "Body", rot = { -45.685, -31.785, 130.34 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -45.685, -31.785, 130.34 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Crest5a",
 			{ 0.189, 0.735, 0.176 },
 			{ 1.102, 7.512, -0.827 },
 			MAIN,
-			{ joint = "Body", rot = { -45.685, 31.785, -130.34 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { -45.685, 31.785, -130.34 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Crest5b",
 			{ 0.189, 0.735, 1.443 },
 			{ 1.529, 8.004, -0.346 },
 			MAIN,
-			{ joint = "Body", rot = { 134.315, -31.785, -49.66 }, shape = "Wedge", studs = false }
+			{ joint = "Mane", rot = { 134.315, -31.785, -49.66 }, shape = "Wedge", studs = false }
 		),
 		P(
 			"Bib1",

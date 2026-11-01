@@ -78,13 +78,16 @@ def build(name="PK3_ClockworkTitan_Pet", offset=(0, 0, 0)):
         plated(k, "SidePlate" + sd, (0.3, 2.0, 1.6), (sx * 1.58, 4.55, 0.0), "main", "iron2", axis_front=(sx, 0, 0))
         vent(k, "ChestVent" + sd, (sx * 1.2, 3.75, -1.25), (0, 0, -1), n=2, h=0.4)
     cc = Vector((0, 4.7, -1.12))
-    T.clock(k, "Heart", cc, (0, 0, -1), 0.9, "glow", "main", "ink", "ink", glow=True, rim_n=18, hands=(-40, 70))
+    T.clock(k, "Heart", cc, (0, 0, -1), 0.9, "glow", "main", "ink", "ink", glow=True, rim_n=18, hands=(-40, 70),
+            hands_joint="HeartHands", back_to="Body")  # the hands tick and race (Anim/PetProfiles)
     T.teeth(k, "HeartTooth", cc + Vector((0, 0, -0.02)), (0, 0, -1), 0.98, 16, (0.2, 0.16, 0.2), "main2")
     T.star4(k, "HeartStar", cc + Vector((0, 0, -0.14)), (0, 0, -1), 0.5, "light", core="face", mat="SmoothPlastic",
             thick=0.06)
     for i, (x, y, r) in enumerate(((-1.0, 5.55, 0.3), (1.0, 5.55, 0.3), (-1.08, 3.95, 0.26), (1.08, 3.95, 0.26),
                                    (0.0, 5.82, 0.24), (-0.62, 3.65, 0.22), (0.62, 3.65, 0.22))):
+        k.hinge("Gear%d" % (i + 1), (x, y, -1.18))  # each chest gear turns on its own axle (Anim/PetProfiles)
         T.small_gear(k, "Gear%d" % (i + 1), (x, y, -1.18), (0, 0, -1), r, "main", "main2")
+    J("Body")
     k.p("BackPlate", (2.6, 2.2, 0.3), CF(Vector((0, 4.6, 1.12))), "main")
     T.small_gear(k, "BackGear", (0, 4.6, 1.32), (0, 0, 1), 0.7, "main2", "main")
 

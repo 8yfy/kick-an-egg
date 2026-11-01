@@ -1205,18 +1205,25 @@ local pet: Builder.Spec = {
 			{ joint = "Body", rot = { 0, 180, 30 }, studs = false }
 		),
 		P(
+			"HingeHeartHands",
+			{ 0.22, 0.22, 0.22 },
+			{ 0, 5.17, -1.232 },
+			MAIN,
+			{ joint = "HeartHands", transparency = 1, studs = false }
+		),
+		P(
 			"HeartHand1",
 			{ 0.077, 0.495, 0.055 },
 			{ 0.159, 5.36, -1.342 },
 			INK,
-			{ joint = "Body", rot = { 0, 180, 40 }, studs = false }
+			{ joint = "HeartHands", rot = { 0, 180, 40 }, studs = false }
 		),
 		P(
 			"HeartHand2",
 			{ 0.077, 0.713, 0.055 },
 			{ -0.335, 5.292, -1.342 },
 			INK,
-			{ joint = "Body", rot = { 0, 180, -70 }, studs = false }
+			{ joint = "HeartHands", rot = { 0, 180, -70 }, studs = false }
 		),
 		P(
 			"HeartTooth1",
@@ -1394,249 +1401,298 @@ local pet: Builder.Spec = {
 			{ joint = "Body", rot = { 0, 180, 45 }, studs = false }
 		),
 		P(
+			"HingeGear1",
+			{ 0.22, 0.22, 0.22 },
+			{ -1.1, 6.105, -1.298 },
+			MAIN,
+			{ joint = "Gear1", transparency = 1, studs = false }
+		),
+		P(
 			"Gear1",
 			{ 0.154, 0.66, 0.66 },
 			{ -1.1, 6.105, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear1", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear1T1",
 			{ 0.139, 0.139, 0.825 },
 			{ -1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear1", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear1T2",
 			{ 0.139, 0.139, 0.825 },
 			{ -1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear1", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear1T3",
 			{ 0.139, 0.139, 0.825 },
 			{ -1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear1", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear1T4",
 			{ 0.139, 0.139, 0.825 },
 			{ -1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear1", rot = { -90, 135, 0 }, studs = false }
+		),
+		P(
+			"HingeGear2",
+			{ 0.22, 0.22, 0.22 },
+			{ 1.1, 6.105, -1.298 },
+			MAIN,
+			{ joint = "Gear2", transparency = 1, studs = false }
 		),
 		P(
 			"Gear2",
 			{ 0.154, 0.66, 0.66 },
 			{ 1.1, 6.105, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear2", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear2T1",
 			{ 0.139, 0.139, 0.825 },
 			{ 1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear2", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear2T2",
 			{ 0.139, 0.139, 0.825 },
 			{ 1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear2", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear2T3",
 			{ 0.139, 0.139, 0.825 },
 			{ 1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear2", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear2T4",
 			{ 0.139, 0.139, 0.825 },
 			{ 1.1, 6.105, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear2", rot = { -90, 135, 0 }, studs = false }
+		),
+		P(
+			"HingeGear3",
+			{ 0.22, 0.22, 0.22 },
+			{ -1.188, 4.345, -1.298 },
+			MAIN,
+			{ joint = "Gear3", transparency = 1, studs = false }
 		),
 		P(
 			"Gear3",
 			{ 0.154, 0.572, 0.572 },
 			{ -1.188, 4.345, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear3", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear3T1",
 			{ 0.12, 0.139, 0.715 },
 			{ -1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear3", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear3T2",
 			{ 0.12, 0.139, 0.715 },
 			{ -1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear3", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear3T3",
 			{ 0.12, 0.139, 0.715 },
 			{ -1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear3", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear3T4",
 			{ 0.12, 0.139, 0.715 },
 			{ -1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear3", rot = { -90, 135, 0 }, studs = false }
+		),
+		P(
+			"HingeGear4",
+			{ 0.22, 0.22, 0.22 },
+			{ 1.188, 4.345, -1.298 },
+			MAIN,
+			{ joint = "Gear4", transparency = 1, studs = false }
 		),
 		P(
 			"Gear4",
 			{ 0.154, 0.572, 0.572 },
 			{ 1.188, 4.345, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear4", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear4T1",
 			{ 0.12, 0.139, 0.715 },
 			{ 1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear4", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear4T2",
 			{ 0.12, 0.139, 0.715 },
 			{ 1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear4", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear4T3",
 			{ 0.12, 0.139, 0.715 },
 			{ 1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear4", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear4T4",
 			{ 0.12, 0.139, 0.715 },
 			{ 1.188, 4.345, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear4", rot = { -90, 135, 0 }, studs = false }
+		),
+		P(
+			"HingeGear5",
+			{ 0.22, 0.22, 0.22 },
+			{ 0, 6.402, -1.298 },
+			MAIN,
+			{ joint = "Gear5", transparency = 1, studs = false }
 		),
 		P(
 			"Gear5",
 			{ 0.154, 0.528, 0.528 },
 			{ 0, 6.402, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear5", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear5T1",
 			{ 0.111, 0.139, 0.66 },
 			{ 0, 6.402, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear5", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear5T2",
 			{ 0.111, 0.139, 0.66 },
 			{ 0, 6.402, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear5", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear5T3",
 			{ 0.111, 0.139, 0.66 },
 			{ 0, 6.402, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear5", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear5T4",
 			{ 0.111, 0.139, 0.66 },
 			{ 0, 6.402, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear5", rot = { -90, 135, 0 }, studs = false }
+		),
+		P(
+			"HingeGear6",
+			{ 0.22, 0.22, 0.22 },
+			{ -0.682, 4.015, -1.298 },
+			MAIN,
+			{ joint = "Gear6", transparency = 1, studs = false }
 		),
 		P(
 			"Gear6",
 			{ 0.154, 0.484, 0.484 },
 			{ -0.682, 4.015, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear6", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear6T1",
 			{ 0.102, 0.139, 0.605 },
 			{ -0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear6", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear6T2",
 			{ 0.102, 0.139, 0.605 },
 			{ -0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear6", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear6T3",
 			{ 0.102, 0.139, 0.605 },
 			{ -0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear6", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear6T4",
 			{ 0.102, 0.139, 0.605 },
 			{ -0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear6", rot = { -90, 135, 0 }, studs = false }
+		),
+		P(
+			"HingeGear7",
+			{ 0.22, 0.22, 0.22 },
+			{ 0.682, 4.015, -1.298 },
+			MAIN,
+			{ joint = "Gear7", transparency = 1, studs = false }
 		),
 		P(
 			"Gear7",
 			{ 0.154, 0.484, 0.484 },
 			{ 0.682, 4.015, -1.298 },
 			MAIN,
-			{ joint = "Body", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
+			{ joint = "Gear7", rot = { 0, 90, 0 }, shape = "Cylinder", studs = false }
 		),
 		P(
 			"Gear7T1",
 			{ 0.102, 0.139, 0.605 },
 			{ 0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 0, 0 }, studs = false }
+			{ joint = "Gear7", rot = { -90, 0, 0 }, studs = false }
 		),
 		P(
 			"Gear7T2",
 			{ 0.102, 0.139, 0.605 },
 			{ 0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 45, 0 }, studs = false }
+			{ joint = "Gear7", rot = { -90, 45, 0 }, studs = false }
 		),
 		P(
 			"Gear7T3",
 			{ 0.102, 0.139, 0.605 },
 			{ 0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { 0, 90, -90 }, studs = false }
+			{ joint = "Gear7", rot = { 0, 90, -90 }, studs = false }
 		),
 		P(
 			"Gear7T4",
 			{ 0.102, 0.139, 0.605 },
 			{ 0.682, 4.015, -1.298 },
 			MAIN2,
-			{ joint = "Body", rot = { -90, 135, 0 }, studs = false }
+			{ joint = "Gear7", rot = { -90, 135, 0 }, studs = false }
 		),
 		P("BackPlate", { 2.86, 2.42, 0.33 }, { 0, 5.06, 1.232 }, MAIN, { joint = "Body", studs = false }),
 		P(

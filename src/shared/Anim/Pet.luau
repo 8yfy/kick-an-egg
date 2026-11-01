@@ -15,8 +15,11 @@
 -- Eyes are the parts named EyeL/EyeR (+ GlintL/GlintR, PupilL/PupilR), per the Models/Kit convention.
 -- Serpent rigs (a Coil joint, e.g. the Frost Serpent) keep the coil on the ground and sway the body about its base
 -- instead: every group is its own Motor6D on Root, so the head, wings and arms follow that sway explicitly.
+-- Pets with a signature profile (Anim/PetProfiles: idle, roam and special of their own) use it instead of the
+-- generic poses; their special lasts as long as the profile says, and named PetFx beats (PetFxBeat) reach it.
 local RunService = game:GetService("RunService")
 local Rig = require(script.Parent.Rig)
+local Profiles = require(script.Parent.PetProfiles)
 
 local Pet = {}
 
@@ -84,6 +87,11 @@ type Mood = {
 	flourishAt: number,
 	nextFlourish: number,
 	synced: boolean,
+	profile: Profiles.Profile?,
+	flourishTime: number,
+	beatAt: { [string]: number },
+	ctx: Profiles.Ctx?,
+	model: Model,
 }
 
 -- Hovering = no visible part reaches within 0.4 studs (at scale 1) of the feet.
@@ -110,6 +118,8 @@ local function mood(model: Model, motors: { [string]: Motor6D }): Mood
 	local tempo = TEMPO[if typeof(rarity) == "string" then rarity else "Common"] or TEMPO.Common
 	local hover = hovering(model)
 	local now = os.clock()
+	local key = model:GetAttribute("ModelKey")
+	local profile = Profiles.get(if typeof(key) == "string" then key else model.Name)
 	return {
 		tempo = tempo,
 		hover = hover,
@@ -119,6 +129,10 @@ local function mood(model: Model, motors: { [string]: Motor6D }): Mood
 		flourishAt = -1,
 		nextFlourish = now + (if tempo.flourish then rng:NextNumber(3, tempo.flourish[2]) else math.huge),
 		synced = false,
+		profile = profile,
+		flourishTime = if profile then profile.special else FLOURISH_TIME,
+		beatAt = {},
+		model = model,
 	}
 end
 
@@ -146,8 +160,8 @@ local function beats(md: Mood, now: number): (number, number, number, number)
 		end
 	end
 	local env, phase = 0, 0
-	if md.flourishAt >= 0 and now - md.flourishAt < FLOURISH_TIME then
-		phase = (now - md.flourishAt) / FLOURISH_TIME
+	if md.flourishAt >= 0 and now - md.flourishAt < md.flourishTime then
+		phase = (now - md.flourishAt) / md.flourishTime
 		env = math.sin(phase * math.pi)
 	end
 	return lift, air, env, phase
@@ -186,9 +200,16 @@ local function run(model: Model, eyesClosed: boolean, pose: Pose): () -> ()
 	end
 	-- the pet's PetFx special (a synced burst) cues its flourish
 	local special = model:GetAttributeChangedSignal("PetFxSpecial"):Connect(function()
-		if md.tempo.flourish then
+		if md.tempo.flourish or md.profile then
 			md.synced = true
 			md.flourishAt = os.clock()
+		end
+	end)
+	-- a named minor beat (PetFx `beat` burst), for profiles that move with it
+	local beat = model:GetAttributeChangedSignal("PetFxBeat"):Connect(function()
+		local name = model:GetAttribute("PetFxBeatName")
+		if typeof(name) == "string" then
+			md.beatAt[name] = os.clock()
 		end
 	end)
 	local conn = RunService.RenderStepped:Connect(function()
@@ -211,6 +232,7 @@ local function run(model: Model, eyesClosed: boolean, pose: Pose): () -> ()
 	return function()
 		conn:Disconnect()
 		special:Disconnect()
+		beat:Disconnect()
 		setEyes(e, 1)
 		for _, m in motors do
 			Rig.reset(m)
@@ -308,8 +330,52 @@ local function hoverPose(t: number, m: { [string]: Motor6D }, md: Mood, now: num
 	turn(m.LegR, around, CFrame.Angles(math.sin(w * 0.9 + 2.1) * math.rad(6) - walk * math.rad(8), 0, 0))
 end
 
+-- A signature profile poses everything itself; `k` is its special's phase (0..1, -1 while none plays).
+local function profilePose(
+	prof: Profiles.Profile,
+	t: number,
+	m: { [string]: Motor6D },
+	md: Mood,
+	now: number,
+	walk: number
+)
+	beats(md, now) -- starts a due special when PetFx has not cued one
+	local c = md.ctx
+	if not c then
+		local made: Profiles.Ctx = {
+			t = t,
+			now = now,
+			walk = walk,
+			k = -1,
+			m = m,
+			turn = turn,
+			about = about,
+			beatAge = function(name: string): number
+				local at = md.beatAt[name]
+				return if at then os.clock() - at else math.huge
+			end,
+			-- tells VFX/PetFx a beat of this motion happened (a footfall, a tick): `cue` emitters fire on it
+			cue = function(name: string)
+				md.model:SetAttribute(`Cue_{name}`, os.clock())
+			end,
+			state = {},
+		}
+		md.ctx = made
+		c = made
+	end
+	assert(c)
+	c.t, c.now, c.walk, c.m = t, now, walk, m
+	c.k = if md.flourishAt >= 0 and now - md.flourishAt < md.flourishTime
+		then (now - md.flourishAt) / md.flourishTime
+		else -1
+	prof.pose(c)
+end
+
 local function petPose(t: number, m: { [string]: Motor6D }, md: Mood, now: number, walk: number)
-	if m.Coil then
+	local prof = md.profile
+	if prof then
+		profilePose(prof, t, m, md, now, walk)
+	elseif m.Coil then
 		serpentPose(t, m, walk * math.rad(6))
 	elseif md.hover then
 		hoverPose(t, m, md, now, walk)

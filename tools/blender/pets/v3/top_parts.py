@@ -215,8 +215,9 @@ def shingles(k, name, centre, radii, rows, cols, size=0.8, thick=0.15, face=(0, 
 
 
 def clock(k, name, centre, normal, r, face_col, rim_col, tick_col, hand_col, ticks=12, glow=False, up=(0, 1, 0),
-          hands=(-60, 40), rim_n=16):
-    """Clock face: a disc (Neon if glow), a rim ring, hour ticks and two hands."""
+          hands=(-60, 40), rim_n=16, hands_joint=None, back_to=None):
+    """Clock face: a disc (Neon if glow), a rim ring, hour ticks and two hands. `hands_joint` puts the hands on their
+    own joint (a hinge at the clock centre) so Anim can turn them; `back_to` is the joint to resume afterwards."""
     from kit.rbx import cf
     f = plane_frame(centre, normal, up)
     k.p(name + "Face", (r * 2, r * 2, 0.08), f, face_col, material="Neon" if glow else "SmoothPlastic", studs=False)
@@ -227,10 +228,14 @@ def clock(k, name, centre, normal, r, face_col, rim_col, tick_col, hand_col, tic
         k.p("%sTick%d" % (name, i + 1), (0.05 + 0.03 * (i % 3 == 0), ln * r, 0.06),
             f * CF((math.sin(a) * r * 0.78, math.cos(a) * r * 0.78, 0.06)) * cf(rz=-math.degrees(a)), tick_col,
             studs=False)
+    if hands_joint:
+        k.hinge(hands_joint, f.p)
     for i, (deg, ln) in enumerate(((hands[0], 0.5), (hands[1], 0.72))):
         a = math.radians(deg)
         k.p("%sHand%d" % (name, i + 1), (0.07, ln * r, 0.05),
             f * CF((math.sin(a) * ln * r / 2, math.cos(a) * ln * r / 2, 0.1)) * cf(rz=-deg), hand_col, studs=False)
+    if hands_joint and back_to:
+        J(back_to)
 
 
 def small_gear(k, name, centre, axis, r, col, tooth_col=None, depth=0.14):

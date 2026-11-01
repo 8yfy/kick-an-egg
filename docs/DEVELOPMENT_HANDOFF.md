@@ -28,6 +28,34 @@
   - **Not run:** the full `tools/run-tests.sh` (no run-in-roblox here), Roblox's 3D Importer on the mesh exports, and a
     multiplayer test.
 
+- **Signature motion and effects for the top tier (2026-11-01, Partner A, same branch `a/top-tier-pets`, PR #59).**
+  - The user asked for unique effects and animations per pet, not the shared stack with new colours. They picked one
+    concept per pet and approved the result in recorded pen clips:
+    - Heaven Lion: Judgement Light;
+    - Clockwork Titan: Overcharged Engine;
+    - Prism Seraph: Aurora Veil.
+  - The tables are in `docs/EggPetPlan.md` ("Signature motion", "Signature effects").
+  - **Motion:** `Anim/PetProfiles.luau` gives each pet its own idle, roam and special, keyed by model key. `Anim/Pet`
+    uses a profile when the pet has one and falls back to the rarity tempo when it doesn't. The `Anim.play` API is
+    unchanged. New joints: `Mane` on the lion, `HeartHands` and `Gear1-7` on the titan (re-baked Premium specs).
+  - **Effects:**
+    - `VFX/PetFx/Signature.luau` adds the layer kinds `arc`, `blades`, `strike`, `dial`, `ribbon`, `trail` and
+      `curtain`.
+    - `emit` takes `part`, `cue`, `on`, `beat` and `delay`.
+    - `beam` takes `top`, `pulse`, `curve` and `bright`.
+    - `light` takes `flicker` and `cycle`.
+    - Handles get `Fire(sync)`.
+  - **New sprites:** `assets/pet-vfx/vfx_v3_{shaft,arc,clock_dial,veil}.png` (`tools/blender/pets/v3/sprites_signature.py`).
+    Not uploaded yet, so live servers use the built-in fallback textures for these four until their Image ids are in
+    `PetFx/Sprites`.
+  - **Verified in Studio (single-player Play):** the `ServerTests` hero and premium-pair checks pass 57/57, and the
+    ladder still rises (titan 340 < seraph 445). Each pet was recorded idling, firing its special and roaming in a pen.
+    No new script errors.
+  - **Not done:**
+    - the four sprite uploads;
+    - rebuilding the mesh deliverables (`KickAnEgg_PremiumPets`) for the new joints;
+    - unique motion and effects for the remaining pets.
+
 - **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**
   - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
     (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).

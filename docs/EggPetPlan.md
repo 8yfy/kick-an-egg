@@ -101,6 +101,34 @@ The hero ladder test still needs the hero part counts to rise strictly in hero o
 | Divine | ceremonial sigil disc + rays | crown/halo, gear or sun framing | sigil | slowest, flourish |
 | Secret | showcase stack | 8–9 layers | showcase | slowest, flourish |
 
+- **Signature motion** (2026-11-01, user: "unique VFX and animations for each pet"; the top tier first):
+  - Every pet gets its own profile in `src/shared/Anim/PetProfiles.luau`, keyed by model key, which owns its idle,
+    roam and special. Pets without one fall back to the rarity tempo above.
+  - The special plays when the pet's PetFx special fires (`sync`, cued through `PetFxSpecial`). PetFx `delay`
+    lands the burst on the gesture's climax.
+  - Minor rhythmic beats are PetFx `beat` bursts that the profile moves with (the titan's steam hiss).
+
+| Pet | Idle | Roam | Special (every 10–14 s) |
+|---|---|---|---|
+| Heaven Lion | slow 4 s breath (the mane swells with it), proud held head turns, tail-tip flick | heavy prowl: rolling shoulders, low head | **Roar** 2.2 s: gathers, rears its head, thrusts forward with a shaking head and flaring mane; flash, gold shockwave ring blown forward, spark cone |
+| Clockwork Titan | head sweeps in 1 s ticks, chest clock ticks, seven gears turn, fists pump; steam hiss every 3.2 s drops and shudders it | stiff stomp that sinks on each footfall | **Overclock** 2.4 s: fists up, the clock races four turns, then a slam; steam blasts from the vents, brass cogs spray and fall |
+| Prism Seraph | floats on a slow figure eight; wing beats pause at the top of each stroke; light pillar | glides forward, wings swept back, arms trailing | **Bless** 2.6 s: wings spread, arms open, it rises and turns once in the air; prism sparks, a prism ring rolls over the ground |
+
+- **Signature effects** (2026-11-01, user: "actual unique VFX, creative VFX per pet"): each pet gets its own effect
+  concept, not the shared stack of ground sigil, orbiters and particles with new colours. New layer kinds live in
+  `src/shared/VFX/PetFx/Signature.luau`: `arc`, `blades`, `strike`, `dial`, `ribbon`, `trail` and `curtain`.
+  `emit` layers can ride a part (`part`), fire on a motion cue (`cue`, set by Anim/PetProfiles: footfalls,
+  ticks), or react to another layer's special (`on`).
+
+| Pet | Concept (user pick) | Always | Special |
+|---|---|---|---|
+| Heaven Lion | Judgement Light | slanted shafts of light from above, breathing; motes drifting down; a warm light pool; a crown of light-blades turning behind the mane | Roar: the crown flares and spins up; pillars of light slam down in a ring, each landing with a gold ring and sparks |
+| Clockwork Titan | Overcharged Engine | amber lightning crackling between crown and shoulder spires; a surge every 3.2 s jolts the body; sparks from the knee on each stomp; exhaust smoke on every clock tick; a flickering core light | Overclock: a giant amber clock dial spins up in front of it, the lightning goes wild, then a gear shockwave, flying cogs and a steam blast |
+| Prism Seraph | Aurora Veil | aurora ribbons flowing from its back; aurora trails off the wingtips; drifting aurora specks; a light shifting through the aurora colours | Bless: an aurora curtain of mint, cyan, violet and pink veils unfurls in a ring around it and ripples, then fades |
+
+Joints the profiles need: the lion has `Mane`; the titan has `HeartHands` (the chest clock hands) and `Gear1-7`
+(the chest gears).
+
 **Build approach:** every pair is planned as **procedural blocks** (BlockBuilder + Sculpt). Four organic
 pairs would benefit from **hybrid** blocks + a few MeshPart accents (31 Tide Leviathan, 55 Celestial Whale,
 59 Plague Wyrm, 73 Nebula Jelly). That needs Partner A and B to agree first (CLAUDE.md rule 3); until then
