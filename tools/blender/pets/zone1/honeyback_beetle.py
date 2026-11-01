@@ -19,7 +19,7 @@ PAL = dict(main="6B4022", dark="4A2C16", light="F6E3B4", glow="FFB02E", gold="F7
            flower2="F2F2EA", pollen="FFC93C", eye="FFF8E0", glass="FFB02E", vein="D9800F", ink="1A0F08")
 CONCEPT = "Honeyback Beetle: a beetle under a golden honeycomb dome, flowers, amber wings, leaf-padded legs"
 HEADER = '''--!strict
--- Honeyback Beetle (Zone 1 Meadow, Uncommon). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- Honeyback Beetle (Zone 1 Meadow, Uncommon). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a dark brown beetle under a big round dome tiled with gold honeycomb cells (some glowing amber), white flowers
 --      and leaves on the dome, gold hex plates on the thorax and head, glowing white eyes, yellow-tipped antennae, six
 --      chunky legs with green leaf pads and yellow feet, two big amber wings raised behind. Joints: Body, Head,

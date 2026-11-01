@@ -18,7 +18,7 @@ PAL = dict(main="FFF6EA", main2="F5E9D6", dark="6B4A3A", light="FFFFFF", glow="F
            lotus="FF7EB6", lotus2="FFB0D0", core="FFE58A", leg="7A4A26", eye="FFD24A", ink="1E140E")
 CONCEPT = "Bloomcrest Crane: a pearl-white crane, lotus crest, gold mask and beak, layered blush-and-pearl wings"
 HEADER = '''--!strict
--- Bloomcrest Crane (Zone 1 Meadow, Legendary). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- Bloomcrest Crane (Zone 1 Meadow, Legendary). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a pearl-white crane: a long S-curved neck, a gold mask, glowing gold eye and long gold beak, a pink lotus crest
 --      with a glowing core and a lotus brooch; raised wings with a gold leading edge and layered rows of feather
 --      plates (green coverts, blush secondaries, pearl primaries with pink tips); a long pink-pearl-gold tail sweep;

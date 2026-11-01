@@ -19,7 +19,7 @@ PAL = dict(main="8C4A24", main2="7A3F1E", dark="5A2E14", light="F4E3C4", glow="F
            eye="FFD24A", ink="1E140E")
 CONCEPT = "Crownstag: a chestnut stag with a shaggy cream ruff, wide flowering antlers, a gold crown with a pink gem"
 HEADER = '''--!strict
--- Crownstag (Zone 1 Meadow, Rare). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- Crownstag (Zone 1 Meadow, Rare). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a sturdy chestnut stag with cream patches, a big shaggy cream ruff down the throat and chest, cream socks and
 --      gold hooves, a leafy mantle with pink flowers, a fluffy cream tail carried up, glowing gold eyes, big ears, a
 --      gold crown with a pink gem and wide branching antlers flowering pink among green leaves.

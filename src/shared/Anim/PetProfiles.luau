@@ -627,7 +627,7 @@ BY_KEY.FirstSeed = {
 			CFrame.Angles(still * breath * rad(2) + reach * rad(12), still * math.sin(t * 0.35) * rad(10), 0)
 		)
 		local race = if k >= 0 then ease((k - 0.3) / 0.45) * TAU else 0
-		c.turn(m.Halo, around, CFrame.Angles(0, 0, t * rad(12) + race))
+		c.turn(m.HaloRing, around, CFrame.Angles(0, 0, t * rad(12) + race))
 		local plates = still * (breath * 0.5 + 0.5) * rad(3) + open * rad(35)
 		c.turn(m.PlateL, around, CFrame.Angles(0, 0, -plates))
 		c.turn(m.PlateR, around, CFrame.Angles(0, 0, plates))

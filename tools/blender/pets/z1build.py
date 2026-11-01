@@ -1,7 +1,7 @@
 # Zone 1 Meadow production batch (2026-11-01, the user's 8-pet handoff): build a Meadow pet and/or its egg in the
 # live Blender scene from Roblox primitives (the Frost Serpent method), render review sheets and bake the pair to a
-# BlockBuilder file in KickAnEgg_PremiumPets/Zone01_Meadow/<Name>/ (a preview candidate: nothing is wired into
-# Models/* or Config until the user approves).
+# BlockBuilder spec in src/shared/Builders/Models/Meadow/<Key>.luau (live: Pets/Eggs Zone01 and Config/Pets point at
+# it), with its metadata and editable .blend in KickAnEgg_PremiumPets/Zone01_Meadow/<Name>/.
 #   python -I bmcp.py code z1build.py -- what=Piproot [kind=pet|egg|both] [views=...] [zoom=1] [res=480] [tag=]
 #   python -I bmcp.py code z1build.py -- what=Piproot kind=both export=1
 import importlib
@@ -27,7 +27,8 @@ PETS = {
 what = ARGS.get("what", "Piproot")
 kind = ARGS.get("kind", "pet")
 OUT = REPO + "/tools/blender/pets/out/z1/"
-ZONE = REPO + "/KickAnEgg_PremiumPets/Zone01_Meadow/"
+ZONE = REPO + "/KickAnEgg_PremiumPets/Zone01_Meadow/"  # metadata + editable .blend
+SPECS = REPO + "/src/shared/Builders/Models/Meadow/"  # the live BlockBuilder specs (Pets/Eggs Zone01 require them)
 os.makedirs(OUT, exist_ok=True)
 
 pet_mod = importlib.import_module(PETS[what][0])
@@ -91,7 +92,8 @@ if ARGS.get("export") == "1":
     pal.update(pet_mod.PAL)
     names = {k.upper(): v for k, v in pal.items()}
     names.setdefault("GLINT", "FFFFFF")
-    counts = export_luau(folder + "%s.luau" % what, pet_mod.HEADER, names, egg_coll=built["egg"].name,
+    os.makedirs(SPECS, exist_ok=True)
+    counts = export_luau(SPECS + "%s.luau" % what, pet_mod.HEADER, names, egg_coll=built["egg"].name,
                          pet_coll=built["pet"].name)
     lo, hi = bounds(built["pet"])
     meta = dict(key=what, name=pet_mod.NAME, rarity=pet_mod.RARITY, zone="Meadow", concept=pet_mod.CONCEPT,
@@ -99,7 +101,8 @@ if ARGS.get("export") == "1":
                 pet_size_studs=[round(x, 2) for x in (hi - lo)],
                 joints=sorted({o["rbx_joint"] for o in built["pet"].objects}),
                 egg_joints=sorted({o["rbx_joint"] for o in built["egg"].objects}),
-                status="model approved by the user 2026-11-01; not wired into the game yet")
+                spec="src/shared/Builders/Models/Meadow/%s.luau" % what,
+                status="approved by the user 2026-11-01; live in Zone 1 (Config/Pets)")
     with open(folder + "%s.meta.json" % what, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
     bpy.ops.wm.save_as_mainfile(filepath=folder + "Source/%s_blocks.blend" % what, compress=True, copy=True)

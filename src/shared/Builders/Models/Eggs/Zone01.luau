@@ -41,4 +41,20 @@ Eggs.BumbleBloc = {
 -- Premium hero spec (Models/Premium/MeadowStag.luau, docs/EggPetPlan.md).
 Eggs.MeadowStag = require(script.Parent.Parent.Premium.MeadowStag).egg
 
+-- The Zone 1 Meadow roster's eggs (Models/Meadow); Config/Pets points the zone at these keys.
+for _, key in
+	{
+		"Piproot",
+		"HoneybackBeetle",
+		"Crownstag",
+		"ThistlebackHedgehog",
+		"BloomcrestCrane",
+		"BurrowMonarch",
+		"WalkingOrchard",
+		"FirstSeed",
+	}
+do
+	Eggs[key] = (require(script.Parent.Parent.Meadow:FindFirstChild(key) :: ModuleScript) :: any).egg
+end
+
 return Eggs

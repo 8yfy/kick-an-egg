@@ -23,7 +23,7 @@ PAL = dict(main="7A4A2A", main2="6B3F22", dark="4A2C17", light="A66E3E", glow="F
            crystal="FFE066", eye="FFD45A", nose="2A1A10", ink="1A0E06")
 CONCEPT = "The Walking Orchard: a sacred bark stag whose antlers grow into fruit-laden canopies, gold crest and hooves"
 HEADER = '''--!strict
--- The Walking Orchard (Zone 1 Meadow, Divine). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- The Walking Orchard (Zone 1 Meadow, Divine). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a sacred orchard stag of studded bark blocks: thick tree-trunk legs with gold knee guards, gold hooves and root
 --      toes, a dense leafy mantle with white blossoms and berries, a cream bib over a gold crest with a glowing tree,
 --      a deer head with a cream muzzle and glowing gold eyes, huge gnarled antlers carrying broad stepped leaf

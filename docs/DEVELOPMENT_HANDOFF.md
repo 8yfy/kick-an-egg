@@ -1,6 +1,28 @@
 # Development handoff
 
 ## Current checkpoint
+- **Zone 1 Meadow roster: 8 pets + 8 eggs, Common to Secret (2026-11-01, Partner A, branch `a/meadow-zone1`, stacked
+  on `a/top-tier-pets`).**
+  - Built to the user's reference sheets, approved by the user from renders, a Studio lineup and a motion video:
+    Piproot, Honeyback Beetle, Crownstag, Thistleback Hedgehog, Bloomcrest Crane, The Burrow Monarch, The Walking
+    Orchard, The First Seed.
+  - Specs: `Builders/Models/Meadow/<Key>.luau` (baked by `tools/blender/pets/z1build.py` from `zone1/`; editable
+    `.blend` + metadata in `KickAnEgg_PremiumPets/Zone01_Meadow/`). `Pets/Zone01` and `Eggs/Zone01` load them.
+  - Motion: `Anim/PetProfiles` (idle, walk, special per pet). Effects: `PetFx/Recipes/MeadowZone1.luau` (each special
+    synced to its motion's climax).
+  - **Config (touches Partner B's numbers, the user's call):** the three existing ids keep their numbers and owners but
+    now show the new pets (`sprout_pup` = Piproot, `bumble_bloc` = Honeyback Beetle, `meadow_stag` = Crownstag). Five
+    new Zone 1 entries: Epic w2 / 20 $/s / 95 s, Legendary 0.5 / 50 / 235, Mythic 0.1 / 125 / 540, Divine 0.02 / 300 /
+    1050, Secret 0.005 / 700 / 1800 (1 in 51 ... 1 in 20 525 kicks). 84 pets in all; the last index milestone follows
+    (`Economy.IndexMilestones` 79 -> 84). Side effects accepted by the user: Zone 1's first three are slightly rarer
+    (60/30/10 -> 58.5/29.2/9.7 %), the Zone 1 index needs the Secret, a Zone 1 player's wheel Epic egg is now the
+    hedgehog.
+  - The First Seed's ring joint is `HaloRing`, not `Halo`: `Anim/Spin` spins any `Halo` joint about Y.
+  - The Pet Index wraps a zone with more than 4 pets into rows of 4.
+  - Verified in Studio: `ServerTests` 370 passed, 4 failed; the pre-change build fails the same 4 (shop sack lights,
+    audio ids, pen fences, map decor in edit mode). Every Zone 1 id builds its real model (not a placeholder); the
+    index shows Zone 1 in two rows.
+  - Not done: rigged mesh exports (`premium.py`) for the 8; hatching each new pet in a live play-test.
 - **Top-tier remodel: Heaven Lion, Clockwork Titan, Prism Seraph (2026-10-31, Partner A, branch `a/top-tier-pets`,
   stacked on `a/frost-serpent-rename`).**
   - Rebuilt to the user's three reference images and approved by the user.

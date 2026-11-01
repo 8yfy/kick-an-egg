@@ -17,7 +17,7 @@ PAL = dict(main="7CCF2E", main2="6BBE24", dark="3E9A2A", light="B5E85A", glow="8
            ink="141414")
 CONCEPT = "Piproot: a cheerful botanical frog, leaf-armoured back, two-leaf sprout, raised square eyes, pink-tongued smile"
 HEADER = '''--!strict
--- Piproot (Zone 1 Meadow, Common). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- Piproot (Zone 1 Meadow, Common). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a cheerful botanical frog: broad flat head, raised square eyes, a wide smile with a pink tongue, cream throat
 --      and belly, big folded hind legs with long cream toes, short front legs, layered leaf armour down the back, a
 --      two-leaf sprout and two small white flowers. Joints: Body, Head, Jaw, Throat, ArmL/R, LegL/R.

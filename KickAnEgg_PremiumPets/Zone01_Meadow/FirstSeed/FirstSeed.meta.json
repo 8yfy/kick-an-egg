@@ -16,7 +16,7 @@
   "ArmR",
   "Body",
   "Core",
-  "Halo",
+  "HaloRing",
   "Head",
   "LegL",
   "LegR",
@@ -28,5 +28,6 @@
  "egg_joints": [
   "Body"
  ],
- "status": "model approved by the user 2026-11-01; not wired into the game yet"
+ "spec": "src/shared/Builders/Models/Meadow/FirstSeed.luau",
+ "status": "approved by the user 2026-11-01; live in Zone 1 (Config/Pets)"
 }

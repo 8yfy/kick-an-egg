@@ -18,7 +18,7 @@ PAL = dict(main="7A4A26", main2="6A3E1F", dark="4E2E16", light="E8C08A", glow="F
            flower2="F2F2EA", pollen="FFC93C", nose="2A1A12", eye="FFFFFF", ink="1A0F08")
 CONCEPT = "Thistleback Hedgehog: a round hedgehog under a dome of leaf plates and cream thorns, vines and berries"
 HEADER = '''--!strict
--- Thistleback Hedgehog (Zone 1 Meadow, Epic). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- Thistleback Hedgehog (Zone 1 Meadow, Epic). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a round brown hedgehog with a tan face, snout and belly, a determined look, big round ears, a dome coat of
 --      layered green leaf plates with long cream thorn cones, brown vines with red berries and white flowers, short
 --      legs wrapped in root bands, cream toes. Joints: Body, Quills, Head, ArmL/R, LegL/R.

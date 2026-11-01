@@ -20,7 +20,7 @@ PAL = dict(main="6E4126", main2="5C3620", dark="3A2214", light="F2E4C8", glow="F
            nose="3A1E18", ear="F0A868", eye="FFB02E", ink="140A06")
 CONCEPT = "The Burrow Monarch: a massive mole-badger with long ears, root-and-gold crown, colossal claws, leaf armour"
 HEADER = '''--!strict
--- The Burrow Monarch (Zone 1 Meadow, Mythic). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- The Burrow Monarch (Zone 1 Meadow, Mythic). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a massive mole-badger: a huge shoulder hump, colossal forelimbs with enormous cream digging claws, a broad head
 --      with a burrowing snout, whiskers and glowing amber eyes, long ears lit amber inside, a crown of roots around a
 --      gold band and an amber gem, green earthen armour plates with gold rims and leaf emblems, moss, a cream ruff and

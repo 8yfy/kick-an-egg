@@ -6,7 +6,7 @@
 # plates per side fanning from the shoulders like folded wings, gold-rimmed with leaf emblems; a bone-ivory deer-skull
 # mask with glowing green eyes and big branching horns covered in glowing leaves; a large double gold halo with runes,
 # a star and side diamonds behind the head.
-# Joints: Body, Core (the seed pulses), Head, Halo, PlateL/R (shoulder plates), ArmL/R, RootL/R, LegL/R (the six roots).
+# Joints: Body, Core (the seed pulses), Head, HaloRing, PlateL/R (shoulder plates), ArmL/R, RootL/R, LegL/R (the six roots).
 import math
 
 from mathutils import Matrix, Vector
@@ -22,12 +22,12 @@ PAL = dict(main="6E4426", main2="5A361E", dark="472A17", light="F5D9A8", glow="8
            moss="5FB33A", moss2="8FD44A", grass="7ACF3E", leafglow="9CFF5A", eye="8CFF4A", ink="141008")
 CONCEPT = "The First Seed: a root guardian on six glowing roots, ivory-plated seed core, skull mask, branch horns, halo"
 HEADER = '''--!strict
--- The First Seed (Zone 1 Meadow, Secret). Preview candidate (KickAnEgg_PremiumPets/Zone01_Meadow), not wired.
+-- The First Seed (Zone 1 Meadow, Secret). Zone 1 Meadow roster (Config/Pets).
 -- Pet: a primordial root guardian: a broad bark torso on a root ball, six great arching roots and a mass of smaller
 --      roots lit by green veins, heavy moss on the shoulders, a chest of layered gold-rimmed ivory plates round a
 --      large glowing seed core, three long ivory wing plates per side with gold leaf emblems, a bone-ivory deer-skull
 --      mask with glowing green eyes, big branching horns covered in glowing leaves and a large double gold halo.
---      Joints: Body, Core, Head, Halo, PlateL/R, ArmL/R, RootL/R, LegL/R.
+--      Joints: Body, Core, Head, HaloRing, PlateL/R, ArmL/R, RootL/R, LegL/R.
 -- Egg: a bark egg set with gold-rimmed ivory plates round a big glowing green core, glowing sprouts on top.
 -- BAKED FILE: modelled in Blender from Roblox primitives by tools/blender/pets (zone1/first_seed.py,
 -- zone1/eggs.py).
@@ -209,9 +209,9 @@ def build(name="Z1_FirstSeed_Pet", offset=(0, 0, 0)):
                      normal=d.cross(Vector((0, 0, 1))).cross(d) + Vector((0, 0, -0.3)))
 
     # ---- the halo: a large double gold ring with glowing runes, a star on top and diamonds at the sides ------------
-    J("Halo")
+    J("HaloRing")  # not "Halo": Anim/Spin would spin a joint by that name about Y
     hc = Vector((0, 9.2, 0.5))
-    k.hinge("Halo", hc)
+    k.hinge("HaloRing", hc)
     T.ring(k, "Halo", hc, (0, 0, 1), 2.2, 26, 0.24, 0.26, ("halo", "gold"), studs=False)
     T.ring(k, "HaloInner", hc + Vector((0, 0, -0.02)), (0, 0, 1), 1.92, 18, 0.1, 0.08, "goldglow", mat="Neon",
            studs=False)

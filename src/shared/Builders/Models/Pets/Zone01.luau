@@ -97,4 +97,21 @@ Pets.BumbleBloc = {
 -- Premium hero spec (Models/Premium/MeadowStag.luau, docs/EggPetPlan.md).
 Pets.MeadowStag = require(script.Parent.Parent.Premium.MeadowStag).pet
 
+-- The Zone 1 Meadow roster, Common to Secret (Models/Meadow, baked by tools/blender/pets/zone1 from the user's
+-- reference sheets). Config/Pets points the zone at these keys; the three above stay for the showcase and tests.
+for _, key in
+	{
+		"Piproot",
+		"HoneybackBeetle",
+		"Crownstag",
+		"ThistlebackHedgehog",
+		"BloomcrestCrane",
+		"BurrowMonarch",
+		"WalkingOrchard",
+		"FirstSeed",
+	}
+do
+	Pets[key] = (require(script.Parent.Parent.Meadow:FindFirstChild(key) :: ModuleScript) :: any).pet
+end
+
 return Pets
