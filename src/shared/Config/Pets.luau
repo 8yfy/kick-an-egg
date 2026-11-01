@@ -1,7 +1,7 @@
 --!strict
 -- CONTRACT FILE (schema). Partner A adds entries freely; renaming fields needs a `contract:` PR.
 -- Every pet has a matching egg. `model` is the key in Builders/Models/Pets and Builders/Models/Eggs.
--- Weights are relative within a zone. Target: 3–5 pets per zone, 60–100 total.
+-- Weights are relative within a zone. Target: 3–5 pets per zone (Zone 1 Meadow has 8), 60–100 total.
 
 export type Pet = {
 	id: string,
@@ -15,36 +15,88 @@ export type Pet = {
 }
 
 local Pets: { Pet } = {
-	-- Zone 1: Meadow
+	-- Zone 1: Meadow, the full Common-to-Secret roster (Models/Meadow). The first three keep their ids (players keep
+	-- the pets they own) and numbers; the five rarer ones are new, very rare kicks, priced by the game's per-rarity
+	-- income and hatch ladder (approved by the user 2026-11-01).
 	{
 		id = "sprout_pup",
-		name = "Sprout Pup",
+		name = "Piproot",
 		zone = 1,
 		rarity = "Common",
 		weight = 60,
 		income = 1,
 		hatchSeconds = 10,
-		model = "SproutPup",
+		model = "Piproot",
 	},
 	{
 		id = "bumble_bloc",
-		name = "Bumble Bloc",
+		name = "Honeyback Beetle",
 		zone = 1,
 		rarity = "Uncommon",
 		weight = 30,
 		income = 3,
 		hatchSeconds = 20,
-		model = "BumbleBloc",
+		model = "HoneybackBeetle",
 	},
 	{
 		id = "meadow_stag",
-		name = "Meadow Stag",
+		name = "Crownstag",
 		zone = 1,
 		rarity = "Rare",
 		weight = 10,
 		income = 8,
 		hatchSeconds = 45,
-		model = "MeadowStag",
+		model = "Crownstag",
+	},
+	{
+		id = "thistleback_hedgehog",
+		name = "Thistleback Hedgehog",
+		zone = 1,
+		rarity = "Epic",
+		weight = 2,
+		income = 20,
+		hatchSeconds = 95,
+		model = "ThistlebackHedgehog",
+	},
+	{
+		id = "bloomcrest_crane",
+		name = "Bloomcrest Crane",
+		zone = 1,
+		rarity = "Legendary",
+		weight = 0.5,
+		income = 50,
+		hatchSeconds = 235,
+		model = "BloomcrestCrane",
+	},
+	{
+		id = "burrow_monarch",
+		name = "The Burrow Monarch",
+		zone = 1,
+		rarity = "Mythic",
+		weight = 0.1,
+		income = 125,
+		hatchSeconds = 540,
+		model = "BurrowMonarch",
+	},
+	{
+		id = "walking_orchard",
+		name = "The Walking Orchard",
+		zone = 1,
+		rarity = "Divine",
+		weight = 0.02,
+		income = 300,
+		hatchSeconds = 1050,
+		model = "WalkingOrchard",
+	},
+	{
+		id = "first_seed",
+		name = "The First Seed",
+		zone = 1,
+		rarity = "Secret",
+		weight = 0.005,
+		income = 700,
+		hatchSeconds = 1800,
+		model = "FirstSeed",
 	},
 
 	-- Zone 2

@@ -662,7 +662,7 @@ section("SackService + pens + collecting", function()
 	check("every old pedestal spot is inside the new pens", slotSpotsInPen)
 end)
 
-section("Pets and eggs: all 79 build (hatching never fails on a model)", function()
+section("Pets and eggs: all 84 build (hatching never fails on a model)", function()
 	local Pets = require(Shared.Config.Pets) :: any
 	local Models = require(Shared.Builders.Models) :: any
 	local bad = {}
@@ -680,10 +680,10 @@ section("Pets and eggs: all 79 build (hatching never fails on a model)", functio
 	for _, b in bad do
 		warn("  " .. b)
 	end
-	check("79 pets configured", #Pets == 79)
+	check("84 pets configured", #Pets == 84)
 end)
 
-section("Pets stay assembled: all 79, normal and Big, through the hatch reveal and animation", function()
+section("Pets stay assembled: all 84, normal and Big, through the hatch reveal and animation", function()
 	-- (edit mode runs no physics, so jointed parts don't follow here: the joints themselves are checked; the live
 	-- play-test checks the shapes on screen)
 	local Pets = require(Shared.Config.Pets) :: any
@@ -738,10 +738,10 @@ section("Pets stay assembled: all 79, normal and Big, through the hatch reveal a
 			truth:Destroy()
 		end
 	end
-	check("all 79 pets: every part attached to the pet (one assembly, only the Root anchored)", #detached == 0)
+	check("all 84 pets: every part attached to the pet (one assembly, only the Root anchored)", #detached == 0)
 	check("every animation joint records its rest pose", #unrecorded == 0 and motorsSeen > 0)
 	check(
-		`all 79 pets, normal + Big: after the hatch reveal + animation every joint is back at its design pose ({motorsSeen} joints)`,
+		`all 84 pets, normal + Big: after the hatch reveal + animation every joint is back at its design pose ({motorsSeen} joints)`,
 		#broke == 0
 	)
 	for _, list in { detached, unrecorded, broke } do
@@ -776,7 +776,7 @@ section("Pet Index + rebirth rules", function()
 	for _, m in Economy.IndexMilestones do
 		table.insert(counts, m.count)
 	end
-	check("index milestones 10/25/40/60/79", table.concat(counts, ",") == "10,25,40,60,79")
+	check("index milestones 10/25/40/60/84", table.concat(counts, ",") == "10,25,40,60,84")
 	check("the last milestone is the whole index", Economy.IndexMilestones[#Economy.IndexMilestones].count == #allPets)
 	local Pets = require(Shared.Config.Pets) :: any
 	local zone1 = {}
