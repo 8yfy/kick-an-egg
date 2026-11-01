@@ -37,13 +37,13 @@ local Economy = {
 	IndexRewards = {} :: { [number]: { money: number } },
 	-- Pet Index completion milestones (Remotes.ClaimIndexMilestone): discover `count` different pets, claim once.
 	-- `incomeBonus` is a permanent pet income bonus (x (1 + bonus)) once claimed. Money scales with the stage of
-	-- the game a player usually reaches that count in (10 ~ zones 1-3 ... all 79 = every zone incl. the Secret).
+	-- the game a player usually reaches that count in (10 ~ zones 1-3 ... all 84 = every zone incl. both Secrets).
 	IndexMilestones = {
 		{ count = 10, money = 2500 },
 		{ count = 25, money = 75000 },
 		{ count = 40, money = 1000000 },
 		{ count = 60, money = 50000000 },
-		{ count = 79, money = 1000000000, incomeBonus = 0.1 },
+		{ count = 84, money = 1000000000, incomeBonus = 0.1 },
 	} :: { { count: number, money: number, incomeBonus: number? } },
 	PlotSlots = { base = 8, max = 20 }, -- pen capacity: placed eggs + placed pets
 	FriendLuckPerFriend = 0.1,
