@@ -11,7 +11,7 @@ follow the same language after that, as the brief requires.
 | 01 Sprout Pup | Common | 30 | 36 | 3 | 4 |
 | 03 Meadow Stag | Rare | 32 | 69 | 4 | 5 |
 | 07 Tide Spirit | Epic | 55 | 84 | 5 | 6 |
-| 23 Frost Serpent (model key `IceDragon` until the contract rename) | Legendary | 56 | 169 | 5 | 9 |
+| 23 Frost Serpent | Legendary | 56 | 169 | 5 | 9 |
 | 43 Quetzal Phoenix | Mythic | 81 | 174 | 5 | 7 |
 | 63 Clockwork Titan | Divine | 119 | 212 | 5 | 7 |
 | 79 Prism Seraph | Secret | 135 | 227 | 6 | 9 |

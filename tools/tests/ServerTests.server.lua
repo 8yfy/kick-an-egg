@@ -368,7 +368,7 @@ section("SackService + pens + collecting", function()
 	local Sculpt = require(Shared.Builders.Models.Sculpt) :: any
 	local PetFx = require(Shared.VFX.PetFx) :: any
 	local heroes =
-		{ "SproutPup", "MeadowStag", "TideSpirit", "IceDragon", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
+		{ "SproutPup", "MeadowStag", "TideSpirit", "FrostSerpent", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
 	local lastParts = 0
 	local signatures: { [string]: string } = {}
 	local unique = true

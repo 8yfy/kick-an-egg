@@ -9,12 +9,11 @@ type Layer = { [string]: any }
 type Pair = { egg: { layers: { Layer } }, pet: { layers: { Layer } } }
 
 local Recipes: { [string]: Pair } = {
-	-- Frost Serpent (Legendary; under the Ice Dragon's model key until the contract rename to FrostSerpent): its
-	-- own snowflake sigil under the coil, six glass ice bricks orbiting with frost trails, blocky snowflakes
-	-- drifting down, glints round the antlers, mist on the coil and a pulsing chest core. Special: every 8-12 s a
-	-- frost breath (mist + ice cubes from the mouth, a ring of glints on the sigil). Egg = its rune-ring glyph,
-	-- falling flakes, glints and a cold glow.
-	IceDragon = {
+	-- Frost Serpent (Legendary): its own snowflake sigil under the coil, six glass ice bricks orbiting with frost
+	-- trails, blocky snowflakes drifting down, glints round the antlers, mist on the coil and a pulsing chest core.
+	-- Special: every 8-12 s a frost breath (mist + ice cubes from the mouth, a ring of glints on the sigil).
+	-- Egg = its rune-ring glyph, falling flakes, glints and a cold glow.
+	FrostSerpent = {
 		egg = {
 			layers = {
 				{
