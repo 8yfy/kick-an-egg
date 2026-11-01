@@ -1,0 +1,30 @@
+{
+ "key": "BurrowMonarch",
+ "name": "The Burrow Monarch",
+ "rarity": "Mythic",
+ "zone": "Meadow",
+ "concept": "The Burrow Monarch: a massive mole-badger with long ears, root-and-gold crown, colossal claws, leaf armour",
+ "pet_parts": 246,
+ "egg_parts": 79,
+ "pet_size_studs": [
+  7.91,
+  10.8,
+  7.06
+ ],
+ "joints": [
+  "ArmL",
+  "ArmR",
+  "Body",
+  "EarL",
+  "EarR",
+  "Head",
+  "LegL",
+  "LegR",
+  "Rocks",
+  "Tail"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "status": "model approved by the user 2026-11-01; not wired into the game yet"
+}

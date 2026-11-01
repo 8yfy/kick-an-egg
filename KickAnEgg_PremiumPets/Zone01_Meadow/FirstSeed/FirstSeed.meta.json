@@ -1,0 +1,32 @@
+{
+ "key": "FirstSeed",
+ "name": "The First Seed",
+ "rarity": "Secret",
+ "zone": "Meadow",
+ "concept": "The First Seed: a root guardian on six glowing roots, ivory-plated seed core, skull mask, branch horns, halo",
+ "pet_parts": 447,
+ "egg_parts": 201,
+ "pet_size_studs": [
+  10.1,
+  8.68,
+  11.23
+ ],
+ "joints": [
+  "ArmL",
+  "ArmR",
+  "Body",
+  "Core",
+  "Halo",
+  "Head",
+  "LegL",
+  "LegR",
+  "PlateL",
+  "PlateR",
+  "RootL",
+  "RootR"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "status": "model approved by the user 2026-11-01; not wired into the game yet"
+}

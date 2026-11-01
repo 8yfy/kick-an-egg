@@ -1,0 +1,28 @@
+{
+ "key": "BloomcrestCrane",
+ "name": "Bloomcrest Crane",
+ "rarity": "Legendary",
+ "zone": "Meadow",
+ "concept": "Bloomcrest Crane: a pearl-white crane, lotus crest, gold mask and beak, layered blush-and-pearl wings",
+ "pet_parts": 276,
+ "egg_parts": 77,
+ "pet_size_studs": [
+  9.12,
+  10.14,
+  10.32
+ ],
+ "joints": [
+  "Body",
+  "Head",
+  "LegL",
+  "LegR",
+  "Neck",
+  "Tail",
+  "WingL",
+  "WingR"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "status": "model approved by the user 2026-11-01; not wired into the game yet"
+}

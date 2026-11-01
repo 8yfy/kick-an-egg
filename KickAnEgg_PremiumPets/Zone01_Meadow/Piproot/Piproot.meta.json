@@ -1,0 +1,28 @@
+{
+ "key": "Piproot",
+ "name": "Piproot",
+ "rarity": "Common",
+ "zone": "Meadow",
+ "concept": "Piproot: a cheerful botanical frog, leaf-armoured back, two-leaf sprout, raised square eyes, pink-tongued smile",
+ "pet_parts": 124,
+ "egg_parts": 88,
+ "pet_size_studs": [
+  5.03,
+  5.74,
+  5.93
+ ],
+ "joints": [
+  "ArmL",
+  "ArmR",
+  "Body",
+  "Head",
+  "Jaw",
+  "LegL",
+  "LegR",
+  "Throat"
+ ],
+ "egg_joints": [
+  "Body"
+ ],
+ "status": "model approved by the user 2026-11-01; not wired into the game yet"
+}
