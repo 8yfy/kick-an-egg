@@ -1,6 +1,13 @@
 # Development handoff
 
 ## Current checkpoint
+- **Admin panel (2026-10-28, Partner A, branch `a/admin-panel` from `main` 0814c21).** Full write-up: `docs/AdminPanel.md`.
+  - Server: `Services/AdminService.luau` + `src/server/Admin/` (allowlist, roles, pipeline, ~44 registered commands, Model Lab, cross-server, audit). Read-only additions in B's area: `DataService:IsPersistent`, `WeatherService:GetEndsAt`. `Anim/Pet.luau` honours an optional `AnimSpeed` attribute. No `Remotes`/`Config` changes; nothing in ReplicatedStorage.
+  - Allowlist: `src/server/Admin/Allowlist.luau` has 1340874349 (`8yf_y`) and 3953001499 (co-owner) as Owner, both confirmed by the owner on 2026-10-28. Staging universe ids are empty in `Admin/Config.luau`.
+  - Verified this session: Lune `tools/tests/AdminSecurity.spec.luau` 128/128; Studio `tools/tests/AdminStudio.server.lua` 99/99; existing ServerTests 364/4 (baseline); gameplay smoke (kick, chase, training, egg place/hatch, roaming income, pen upgrade, weather); all tabs built; compact layout at ~600×353.
+  - Announcements (2026-10-29): the game's `Announce` remote has no client listener, so admin messages now go through `ReplicatedStorage.ServerMessage` attributes and `UI/Hud/ServerMessage.luau` shows `[headshot] USERNAME: message` at the top for every player (bigger, animated in/out, typewriter text, new `Announcement` SoundBank chime).
+  - Not verified: published-server MessagingService/MemoryStore, two clients, real phones, staging universe.
+  - Test places were built into `build/` (untracked, not committed) and opened in their own Studio window; the user's open places were not touched.
 - **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**
   - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
     (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).
