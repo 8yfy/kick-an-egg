@@ -24,8 +24,8 @@ local Eggs: { [string]: Builder.Spec } = {
 		glow = rgb(120, 220, 255),
 		metal = rgb(150, 190, 230),
 	}),
-	-- Premium hero spec (Models/Premium/IceDragon.luau, docs/EggPetPlan.md).
-	IceDragon = require(script.Parent.Parent.Premium.IceDragon).egg,
+	-- Premium hero spec (Models/Premium/FrostSerpent.luau, docs/EggPetPlan.md).
+	FrostSerpent = require(script.Parent.Parent.Premium.FrostSerpent).egg,
 }
 
 return Eggs

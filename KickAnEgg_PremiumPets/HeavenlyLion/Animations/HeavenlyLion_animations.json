@@ -1,0 +1,42 @@
+{
+ "HeavenlyLion_Idle": {
+  "frames": 72,
+  "fps": 30,
+  "seconds": 2.4,
+  "bones": [
+   "Body",
+   "Head",
+   "Mane",
+   "Tail"
+  ],
+  "loop": true
+ },
+ "HeavenlyLion_Walk": {
+  "frames": 32,
+  "fps": 30,
+  "seconds": 1.07,
+  "bones": [
+   "ArmL",
+   "ArmR",
+   "Body",
+   "Head",
+   "LegL",
+   "LegR",
+   "Mane",
+   "Tail"
+  ],
+  "loop": true
+ },
+ "HeavenlyLion_Special": {
+  "frames": 60,
+  "fps": 30,
+  "seconds": 2.0,
+  "bones": [
+   "Body",
+   "Head",
+   "Mane",
+   "Tail"
+  ],
+  "loop": false
+ }
+}

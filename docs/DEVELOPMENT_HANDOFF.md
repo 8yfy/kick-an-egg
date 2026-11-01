@@ -1,6 +1,90 @@
 # Development handoff
 
 ## Current checkpoint
+- **Top-tier remodel: Heaven Lion, Clockwork Titan, Prism Seraph (2026-10-31, Partner A, branch `a/top-tier-pets`,
+  stacked on `a/frost-serpent-rename`).**
+  - Rebuilt to the user's three reference images and approved by the user.
+  - Block specs: `Builders/Models/Premium/{HeavenLion,ClockworkTitan,PrismSeraph}.luau` (444 / 332 / 445 parts). The lion
+    is new: Zone 20 now loads it from Premium instead of `Creatures`.
+  - Eggs are in the same files. Effects go in `PetFx/Recipes/{ClockworkFactory,RainbowHeaven}.luau`. The lion's recipe is
+    new; it had none before.
+  - Generators: `tools/blender/pets/` (the Frost Serpent kit generalised into `kit/` + `v3/`; `v3build.py ... dest=premium`).
+  - Shared code:
+    - `Anim/Pet` sets idle tempo and flourishes by rarity, and syncs PetFx specials through the `PetFxSpecial`
+      attribute;
+    - PetFx layers take a `bright` field (ParticleEmitter.Brightness);
+    - `PetFx/Sprites` registers the `v3_*` and `meadow_*` sprites.
+  - Rule 3 is kept: in-game pets are still block data. The user also commissioned mesh versions of the three pets
+    (beveled, rigged, animated, FBX + GLB, `KickAnEgg_PremiumPets/README.md`). Using them in the game needs a Partner A +
+    B decision. `RobloxIntegration/AnimationNotes` recommends one MeshPart per joint on the existing Motor6Ds.
+  - **Sprites uploaded (2026-10-31):** the 14 `assets/pet-vfx/vfx_v3_*.png` and 3 `vfx_meadow_*.png` sprites. Decal ids
+    are in `tools/world/ids/pet-vfx.json`, and the resolved Image ids in `PetFx/Sprites`. All 17 load in Studio, and the
+    top tier's effects draw the uploaded art.
+  - **Verified this session in Studio (single-player Play):**
+    - the `ServerTests` hero section re-run by hand plus the new Heaven Lion pair: 57/57. The ladder is SproutPup 37 <
+      MeadowStag 70 < TideSpirit 85 < FrostSerpent 170 < QuetzalPhoenix 175 < ClockworkTitan 332 < PrismSeraph 445;
+    - all three idles animate (`Anim/Pet`), and the effects attach and clean up;
+    - no new script errors.
+  - **Not run:** the full `tools/run-tests.sh` (no run-in-roblox here), Roblox's 3D Importer on the mesh exports, and a
+    multiplayer test.
+
+- **Signature motion and effects for the top tier (2026-11-01, Partner A, same branch `a/top-tier-pets`, PR #59).**
+  - The user asked for unique effects and animations per pet, not the shared stack with new colours. They picked one
+    concept per pet and approved the result in recorded pen clips:
+    - Heaven Lion: Judgement Light;
+    - Clockwork Titan: Overcharged Engine;
+    - Prism Seraph: Aurora Veil.
+  - The tables are in `docs/EggPetPlan.md` ("Signature motion", "Signature effects").
+  - **Motion:** `Anim/PetProfiles.luau` gives each pet its own idle, roam and special, keyed by model key. `Anim/Pet`
+    uses a profile when the pet has one and falls back to the rarity tempo when it doesn't. The `Anim.play` API is
+    unchanged. New joints: `Mane` on the lion, `HeartHands` and `Gear1-7` on the titan (re-baked Premium specs).
+  - **Effects:**
+    - `VFX/PetFx/Signature.luau` adds the layer kinds `arc`, `blades`, `strike`, `dial`, `ribbon`, `trail` and
+      `curtain`.
+    - `emit` takes `part`, `cue`, `on`, `beat` and `delay`.
+    - `beam` takes `top`, `pulse`, `curve` and `bright`.
+    - `light` takes `flicker` and `cycle`.
+    - Handles get `Fire(sync)`.
+  - **New sprites:** `assets/pet-vfx/vfx_v3_{shaft,arc,clock_dial,veil}.png` (`tools/blender/pets/v3/sprites_signature.py`).
+    Uploaded 2026-11-01: Decal ids are in `tools/world/ids/pet-vfx.json` and Image ids in `PetFx/Sprites`. All 10
+    textures the three pets' effects use load from uploaded ids in Studio.
+  - **Verified in Studio (single-player Play):** the `ServerTests` hero and premium-pair checks pass 57/57, and the
+    ladder still rises (titan 340 < seraph 445). Each pet was recorded idling, firing its special and roaming in a pen.
+    No new script errors.
+  - **Mesh deliverables rebuilt (2026-11-01):** `KickAnEgg_PremiumPets` for the new joints: the lion's Mane bone (9
+    bones, 16 meshes); the titan's HeartHands and Gear1-7 now come from the model's own joints. This also fixes a UV
+    bug that rendered the titan's brass arms as dark iron. All three re-imports validate, with 0 texture/colour
+    mismatches.
+  - **Not done:**
+    - unique motion and effects for the remaining pets.
+
+- **Admin panel (2026-10-28, Partner A, branch `a/admin-panel` from `main` 0814c21).** Full write-up: `docs/AdminPanel.md`.
+  - Server: `Services/AdminService.luau` + `src/server/Admin/` (allowlist, roles, pipeline, ~44 registered commands, Model Lab, cross-server, audit). Read-only additions in B's area: `DataService:IsPersistent`, `WeatherService:GetEndsAt`. `Anim/Pet.luau` honours an optional `AnimSpeed` attribute. No `Remotes`/`Config` changes; nothing in ReplicatedStorage.
+  - Allowlist: `src/server/Admin/Allowlist.luau` has 1340874349 (`8yf_y`) and 3953001499 (co-owner) as Owner, both confirmed by the owner on 2026-10-28. Staging universe ids are empty in `Admin/Config.luau`.
+  - Verified this session: Lune `tools/tests/AdminSecurity.spec.luau` 128/128; Studio `tools/tests/AdminStudio.server.lua` 99/99; existing ServerTests 364/4 (baseline); gameplay smoke (kick, chase, training, egg place/hatch, roaming income, pen upgrade, weather); all tabs built; compact layout at ~600×353.
+  - Announcements (2026-10-29): the game's `Announce` remote has no client listener, so admin messages now go through `ReplicatedStorage.ServerMessage` attributes and `UI/Hud/ServerMessage.luau` shows `[headshot] USERNAME: message` at the top for every player (bigger, animated in/out, typewriter text, new `Announcement` SoundBank chime).
+  - Not verified: published-server MessagingService/MemoryStore, two clients, real phones, staging universe.
+  - Test places were built into `build/` (untracked, not committed) and opened in their own Studio window; the user's open places were not touched.
+- **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**
+  - Pair 23 (Legendary, Snowy Peaks): new pet and egg, modelled in Blender from Roblox primitives only and baked to block data
+    (`Builders/Models/Premium/FrostSerpent.luau`, source `assets/blender/FrostSerpent.blend` + `tools/blender/frost_serpent`).
+    Rule 3 holds: no meshes. The old `Premium/IceDragon.luau` is removed.
+  - `a/frost-serpent` ships it under the model key `IceDragon` without touching `Config`. The stacked `contract:` PR
+    (`a/frost-serpent-rename`) renames it to "Frost Serpent" / `FrostSerpent` in `Config/Pets`, the zone files, the recipe
+    and the hero test lists. The pet id stays `ice_dragon`, so saves are untouched.
+  - VFX (`VFX/PetFx`): six original sprites (`assets/pet-vfx/vfx_frost_*.png`, uploaded; Image ids in `PetFx/Sprites`). PetFx
+    `emit` layers can now be timed bursts (`every`, `count`, `sync`) and aim with `dir` (the pet's frost-breath special).
+  - Animation: `Anim/Pet` serpent poses for rigs with a `Coil` joint, `Rig.poseAbout`, and pupils blink with the eyes.
+  - Verified this session in Studio: the hero-ladder/shell/recipe checks of `ServerTests` re-run by hand (57/57, pet 170 parts
+    between Tide Spirit 85 and Quetzal 175). Single-player Play: a placed pet roams the pen with its effects and serpent idle, and
+    a plot egg hatched into the pet. No new script errors. Full `tools/run-tests.sh` was not run (no run-in-roblox on this machine).
+
+- **Pet Merchant leans on his counter (2026-10-22, Partner A, branch `a/lazy-pet-merchant` from `main` @ `0814c21`).**
+  - **Stand.** In `Builders/Map/World/Shops.petStand`, the counter top went from 3.8 to 3.0 studs over the deck. The carrier, lantern and sparkle came down with it, and the merchant now stands on a new 0.8-stud `MerchantStep` behind the counter.
+  - **Pose.** `Anim/Merchant` (unchanged from `main`) now gives him a real lean, like the Coach.
+  - **Unchanged.** The prompt, prices, inventory, currency, other NPCs and map animations.
+  - **History.** An earlier lazy chair pose on this branch was dropped at the user's request.
+  - **Details.** QA is in `docs/CharacterAnimation.md`.
 - **`main` is the assembled game (2026-10-20, Partner B).**
   - `codex/reactive-tutorial` @ `7930391` was merged into `main` in #50 (merge commit `dc07045`, no conflicts). `main` now contains:
     - Partner A's `a/full-build` (#42–#49);
@@ -34,6 +118,11 @@
 - Existing Claude worktrees remain intact. `kick-an-egg` has untracked `tools/icons/icons2d.py`; `kte-anim` has untracked `build/`. Do not discard them.
 
 ## Completed and changed
+- **Flat start (Partner A, 2026-10-22, branch `a/flat-start` from `main` 0814c21).**
+  - The raised plaza and the launch ramp are gone: the hub, the new launch station and every lane sit at y = 0, and zone 1's lane starts at z = 0. Map attributes are now PlazaY 0 / RampStart 0 / RampEnd 0, which `VFX/Avalanche` treats as flat ground. `KickPad` top is 0.5.
+  - Launch station (`MapBuilder.buildLaunch`, `World/Recipes/Launch.luau`): studded deck, brick kick spot, two launch pylons with the KICK THE EGG! and 3-2-1 boards, blinking chevron lights. Egg statues, torches and edge rail removed.
+  - `ServerTests`: the landing-surface check now expects 20 (no ramp).
+  - Verified in Studio on a Rojo build of this branch: map builds in 2.3 s, 0 visible z-fights. `ServerTests` 364 passed / 4 failed, the same 4 as untouched `main`. Full-loop playtest: kick, flat run home, EggSecured and avalanche pass. Its other failures also appear on untouched `main` (newer inventory, animations and SFX). No multiplayer or device test.
 - Reactive tutorial: shared pure Rules, authoritative TutorialService observers, persisted training/pen facts, rewritten contextual client controller, reusable real-control spotlight/world guide/objective modules, six actual SVG/transparent PNG assets uploaded under existing verified creator, and local replay from Settings. Main completion requires the first placed pet and brief income explanation; upgrades are optional. Existing gameplay and shared remote/config contracts are unchanged.
 - Added six podiums in `Builders/Map/Boards`, adjusted board height and moved Donate beside the bronze podium with a 2.6-stud gap. `Services/LeaderboardService` now feeds its same top-three entries into `Util/LeaderboardPodiums`. Native appearances use private WorldModel assembly, bounded caching and stale-request rejection. `Util/PodiumEmotes` loops only actually equipped emotes via their resolved catalog Animation assets. `Controllers/LeaderboardDisplayController` adds locally faded nearby medal badges. See `docs/LeaderboardPodiums.md`.
 - Added `Controllers/ShopLabelController.luau`: outlined, world-sized shop labels above the roof decorations, player/camera distance gates and per-frame viewport visibility. Local UI only; physical signs, prompts and gameplay are unchanged. See `docs/ShopLabels.md`.
@@ -79,7 +168,7 @@
 - Git fetch and public API PR reads succeeded (#47 is the combined build PR). GitHub CLI has no authenticated account; push/PR creation capability is unverified.
 
 ## Known issues inherited from prior work
-See `docs/CharacterAnimation.md`: flying egg starts at pad center instead of kicker's foot; shift-lock can turn the body toward the camera after sack alignment. The Pet Merchant folded-arms pose is an intentional decision.
+See `docs/CharacterAnimation.md`: flying egg starts at pad center instead of kicker's foot; shift-lock can turn the body toward the camera after sack alignment. The Pet Merchant's counter was lowered (with a step behind it) so he leans on it instead of folding his arms.
 That document reports 365 passing and 3 existing failing server tests; these are historical results, not rerun here. Multiplayer, real mobile and live-server checks are still listed as untested.
 
 ## Pending / next steps

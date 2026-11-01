@@ -368,11 +368,13 @@ section("SackService + pens + collecting", function()
 	local Sculpt = require(Shared.Builders.Models.Sculpt) :: any
 	local PetFx = require(Shared.VFX.PetFx) :: any
 	local heroes =
-		{ "SproutPup", "MeadowStag", "TideSpirit", "IceDragon", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
+		{ "SproutPup", "MeadowStag", "TideSpirit", "FrostSerpent", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
 	local lastParts = 0
 	local signatures: { [string]: string } = {}
 	local unique = true
-	for _, key in heroes do
+	local premiumPairs = table.clone(heroes)
+	table.insert(premiumPairs, "HeavenLion") -- a premium pair off the hero ladder (Divine)
+	for _, key in premiumPairs do
 		local egg, pet = HeroModels.egg(key), HeroModels.pet(key)
 		local parts = 0
 		for _, d in pet:GetDescendants() do
@@ -380,8 +382,10 @@ section("SackService + pens + collecting", function()
 				parts += 1
 			end
 		end
-		check(key .. " pet is more detailed than the rarity below it", parts > lastParts)
-		lastParts = parts
+		if table.find(heroes, key) then
+			check(key .. " pet is more detailed than the rarity below it", parts > lastParts)
+			lastParts = parts
+		end
 		local _, shell = Sculpt.shellBounds(egg)
 		check(key .. " egg shell fits the chase", shell.X <= 4.2 and shell.Z <= 4.2 and shell.Y <= 6)
 		check(key .. " egg keeps its Body joint (legs sprout under it)", egg.PrimaryPart:FindFirstChild("Body") ~= nil)
@@ -492,7 +496,7 @@ section("SackService + pens + collecting", function()
 		end
 		check("every pen has its floor frame and owner anchor, no pedestals", areas == 5)
 		local CollectionService = game:GetService("CollectionService")
-		check("lanes + ramp are the landing surfaces", #CollectionService:GetTagged("LandingSurface") == 21)
+		check("the 20 lanes are the landing surfaces (flat start, no ramp)", #CollectionService:GetTagged("LandingSurface") == 20)
 		local Physics = game:GetService("PhysicsService")
 		check(
 			"steered eggs pass through characters (the kicker waits on the pad, on the way home)",

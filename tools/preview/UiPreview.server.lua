@@ -437,7 +437,7 @@ elseif SCREEN == "Heroes" then
 	folder.Name = "HeroPreview"
 	folder.Parent = workspace
 	local heroes =
-		{ "SproutPup", "MeadowStag", "TideSpirit", "IceDragon", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
+		{ "SproutPup", "MeadowStag", "TideSpirit", "FrostSerpent", "QuetzalPhoenix", "ClockworkTitan", "PrismSeraph" }
 	local spacing = if FROM == 1 then 7.5 else 11
 	local function place(model: Model, at: Vector3, kind: string, key: string, yaw: number?)
 		local _, size = model:GetBoundingBox()

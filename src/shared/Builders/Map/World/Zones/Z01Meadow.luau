@@ -1,5 +1,5 @@
 --!strict
--- Partner A. Zone 1, Meadow (z 0..100, the launch ramp runs z 10..76): rolling green banks just below the plaza, a
+-- Partner A. Zone 1, Meadow (z 0..100, flat start: the lane runs from the launch deck): low rolling banks, a
 -- red-roofed windmill on a stepped hill (sails turning) on the left, a fenced farm plot with hay, a scarecrow,
 -- sunflowers, beehives and a cart on the right, a safe stream with a plank bridge and a pond, layered groves,
 -- flowers everywhere, distant forest bands and hills. Ambience: pollen, butterflies, drifting blossoms.
@@ -35,7 +35,7 @@ return function(zone: any, parent: Instance)
 	local FAR =
 		Palettes.merge(PAL, { Stone = rgb(150, 162, 186), StoneDark = rgb(122, 134, 160), Snow = rgb(246, 250, 255) })
 	local ctx = Valley.new(zone, parent, PAL)
-	local H = 9
+	local H = 3 -- just above the flat hub, so its front edge reads as a low bank, not a cliff
 	for _, side in { -1, 1 } do
 		Valley.plateau(ctx, side, H, PAL.Ground :: Color3, PAL.Stone :: Color3)
 		Valley.banks(ctx, side, { "BankA", "BankD", "BankA", "BankB" }, H)
@@ -134,7 +134,7 @@ return function(zone: any, parent: Instance)
 	end
 	Kit.place(ctx.terrain, "HillA", Kit.at(-190, H, 30, 40), 1, PAL)
 	Kit.place(ctx.terrain, "HillC", Kit.at(180, H, 30, 10), 1.2, PAL)
-	Valley.shoulders(ctx, COVER, 20, PAL, 78)
+	Valley.shoulders(ctx, COVER, 20, PAL, 44) -- clear of the chevron lights
 
 	-- far: forest bands and blue-grey peaks closing the view
 	for _, side in { -1, 1 } do

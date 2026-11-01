@@ -29,3 +29,4 @@ Read `docs/DEVELOPMENT_HANDOFF.md`, then inspect Git status and the relevant dif
 - Studio MCP: select the correct instance, inspect its state, and use read-only checks before mutation. Do not overwrite an open place from a stale checkout.
 - Blender MCP: use the existing Blender installation/add-on, localhost connection and disabled telemetry. Verify a persistent GUI scene before modeling. Avoid concurrent mutation by Claude and Codex; finish/save one client's operation before the other takes over.
 - Consult `docs/CODEX_SETUP.md` for verified local setup and outstanding connection requirements.
+- Optional LihFolk knowledge vault: follow the LIHFOLK KNOWLEDGE VAULT section in `CLAUDE.md` and `docs/LihFolkVault.md`. Its path comes from the local `ROBLOX_VAULT` variable; never commit the vault or a machine path.

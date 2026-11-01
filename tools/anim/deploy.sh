@@ -5,7 +5,8 @@
 set -e
 dir="$(cd "$(dirname "$0")" && pwd)"
 rojo="$HOME/.rokit/tool-storage/rojo-rbx/rojo/7.7.1/rojo.exe"
-studio="$(for d in "$LOCALAPPDATA"/Roblox/Versions/*/; do [ -f "$d/RobloxStudioBeta.exe" ] && echo "$d"; done | head -1)"
+# the newest installed Studio (rbxasset:// resolves inside the running Studio's own version folder)
+studio="$(ls -td "$LOCALAPPDATA"/Roblox/Versions/*/RobloxStudioBeta.exe 2>/dev/null | head -1 | xargs -0 dirname)"
 name="anim_$(date +%s).rbxm"
 mkdir -p "$dir/out"
 "$rojo" build "$dir/../world/deploy.project.json" -o "$dir/out/deploy.rbxm" > /dev/null

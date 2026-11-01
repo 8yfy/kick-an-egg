@@ -37,6 +37,7 @@ local Donate = require(script.Screens.Donate)
 local Bag = require(script.Screens.Bag)
 local WeatherWidget = require(script.Hud.WeatherWidget)
 local WeatherToast = require(script.Hud.WeatherToast)
+local ServerMessage = require(script.Hud.ServerMessage)
 local PenUpgradeFeedback = require(script.Hud.PenUpgradeFeedback)
 local WeatherPreview = require(script.Dev.WeatherPreview)
 
@@ -123,6 +124,7 @@ function UI:Init()
 	-- weather: the ONE bottom-right widget + its notice in the toast lane (both read WeatherFx.State); Studio: dev panel
 	WeatherWidget.new(root)
 	WeatherToast.new(Modal.toastLane)
+	task.spawn(ServerMessage.start, playerGui) -- admin announcements: [headshot] USERNAME: message at the top
 	penFeedback = PenUpgradeFeedback.new()
 	gui.Destroying:Connect(function()
 		if penFeedback then

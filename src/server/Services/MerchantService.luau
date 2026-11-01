@@ -54,6 +54,22 @@ local function rigOf(config: MerchantConfig.Merchant): Enum.HumanoidRigType
 	return Enum.HumanoidRigType.R15
 end
 
+-- The lowest world Y of the NPC's body (feet), ignoring accessories: right after
+-- CreateHumanoidModelFromDescription they are not attached yet and can sit far below the feet.
+local function bodyBottom(npc: Model): number?
+	local low = math.huge
+	for _, d in npc:GetDescendants() do
+		if d:IsA("BasePart") and not d:FindFirstAncestorOfClass("Accessory") then
+			local cf, half = d.CFrame, d.Size / 2
+			local reach = math.abs(cf.RightVector.Y) * half.X
+				+ math.abs(cf.UpVector.Y) * half.Y
+				+ math.abs(cf.LookVector.Y) * half.Z
+			low = math.min(low, cf.Position.Y - reach)
+		end
+	end
+	return if low < math.huge then low else nil
+end
+
 -- Builds the avatar NPC standing on `feet` (facing its LookVector) with `attrs`. nil if it can't be built.
 local function build(
 	config: MerchantConfig.Merchant,
@@ -88,10 +104,9 @@ local function build(
 	end
 	root.Anchored = true
 	npc.PrimaryPart = root
-	-- stand on the spot: lift the model so its lowest point (the feet, any rig or body scale) is on `feet`
+	-- stand on the spot: lift the model so its feet (any rig or body scale, not the accessories) are on `feet`
 	npc:PivotTo(feet)
-	local box, size = npc:GetBoundingBox()
-	local bottom = box.Position.Y - size.Y / 2
+	local bottom = bodyBottom(npc) or feet.Position.Y
 	npc:PivotTo(feet + Vector3.new(0, feet.Position.Y - bottom, 0))
 	for k, v in attrs do
 		npc:SetAttribute(k, v)

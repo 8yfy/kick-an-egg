@@ -26,3 +26,6 @@ tools/world/out/
 tools/world/blend/
 tools/world/ids/*.studio.txt
 __pycache__/
+
+# Pet kit Blender check renders (tools/blender/pets/preview.py)
+tools/blender/pets/out/

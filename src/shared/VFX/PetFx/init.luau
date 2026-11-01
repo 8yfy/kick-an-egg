@@ -4,29 +4,48 @@
 --
 --   local handle = PetFx.attach(model, "egg" | "pet", modelKey, { Quality = 1 })
 --   handle.SetEnabled(false); handle.Destroy()      -- also cleaned up when the model leaves the workspace
+--   handle.Fire("roar")                              -- fires that synced special now (showcase, interactions)
 --
 -- A recipe is { layers = { Layer, ... } }. Lengths are studs at model scale 1 (multiplied by the model's scale,
 -- so Size mutations stay right); y = height above the feet; x/z in the model's frame (-Z = its front).
 --   emit   ParticleEmitter: sprite, rate, life {a,b}, size n|{a,b}|{a,b,c}, speed n|{a,b}, color C3|{C3,...},
---          alpha (transparency) n|{a,b}|{a,b,c}, glow (LightEmission 0..1), y | at {x,y,z}, area {x,y,z} +
+--          alpha (transparency) n|{a,b}|{a,b,c}, glow (LightEmission 0..1), bright (Brightness: big sprites
+--          low, specks high, vault "Particle Emitters In Depth"), y | at {x,y,z}, area {x,y,z} +
 --          shape (Box|Sphere|Cylinder|Disc) + surface, spread, accel {x,y,z}, drag, spin {a,b} (deg/s),
---          rot {a,b}, face (camera|up|vel|flat), locked, zoff
+--          rot {a,b}, face (camera|up|vel|flat), locked, zoff, dir (emission NormalId in the model frame, e.g.
+--          "Front"); every {a,b} + count makes it a timed burst ("special") of `count` particles every a..b s,
+--          and bursts sharing a `sync` name fire together (a named special also sets the model attribute
+--          PetFxSpecial, which cues the pet's flourish in Anim/Pet); `beat = true` makes a synced burst a minor
+--          beat instead (PetFxBeatName + PetFxBeat, which Anim/PetProfiles can move with, e.g. a steam hiss);
+--          `delay` (s) holds a burst back so it lands on the gesture's climax (the lion's roar thrust);
+--          `part` = a part name: the emitter rides that part (at = offset in its space), so it follows the
+--          animation; `cue` = a name: emits `count` whenever Anim cues it (model attribute Cue_<name>, e.g. a
+--          footfall "stepL" or a clock "tick")
 --   orbit  `count` items circling the model: radius, y, speed (rad/s, sign = direction), bob, tilt (deg),
 --          phase; item = sprite + size (camera-facing) or part {shape, size, color, material, alpha, spinAxis};
 --          trail {color, life, width, alpha, glow, sprite?} on each item
 --   disc   flat sprite facing up (halo, sigil, ground ring): sprite, y, size, color, alpha, spin (deg/s),
---          tilt (deg about X), pulse {min, max, period}, glow (unlit brightness)
+--          step {deg, every} (turns in ticks like a clock instead of spinning), tilt (deg about X),
+--          pulse {min, max, period}, glow (unlit brightness)
 --   board  camera-facing sprite (glow, rays): sprite, y, size, color, alpha, spin, pulse, glow, back (studs
---          behind the model, so the body stays in front)
---   light  PointLight: color, y, range, brightness, pulse {min, max, period}
---   beam   vertical Beam: sprite, y0, y1, width, color, alpha, glow, scroll
+--          pushed away from the camera, so the body stays in front whichever way the pet faces)
+--   light  PointLight: color, y, range, brightness, pulse {min, max, period}, flicker (0..1 random dips),
+--          cycle {C3, ...} + period (colour drifts through the list)
+--   beam   Beam from (x, y0, z) up to (x, y1, z) + top {x, y, z} (tilts the far end): sprite, width, width1, color,
+--          alpha, glow, bright (Beam.Brightness), scroll, pulse {min, max, period} (breathing opacity), segments,
+--          curve {size, hz}
+-- Signature kinds (VFX/PetFx/Signature): arc (lightning between parts), blades (a turning crown of light-blades on a
+-- joint), strike (pillars of light slamming down in a ring), dial (a giant spinning sprite), ribbon (a flowing
+-- streamer from a part), trail (a Trail on a part), curtain (a ring of rippling veils that unfurls). Timed ones use
+-- every/sync/delay like emit bursts; `on` = a sync name reacts to another layer's special instead.
 local RunService = game:GetService("RunService")
 
 local Sprites = require(script.Sprites)
+local Signature = require(script.Signature)
 
 export type Layer = { [string]: any }
 export type Recipe = { layers: { Layer } }
-export type Handle = { SetEnabled: (on: boolean) -> (), Destroy: () -> () }
+export type Handle = { SetEnabled: (on: boolean) -> (), Destroy: () -> (), Fire: (sync: string) -> () }
 
 local PetFx = {}
 PetFx.Sprites = Sprites
@@ -164,6 +183,8 @@ type State = {
 	made: { Instance },
 	lastRoot: CFrame?,
 	conn: RBXScriptConnection?,
+	timers: { [string]: { next: number, fired: number } }?,
+	conns: { RBXScriptConnection },
 }
 
 local active: { [State]: boolean } = {}
@@ -176,14 +197,89 @@ local function build(state: State, layers: { Layer }, quality: number)
 	folder.Parent = model
 	table.insert(state.made, folder)
 
-	local function attachment(name: string, pos: Vector3): Attachment
+	local timers: { [string]: { next: number, fired: number } } = {}
+	state.timers = timers
+	local rng = Random.new()
+
+	local function attachment(name: string, pos: Vector3, parent: Instance?): Attachment
 		local a = Instance.new("Attachment")
 		a.Name = name
 		a.Position = pos
-		a.Parent = root
+		a.Parent = parent or root
 		table.insert(state.made, a)
 		return a
 	end
+
+	-- A timed layer (every {a, b}, sync, beat, delay) calls `fire()` each time its timer goes off; layers sharing a
+	-- sync name share one timer. A named special cues the pet's flourish (PetFxSpecial); a `beat` cues a minor
+	-- beat (PetFxBeatName + PetFxBeat). `on` = a sync name only listens to that timer.
+	local function timed(layer: Layer, i: number, fire: (t: number) -> ())
+		local every = layer.every
+		local key = layer.on or layer.sync or `burst{i}`
+		if type(every) == "table" and not timers[key] then
+			timers[key] = { next = os.clock() + rng:NextNumber(2, every[1]), fired = -1 }
+		end
+		local seen = -1 -- the last firing this layer reacted to (listeners may run before the layer that fires)
+		table.insert(state.movers, function(t)
+			local timer = timers[key]
+			if not timer then
+				return
+			end
+			if type(every) == "table" and t >= timer.next then
+				timer.fired = t
+				timer.next = t + rng:NextNumber(every[1], every[2] or every[1])
+				if layer.sync and layer.beat then -- a named minor beat (Anim/PetProfiles)
+					state.model:SetAttribute("PetFxBeatName", layer.sync)
+					state.model:SetAttribute("PetFxBeat", t)
+				elseif layer.sync then -- a named special also cues the pet's flourish (Anim/Pet)
+					state.model:SetAttribute("PetFxSpecial", t)
+				end
+			end
+			if timer.fired >= 0 and timer.fired ~= seen then
+				seen = timer.fired
+				local delay = layer.delay
+				if delay then
+					task.delay(delay, function()
+						if active[state] and state.enabled and not state.asleep then
+							fire(os.clock())
+						end
+					end)
+				else
+					fire(t)
+				end
+			end
+		end)
+	end
+
+	-- A model part by name (signature layers and `part` emitters anchor to it); nil when the model has none.
+	local function partNamed(name: string?): BasePart?
+		if not name then
+			return nil
+		end
+		local p = model:FindFirstChild(name, true)
+		return if p and p:IsA("BasePart") then p else nil
+	end
+
+	local kit = {
+		state = state,
+		model = model,
+		root = root,
+		folder = folder,
+		s = s,
+		quality = quality,
+		rng = rng,
+		attachment = attachment,
+		fxPart = fxPart,
+		colors = colors,
+		seq = seq,
+		num = num,
+		vec = vec,
+		pulse = pulse,
+		sprite = sprite,
+		timed = timed,
+		partNamed = partNamed,
+		Sprites = Sprites,
+	}
 
 	for i, layer in layers do
 		local kind = layer.kind
@@ -199,6 +295,7 @@ local function build(state: State, layers: { Layer }, quality: number)
 			e.Color = colors(layer.color)
 			e.Transparency = seq(layer.alpha or { 0, 1 }, 1)
 			e.LightEmission = layer.glow or 0
+			e.Brightness = layer.bright or 1
 			e.LightInfluence = if layer.glow then 0 else 1
 			e.SpreadAngle = Vector2.new(layer.spread or 180, layer.spread or 180)
 			e.Acceleration = vec(layer.accel, s)
@@ -208,8 +305,31 @@ local function build(state: State, layers: { Layer }, quality: number)
 			e.Orientation = FACE[layer.face or "camera"] or Enum.ParticleOrientation.FacingCamera
 			e.LockedToPart = layer.locked == true
 			e.ZOffset = layer.zoff or 0
-			e.EmissionDirection = Enum.NormalId.Top
-			if layer.area then
+			e.EmissionDirection = if layer.dir then (Enum.NormalId :: any)[layer.dir] else Enum.NormalId.Top
+			local count = math.max(1, math.floor((layer.count or 10) * quality + 0.5))
+			if type(layer.every) == "table" or layer.on then
+				e.Rate = 0
+				timed(layer, i, function()
+					if e.Parent and e.Enabled then
+						e:Emit(count)
+					end
+				end)
+			end
+			if layer.cue then -- a beat of the pet's own motion (Anim/PetProfiles cue)
+				e.Rate = 0
+				table.insert(
+					state.conns,
+					model:GetAttributeChangedSignal(`Cue_{layer.cue}`):Connect(function()
+						if e.Parent and e.Enabled then
+							e:Emit(count)
+						end
+					end)
+				)
+			end
+			local host = partNamed(layer.part)
+			if host then -- rides that part (follows its joint)
+				e.Parent = attachment(`Emit{i}`, if layer.at then vec(layer.at, s) else Vector3.zero, host)
+			elseif layer.area then
 				local host = fxPart(`Area{i}`, vec(layer.area, s), folder)
 				e.Shape = (Enum.ParticleEmitterShape :: any)[layer.shape or "Box"]
 				e.ShapeStyle = if layer.surface
@@ -332,6 +452,7 @@ local function build(state: State, layers: { Layer }, quality: number)
 			table.insert(state.parts, p)
 			local tilt = CFrame.Angles(math.rad(layer.tilt or 0), 0, 0)
 			local spin = math.rad(layer.spin or 0)
+			local step = layer.step
 			local pulseSpec = layer.pulse
 			local offset = CFrame.new(at)
 			table.insert(state.movers, function(t, r)
@@ -339,14 +460,23 @@ local function build(state: State, layers: { Layer }, quality: number)
 				if pulseSpec then
 					p.Size = Vector3.new(size * k, 0.05, size * k)
 				end
-				p.CFrame = r * offset * tilt * CFrame.Angles(0, t * spin, 0)
+				local a = t * spin
+				if step then -- a clock tick: whole steps, each eased in over its first 0.15 s
+					local u = t / (step[2] or 1)
+					local n = math.floor(u)
+					local f = math.clamp((u - n) * (step[2] or 1) / 0.15, 0, 1)
+					a = math.rad(step[1]) * (n + f * f * (3 - 2 * f))
+				end
+				p.CFrame = r * offset * tilt * CFrame.Angles(0, a, 0)
 			end)
 		elseif kind == "board" then
 			local back = (layer.back or 0) * s
-			local a = attachment(`Board{i}`, at + Vector3.new(0, 0, back))
+			local a = attachment(`Board{i}`, at)
 			local gui = Instance.new("BillboardGui")
 			local size = (layer.size or 4) * s
 			gui.Size = UDim2.fromScale(size, size)
+			-- camera space: -Z is away from the camera (a model-space offset would swing in front of a pet facing away)
+			gui.StudsOffset = Vector3.new(0, 0, -back)
 			gui.LightInfluence = 0
 			gui.Brightness = layer.glow or 2
 			gui.Adornee = a
@@ -372,16 +502,26 @@ local function build(state: State, layers: { Layer }, quality: number)
 			l.Shadows = false
 			l.Parent = attachment(`Light{i}`, at)
 			table.insert(state.toggles, l)
-			local pulseSpec = layer.pulse
+			local pulseSpec, flicker, cycle = layer.pulse, layer.flicker, layer.cycle
 			local b = l.Brightness
-			if pulseSpec then
+			if pulseSpec or flicker or cycle then
+				local dip, nextDip = 1, 0
 				table.insert(state.movers, function(t)
-					l.Brightness = b * pulse(pulseSpec, t)
+					if flicker and t >= nextDip then
+						dip = 1 - rng:NextNumber(0, flicker)
+						nextDip = t + rng:NextNumber(0.04, 0.12)
+					end
+					l.Brightness = b * pulse(pulseSpec, t) * dip
+					if cycle then
+						local u = (t / (layer.period or 6)) % 1 * #cycle
+						local k = math.floor(u)
+						l.Color = cycle[k + 1]:Lerp(cycle[(k + 1) % #cycle + 1], u - k)
+					end
 				end)
 			end
 		elseif kind == "beam" then
 			local a0 = attachment(`Beam{i}a`, Vector3.new(at.X, (layer.y0 or 0) * s, at.Z))
-			local a1 = attachment(`Beam{i}b`, Vector3.new(at.X, (layer.y1 or 6) * s, at.Z))
+			local a1 = attachment(`Beam{i}b`, Vector3.new(at.X, (layer.y1 or 6) * s, at.Z) + vec(layer.top, s))
 			local b = Instance.new("Beam")
 			b.Attachment0, b.Attachment1 = a0, a1
 			b.Texture = Sprites.get(layer.sprite)
@@ -393,11 +533,32 @@ local function build(state: State, layers: { Layer }, quality: number)
 			b.Transparency = seq(layer.alpha or { 0.3, 0.3 }, 1)
 			b.LightEmission = layer.glow or 1
 			b.LightInfluence = 0
+			b.Brightness = layer.bright or 1
 			b.FaceCamera = true
-			b.Segments = 1
+			b.Segments = layer.segments or 1
 			b.Parent = root
 			table.insert(state.made, b)
 			table.insert(state.toggles, b)
+			local pulseSpec, curve = layer.pulse, layer.curve
+			if pulseSpec or curve then
+				local alpha = if type(layer.alpha) == "table" then layer.alpha else { layer.alpha or 0.3 }
+				table.insert(state.movers, function(t)
+					if pulseSpec then
+						local k = pulse(pulseSpec, t)
+						local faded = {}
+						for n, a in alpha do
+							faded[n] = 1 - (1 - a) * k
+						end
+						b.Transparency = seq(faded, 1)
+					end
+					if curve then
+						b.CurveSize0 = curve[1] * s * math.sin(t * 2 * math.pi * (curve[2] or 0.2))
+						b.CurveSize1 = -curve[1] * s * math.sin(t * 2 * math.pi * (curve[2] or 0.2) + 1.3)
+					end
+				end)
+			end
+		elseif Signature[kind] then
+			Signature[kind](kit, layer, i, at)
 		else
 			warn(`[PetFx] unknown layer kind "{kind}"`)
 		end
@@ -462,6 +623,7 @@ function PetFx.attach(model: Model, kind: string, key: string, opts: { Quality: 
 		parts = {},
 		movers = {},
 		made = {},
+		conns = {},
 	}
 	build(state, recipe.layers, (opts and opts.Quality) or 1)
 	for _, move in state.movers do
@@ -478,6 +640,10 @@ function PetFx.attach(model: Model, kind: string, key: string, opts: { Quality: 
 		if state.conn then
 			state.conn:Disconnect()
 		end
+		for _, c in state.conns do
+			c:Disconnect()
+		end
+		table.clear(state.conns)
 		for _, inst in state.made do
 			inst:Destroy()
 		end
@@ -495,6 +661,12 @@ function PetFx.attach(model: Model, kind: string, key: string, opts: { Quality: 
 			setVisible(state, on)
 		end,
 		Destroy = destroy,
+		Fire = function(sync: string)
+			local timer = state.timers and state.timers[sync]
+			if timer then
+				timer.next = 0 -- the next update fires it (and cues the pet's gesture)
+			end
+		end,
 	}
 end
 

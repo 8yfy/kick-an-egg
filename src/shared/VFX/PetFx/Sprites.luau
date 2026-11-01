@@ -4,11 +4,47 @@
 -- IMAGE id, not the Decal id) and put the ids in UPLOADED. Until then Studio shows the local copies staged by
 -- tools/preview/stage-art.sh, and live servers use a Roblox built-in texture with one warning per sprite.
 -- "sack_<name>" are the Kick Sack sprites, already uploaded (VFX/SackAura).
+-- "frost_<name>" are the Frost Serpent's own sprites (assets/pet-vfx/vfx_frost_*.png, drawn by
+-- tools/blender/pets/kit/sprites.py): sigil, rune_ring, spark, flake, mist, cube.
+-- "meadow_<name>" are the Meadow pairs' own pixel sprites (zones/zone01_meadow.py): leaf, blossom, honey drop.
+-- "v3_<name>" are the V3 remodel sprites (tools/blender/pets/v3/sprites_v3.py): the top tier's sun, gear and prism
+-- sigils, rays, steam, feather and cog, plus clover, petal, droplet, bubble, sparkle, ripple and shadow; and the
+-- signature effects' shaft (light shafts), arc (lightning), clock_dial and veil (aurora sheets) (sprites_signature.py).
+-- The frost, meadow and v3 sprites are uploaded: Decal ids in tools/world/ids/pet-vfx.json, Image ids below.
 local RunService = game:GetService("RunService")
 
 local Sprites = {}
 
-local UPLOADED: { [string]: string } = {}
+-- Image ids (resolved from the uploaded Decals, tools/world/ids/pet-vfx.json).
+local UPLOADED: { [string]: string } = {
+	frost_cube = "rbxassetid://85676958444440",
+	frost_flake = "rbxassetid://123815258124915",
+	frost_mist = "rbxassetid://114596350917381",
+	frost_rune_ring = "rbxassetid://103729123161806",
+	frost_sigil = "rbxassetid://119563595237549",
+	frost_spark = "rbxassetid://88625969712095",
+	meadow_blossom = "rbxassetid://134096189291924",
+	meadow_honey = "rbxassetid://128887807493843",
+	meadow_leaf = "rbxassetid://113598579979245",
+	v3_arc = "rbxassetid://119541733058589",
+	v3_bubble = "rbxassetid://73367184848295",
+	v3_clock_dial = "rbxassetid://80725111393656",
+	v3_clover = "rbxassetid://73902450345163",
+	v3_cog = "rbxassetid://121925173518465",
+	v3_droplet = "rbxassetid://82969393381613",
+	v3_feather = "rbxassetid://90191710527650",
+	v3_gear_sigil = "rbxassetid://85192584983147",
+	v3_petal = "rbxassetid://96081956109381",
+	v3_prism_sigil = "rbxassetid://132431663406726",
+	v3_rays = "rbxassetid://70464277835228",
+	v3_ripple = "rbxassetid://121273601269778",
+	v3_shadow = "rbxassetid://114372794530941",
+	v3_shaft = "rbxassetid://138816865541863",
+	v3_sparkle = "rbxassetid://77619531977408",
+	v3_steam = "rbxassetid://132881811670369",
+	v3_sun_sigil = "rbxassetid://118282650516582",
+	v3_veil = "rbxassetid://89839204688655",
+}
 
 local SACK: { [string]: string } = {
 	sack_glow = "rbxassetid://71769032644460",
@@ -47,12 +83,21 @@ local NAMES: { [string]: string } = {
 	ember_orange = FIRE,
 	energy_arc_cyan = SPARKLE,
 	feather_light = SPARKLE,
+	frost_cube = SPARKLE,
+	frost_flake = SPARKLE,
+	frost_mist = SMOKE,
+	frost_rune_ring = RING,
+	frost_sigil = RING,
+	frost_spark = SPARKLE,
 	galaxy_nebula = SMOKE,
 	halo_gold = RING,
 	halo_ring = RING,
 	halo_white = RING,
 	leaf_autumn = SPARKLE,
 	leaf_green = SPARKLE,
+	meadow_blossom = SPARKLE,
+	meadow_honey = SPARKLE,
+	meadow_leaf = SPARKLE,
 	lightning_cyan = SPARKLE,
 	mushroom_pink = SPARKLE,
 	planet_orbit_ring = RING,
@@ -71,6 +116,24 @@ local NAMES: { [string]: string } = {
 	snowflake_ice = SPARKLE,
 	soft_glow_green = GLOW,
 	soft_glow_violet = GLOW,
+	v3_arc = GLOW,
+	v3_bubble = RING,
+	v3_clock_dial = RING,
+	v3_clover = SPARKLE,
+	v3_cog = SPARKLE,
+	v3_droplet = SPARKLE,
+	v3_feather = SPARKLE,
+	v3_gear_sigil = RING,
+	v3_petal = SPARKLE,
+	v3_prism_sigil = RING,
+	v3_rays = CORE,
+	v3_ripple = RING,
+	v3_shadow = GLOW,
+	v3_shaft = GLOW,
+	v3_sparkle = SPARKLE,
+	v3_steam = SMOKE,
+	v3_sun_sigil = RING,
+	v3_veil = GLOW,
 	soft_glow_white = GLOW,
 	solar_rays = CORE,
 	spore_magenta = GLOW,
