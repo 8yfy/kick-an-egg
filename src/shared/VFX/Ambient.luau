@@ -9,7 +9,8 @@
 --     "WorldSpin" models (Speed = degrees / second) turn around their pivot's look axis (windmill sails, gears), or
 --     around Y with attribute Axis = "Y" (a lighthouse beam, the shop's roof glove).
 --     Only models within SWAY_RANGE of the camera move, a budgeted slice of them per frame, with one BulkMoveTo.
---   * PointLights and Neon parts tagged "WorldPulse" (attribute Speed) breathe in brightness.
+--   * PointLights and Neon parts tagged "WorldPulse" (attributes Speed, Phase 0..1 = how late in the cycle, Depth
+--     = how far they fade) breathe in brightness; staggered phases make running lights.
 local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 
@@ -182,17 +183,21 @@ function Ambient.start()
 			end
 		end
 		for _, p in pulses do
-			local sp = p:GetAttribute("Speed")
-			local s = 0.5 + 0.5 * math.sin(t * math.pi * 2 * (if typeof(sp) == "number" then sp else 0.4))
+			local sp, ph = p:GetAttribute("Speed"), p:GetAttribute("Phase")
+			local cycle = t * (if typeof(sp) == "number" then sp else 0.4) - (if typeof(ph) == "number" then ph else 0)
+			local s = 0.5 + 0.5 * math.sin(cycle * math.pi * 2)
 			if p:IsA("PointLight") then
 				local b = p:GetAttribute("BaseBrightness")
 				if typeof(b) ~= "number" then
 					b = p.Brightness
 					p:SetAttribute("BaseBrightness", b)
 				end
-				p.Brightness = (b :: number) * (0.6 + 0.4 * s)
+				local depth = p:GetAttribute("Depth")
+				local d = if typeof(depth) == "number" then depth else 0.4
+				p.Brightness = (b :: number) * (1 - d + d * s)
 			elseif p:IsA("BasePart") then
-				p.Transparency = 0.15 * (1 - s)
+				local depth = p:GetAttribute("Depth")
+				p.Transparency = (if typeof(depth) == "number" then depth else 0.15) * (1 - s)
 			end
 		end
 		-- sway / bob: a budgeted slice of the movers each frame (quality levels 1-2 = no motion)

@@ -492,7 +492,7 @@ section("SackService + pens + collecting", function()
 		end
 		check("every pen has its floor frame and owner anchor, no pedestals", areas == 5)
 		local CollectionService = game:GetService("CollectionService")
-		check("lanes + ramp are the landing surfaces", #CollectionService:GetTagged("LandingSurface") == 21)
+		check("the 20 lanes are the landing surfaces (flat start, no ramp)", #CollectionService:GetTagged("LandingSurface") == 20)
 		local Physics = game:GetService("PhysicsService")
 		check(
 			"steered eggs pass through characters (the kicker waits on the pad, on the way home)",

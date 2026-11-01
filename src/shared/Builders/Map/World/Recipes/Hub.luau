@@ -1,7 +1,7 @@
 --!strict
 -- Partner A. Classic brick recipes for the hub: the Boxing Sack Shop pieces (striped barrel-vault roof, boxing glove,
 -- awning, pillars, arched windows, gym props), the Pet Selling Stand pieces (striped canopy, paw board, carved
--- posts, pet props), the Golden Egg centrepiece fountain, egg monuments, pen fences, lamps,
+-- posts, pet props), the Golden Egg centrepiece fountain, pen fences, lamps,
 -- benches and street props, and the village pieces (town houses, gazebo, well, hedges).
 -- Asset space: origin = base centre, +Y up, front = -Z.
 local B = require(script.Parent.Parent.Brick)
@@ -382,15 +382,6 @@ local function centrepiece(m: Model, rng: Random)
 	end
 end
 
-local function monument(m: Model)
-	B.on(m, "StoneDark", V(5, 1.4, 5), 0, -0.4, 0)
-	B.on(m, "Stone", V(4, 2.2, 4), 0, 1.0, 0)
-	B.on(m, "Trim", V(4.5, 0.5, 4.5), 0, 3.1, 0)
-	B.egg(m, "Accent", 4.8, 6.8, 0, 3.6, 0)
-	B.round(m, "Accent2", 0.6, 4.9, 0, 5.6, 0, 10)
-	B.round(m, "Gold", 0.5, 4.7, 0, 6.6, 0, 20)
-end
-
 ---------------------------------------------------------------- fences, lamps, street props
 
 local function post(h: number, w: number)
@@ -652,7 +643,6 @@ Hub.recipes = {
 	end,
 	Bunting = bunting,
 	EggCenterpiece = centrepiece,
-	EggMonument = monument,
 	FencePost = post(4.2, 1.2),
 	GatePost = post(6.5, 1.7),
 	FenceRail = function(m: Model)
