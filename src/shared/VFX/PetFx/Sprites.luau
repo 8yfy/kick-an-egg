@@ -26,7 +26,9 @@ local UPLOADED: { [string]: string } = {
 	meadow_blossom = "rbxassetid://134096189291924",
 	meadow_honey = "rbxassetid://128887807493843",
 	meadow_leaf = "rbxassetid://113598579979245",
+	v3_arc = "rbxassetid://119541733058589",
 	v3_bubble = "rbxassetid://73367184848295",
+	v3_clock_dial = "rbxassetid://80725111393656",
 	v3_clover = "rbxassetid://73902450345163",
 	v3_cog = "rbxassetid://121925173518465",
 	v3_droplet = "rbxassetid://82969393381613",
@@ -37,9 +39,11 @@ local UPLOADED: { [string]: string } = {
 	v3_rays = "rbxassetid://70464277835228",
 	v3_ripple = "rbxassetid://121273601269778",
 	v3_shadow = "rbxassetid://114372794530941",
+	v3_shaft = "rbxassetid://138816865541863",
 	v3_sparkle = "rbxassetid://77619531977408",
 	v3_steam = "rbxassetid://132881811670369",
 	v3_sun_sigil = "rbxassetid://118282650516582",
+	v3_veil = "rbxassetid://89839204688655",
 }
 
 local SACK: { [string]: string } = {

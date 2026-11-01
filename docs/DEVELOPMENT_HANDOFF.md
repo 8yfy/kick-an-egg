@@ -46,13 +46,12 @@
     - `light` takes `flicker` and `cycle`.
     - Handles get `Fire(sync)`.
   - **New sprites:** `assets/pet-vfx/vfx_v3_{shaft,arc,clock_dial,veil}.png` (`tools/blender/pets/v3/sprites_signature.py`).
-    Not uploaded yet, so live servers use the built-in fallback textures for these four until their Image ids are in
-    `PetFx/Sprites`.
+    Uploaded 2026-11-01: Decal ids are in `tools/world/ids/pet-vfx.json` and Image ids in `PetFx/Sprites`. All 10
+    textures the three pets' effects use load from uploaded ids in Studio.
   - **Verified in Studio (single-player Play):** the `ServerTests` hero and premium-pair checks pass 57/57, and the
     ladder still rises (titan 340 < seraph 445). Each pet was recorded idling, firing its special and roaming in a pen.
     No new script errors.
   - **Not done:**
-    - the four sprite uploads;
     - rebuilding the mesh deliverables (`KickAnEgg_PremiumPets`) for the new joints;
     - unique motion and effects for the remaining pets.
 
