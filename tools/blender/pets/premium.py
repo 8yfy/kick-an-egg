@@ -248,9 +248,14 @@ def build():
                     bmesh.ops.bevel(bm, geom=sharp, offset=w, offset_type="OFFSET", segments=1, profile=0.5,
                                     affect="EDGES", clamp_overlap=True)
             smooth = ob["rbx_shape"] == "Ball"
-            uvl = bm.loops.layers.uv.verify()
-            cl = bm.loops.layers.float_color.new("Col") if "Col" not in bm.loops.layers.float_color \
-                else bm.loops.layers.float_color["Col"]
+            # exactly one UV layer and one colour layer per part, same names on every part: a part that brings its
+            # own layers (the Roman-numeral text meshes) would otherwise add a second UV layer to the merged mesh,
+            # and its zeroed UVs on every other part map them all to palette cell 0
+            for layers in (bm.loops.layers.uv, bm.loops.layers.float_color, bm.loops.layers.color):
+                for layer in list(layers.values()):
+                    layers.remove(layer)
+            uvl = bm.loops.layers.uv.new("UVMap")
+            cl = bm.loops.layers.float_color.new("Col")
             rgb = [*[x ** 2.2 for x in srgb(ob["rbx_color"])], 1.0]
             i = cells[kind][ob["rbx_color"]]
             uv = ((i % 8 + 0.5) / 8, (i // 8 + 0.5) / 8)
@@ -330,6 +335,7 @@ def motions(rig):
             t = f / 72 * math.tau
             return {"Body": ((S(t) * 1.0, 0, 0), (0, 0.04 * S(t), 0)),
                     "Head": ((3 * S(t + 0.6), 6 * S(t), 0), (0, 0, 0)),
+                    "Mane": ((1 * S(t + 0.6), 2.4 * S(t), 0), (0, 0.035 * S(t), 0)),  # swells with the breath
                     "Tail": ((4 * S(2 * t), 12 * S(t), 0), (0, 0, 0))}
 
         def walk(f):
@@ -339,11 +345,13 @@ def motions(rig):
                     "ArmR": ((-a, 0, 0), (0, 0, 0)), "LegL": ((-a, 0, 0), (0, 0, 0)),
                     "Body": ((0, 0, 1.5 * S(p)), (0, 0.05 * math.cos(2 * p), 0)),
                     "Head": ((-2 * math.cos(2 * p), 3 * S(p), 0), (0, 0, 0)),
+                    "Mane": ((-0.6 * math.cos(2 * p), 1.2 * S(p), 0), (0, 0, 0)),
                     "Tail": ((0, 10 * S(p), 0), (0, 0, 0))}
 
         def special(f):
             e = env(f, 4, 18, 40, 58)
             return {"Head": ((22 * e, 0, 0), (0, 0, 0)), "Body": ((4 * e, 0, 0), (0, 0.12 * e, 0)),
+                    "Mane": ((15 * e, 0, 0), (0, 0, 0.12 * e)),  # the mane flares back as the head rises
                     "Tail": ((20 * e, 8 * S(f / 60 * 2 * math.tau) * e, 0), (0, 0, 0))}
         return {"Idle": (72, idle), "Walk": (32, walk), "Special": (60, special)}
     if rig == "mech":
@@ -352,7 +360,7 @@ def motions(rig):
             return {"Body": ((0, 0, 0), (0, 0.03 * S(t), 0)), "ArmL": ((3 * S(t), 0, 0), (0, 0, 0)),
                     "ArmR": ((-3 * S(t), 0, 0), (0, 0, 0)), "Head": ((0, 8 * S(t), 0), (0, 0, 0)),
                     "HeartHands": ((0, 0, -360 * f / 72), (0, 0, 0)),
-                    **{"Gear%d" % i: ((0, 0, (90 if i % 2 else -90) * f / 72), (0, 0, 0)) for i in range(1, 9)}}
+                    **{"Gear%d" % i: ((0, 0, (90 if i % 2 else -90) * f / 72), (0, 0, 0)) for i in range(1, 8)}}
 
         def walk(f):
             p = f / 40 * math.tau
@@ -366,7 +374,7 @@ def motions(rig):
             return {"ArmL": ((55 * e, 0, -8 * e), (0, 0, 0)), "ArmR": ((55 * e, 0, 8 * e), (0, 0, 0)),
                     "Body": ((4 * e, 0, 0), (0, 0.08 * e, 0)), "Head": ((10 * e, 0, 0), (0, 0, 0)),
                     "HeartHands": ((0, 0, -1440 * f / 60), (0, 0, 0)),
-                    **{"Gear%d" % i: ((0, 0, (360 if i % 2 else -360) * f / 60), (0, 0, 0)) for i in range(1, 9)}}
+                    **{"Gear%d" % i: ((0, 0, (360 if i % 2 else -360) * f / 60), (0, 0, 0)) for i in range(1, 8)}}
         return {"Idle": (72, idle), "Walk": (40, walk), "Special": (60, special)}
 
     def idle(f):

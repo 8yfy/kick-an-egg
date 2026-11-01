@@ -9,8 +9,9 @@ The bones sit at the BlockBuilder joint pivots and use the same names as the gam
   - +X rotation lifts the front or swings a foot forward.
   - Y rotation turns.
   - Z rotation rolls.
-- **Heavenly Lion (quadruped).** Root → Body → Head and Tail. Root → ArmL, ArmR (front legs), LegL, LegR. The legs
-  hang off Root so the paws stay planted while the body breathes and bobs.
+- **Heavenly Lion (quadruped).** Root → Body → Head, Mane and Tail. Root → ArmL, ArmR (front legs), LegL, LegR.
+  The legs hang off Root so the paws stay planted while the body breathes and bobs. Mane pivots at the mane's centre,
+  so it can swell, follow the head and flare on the roar (the game's `Mane` joint).
 - **Prism Seraph (floating).** Root → Body → Head, ArmL/R, WingL/R, Halo, Orbit. Orbit carries the floating diamond
   crystals and gold stars. Halo carries the small spinning ring.
 - **Clockwork Titan (rigid mechanical).** Root → Body → Head, ArmL/R, HeartHands, Gear1-7. Root → LegL, LegR.
@@ -21,9 +22,9 @@ The bones sit at the BlockBuilder joint pivots and use the same names as the gam
 
 | Pet | Clip | Frames (s) | Loop | What it does |
 |---|---|---|---|---|
-| Lion | `HeavenlyLion_Idle` | 72 (2.4) | yes | breathing body bob, head nod and turn, tail sway |
+| Lion | `HeavenlyLion_Idle` | 72 (2.4) | yes | breathing body bob (the mane swells with it), head nod and turn, tail sway |
 | Lion | `HeavenlyLion_Walk` | 32 (1.07) | yes | diagonal-pair stride ±18°, body bob twice per cycle, roll, head counter-nod, tail sway |
-| Lion | `HeavenlyLion_Special` | 60 (2.0) | no | majestic head raise (22°), the body rises and rears slightly, the tail lifts, then settles |
+| Lion | `HeavenlyLion_Special` | 60 (2.0) | no | majestic head raise (22°), the mane flares back, the body rises and rears slightly, the tail lifts, then settles |
 | Seraph | `PrismSeraph_Idle` | 72 (2.4) | yes | hover bob 0.25, slow wing flap ±10°, Orbit turns once, the halo counter-turns, arms and head drift |
 | Seraph | `PrismSeraph_Float` | 48 (1.6) | yes | leans 8° into travel, faster flap ±18°, bank roll, Orbit and halo turn once |
 | Seraph | `PrismSeraph_Special` | 60 (2.0) | no | wings spread 26°, arms open, head lifts, rises 0.4, Orbit spins twice |
@@ -31,7 +32,7 @@ The bones sit at the BlockBuilder joint pivots and use the same names as the gam
 | Titan | `ClockworkTitan_Walk` | 40 (1.33) | yes | heavy alternating stride ±14°, arms counter-swing ±10°, the body drops on each footfall, the clock runs |
 | Titan | `ClockworkTitan_Special` | 60 (2.0) | no | fists raised 55°, leans back, the clock hands spin four times, gears make a full turn |
 
-The 4-frame strips (`Animations/*_strip.png`) show each clip from the hero angle.
+The 4-frame strips (`Animations/*_strip.jpg`) show each clip from the hero angle.
 
 ## Bringing them into Roblox
 

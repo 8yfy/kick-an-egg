@@ -51,8 +51,11 @@
   - **Verified in Studio (single-player Play):** the `ServerTests` hero and premium-pair checks pass 57/57, and the
     ladder still rises (titan 340 < seraph 445). Each pet was recorded idling, firing its special and roaming in a pen.
     No new script errors.
+  - **Mesh deliverables rebuilt (2026-11-01):** `KickAnEgg_PremiumPets` for the new joints: the lion's Mane bone (9
+    bones, 16 meshes); the titan's HeartHands and Gear1-7 now come from the model's own joints. This also fixes a UV
+    bug that rendered the titan's brass arms as dark iron. All three re-imports validate, with 0 texture/colour
+    mismatches.
   - **Not done:**
-    - rebuilding the mesh deliverables (`KickAnEgg_PremiumPets`) for the new joints;
     - unique motion and effects for the remaining pets.
 
 - **Frost Serpent replaces the Ice Dragon (2026-10-27, Partner A, branch `a/frost-serpent`).**

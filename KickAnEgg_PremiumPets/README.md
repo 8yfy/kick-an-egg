@@ -41,11 +41,11 @@ ground level, and the pet faces -Z (Roblox front).
 | Identity | majestic, royal, radiant | ethereal, crystalline, floating | massive, industrial, ancient |
 | Size (W × H × D) | 6.7 × 10.7 × 10.4 | 12.1 × 12.1 (top; it floats about 1.1 above the ground) × 8.6 | 7.3 × 9.5 × 3.0 |
 | Triangles | 16,568 | 17,616 | 16,748 |
-| Meshes | 14 (7 solid, 7 glow) | 22 (7 solid, 8 glow, 7 crystal) | 20 (14 solid, 6 glow) |
+| Meshes | 16 (8 solid, 8 glow) | 22 (7 solid, 8 glow, 7 crystal) | 20 (14 solid, 6 glow) |
 | Materials | 2 (Solid, Glow) | 3 (Solid, Glow, Crystal) | 2 (Solid, Glow) |
-| Bones | 8: Root, Body, Head, ArmL/R (front legs), LegL/R, Tail | 9: Root, Body, Head, ArmL/R, WingL/R, Halo, Orbit | 15: Root, Body, Head, ArmL/R, LegL/R, HeartHands, Gear1-7 |
+| Bones | 9: Root, Body, Mane, Head, ArmL/R (front legs), LegL/R, Tail | 9: Root, Body, Head, ArmL/R, WingL/R, Halo, Orbit | 15: Root, Body, Head, ArmL/R, LegL/R, HeartHands, Gear1-7 |
 | Clips | Idle 72 f, Walk 32 f, Special 60 f | Idle 72 f, Float 48 f, Special 60 f | Idle 72 f, Walk 40 f, Special 60 f |
-| Source parts | 444 | 445 | 332 + 24 Roman numerals |
+| Source parts | 445 | 445 | 340 + 24 Roman numerals |
 
 All three are inside the 8,000-18,000 triangle target.
 
@@ -79,6 +79,10 @@ All three are inside the 8,000-18,000 triangle target.
   - **Bevel:** every block, wedge and cylinder edge sharper than 30° gets a one-segment chamfer of up to 0.06 studs.
     Thin plates get a proportionally smaller one. Studs are dropped.
   - **Merge:** one mesh per bone and kind (Solid, Glow, Crystal), so pieces that move together are one draw call.
+    Every part gets exactly one UV layer and one colour layer before merging. Before 2026-11-01, the titan's
+    Roman-numeral text added a second UV layer to its arm meshes, so they sampled the wrong palette cell and
+    rendered dark iron instead of brass. The rebuild checks that every loop's texture colour matches its vertex
+    colour: 0 mismatches on all three pets.
   - **Palette textures:** UVs point at 32 px cells of a 256 × 256 palette, so colours never split a mesh. Solid meshes
     get colour, metalness and roughness maps. Gold and brass are metallic; iron is semi-metallic.
   - **Rig:** bones sit at the BlockBuilder joint pivots and use the same names as the game's Motor6Ds. Skinning is
@@ -114,9 +118,9 @@ Both files were re-imported into Blender and compared with the source:
 
 | | Lion FBX / GLB | Seraph FBX / GLB | Titan FBX / GLB |
 |---|---|---|---|
-| Skinned meshes | 14 / 14 | 22 / 22 | 20 / 20 |
+| Skinned meshes | 16 / 16 | 22 / 22 | 20 / 20 |
 | Triangles | 16,568 / 16,568 | 17,616 / 17,616 | 16,748 / 16,748 |
-| Bones | 8 / 8 | 9 / 9 | 15 / 15 |
+| Bones | 9 / 9 | 9 / 9 | 15 / 15 |
 | Clips | 3 / 3 | 3 / 3 | 3 / 3 |
 | Size matches the source | yes / yes | yes / yes | yes / yes |
 

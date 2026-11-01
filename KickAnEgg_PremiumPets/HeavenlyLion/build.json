@@ -12,6 +12,11 @@
    3.569999933242798,
    0.3149999976158142
   ],
+  "Mane": [
+   0.0,
+   5.512499809265137,
+   -1.2599999904632568
+  ],
   "Head": [
    0.0,
    4.934999465942383,
@@ -95,8 +100,8 @@
     "FFD966",
     "FFFFFF"
    ],
-   "parts": 48,
-   "tris": 1536
+   "parts": 31,
+   "tris": 932
   },
   "HeavenlyLion_Body_Solid": {
    "joint": "Body",
@@ -107,8 +112,8 @@
     "E8E1CF",
     "F6F2E8"
    ],
-   "parts": 153,
-   "tris": 5988
+   "parts": 51,
+   "tris": 1764
   },
   "HeavenlyLion_Head_Glow": {
    "joint": "Head",
@@ -179,6 +184,27 @@
    "parts": 25,
    "tris": 1076
   },
+  "HeavenlyLion_Mane_Glow": {
+   "joint": "Mane",
+   "kind": "Glow",
+   "colors": [
+    "FFD966"
+   ],
+   "parts": 17,
+   "tris": 604
+  },
+  "HeavenlyLion_Mane_Solid": {
+   "joint": "Mane",
+   "kind": "Solid",
+   "colors": [
+    "C9932E",
+    "E2B04A",
+    "E8E1CF",
+    "F6F2E8"
+   ],
+   "parts": 102,
+   "tris": 4224
+  },
   "HeavenlyLion_Tail_Glow": {
    "joint": "Tail",
    "kind": "Glow",
@@ -202,5 +228,5 @@
   }
  },
  "tris": 16568,
- "parts_source": 443
+ "parts_source": 444
 }
